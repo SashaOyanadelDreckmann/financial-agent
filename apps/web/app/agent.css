@@ -1,0 +1,1022 @@
+/* ================================================= */
+/* AGENT — PREMIUM CHAT (AISLADO Y ESTABLE)          */
+/* ================================================= */
+
+.agent-page {
+  --bg-main: radial-gradient(circle at 20% 20%, #2c3aa2, #07080d);
+
+  --ink: rgba(255,255,255,0.92);
+  --ink-muted: rgba(255, 255, 255, 0.657);
+
+  --glass-strong: rgba(255,255,255,0.12);
+  --glass-soft: rgba(255,255,255,0.08);
+
+  --border-soft: rgba(255,255,255,0.18);
+
+  --violet: rgba(130, 110, 220, 0.714);
+  --blue:   rgba(95,160,175,0.18);
+  --green:  rgba(110,170,150,0.22);
+  --amber:  rgba(175,150,110,0.22);
+
+  height: 80vh;
+
+  background: var(--bg-main);
+  color: var(--ink);
+}
+
+/* ================================================= */
+/* LAYOUT                                            */
+/* ================================================= */
+
+.agent-layout {
+  position: relative; /* clave para anclar absolutos */
+  height: 90%;
+  display: grid;
+  grid-template-columns: 1fr; /* ⬅️ una sola columna */
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+
+/* ================================================= */
+/* CHAT                                              */
+/* ================================================= */
+
+.agent-chat {
+  height: clamp(560px, 860vh, 860px);
+  max-height: 96vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  grid-column: 1 / -1;
+  width: 100%;
+  padding-right: 48%;
+  
+
+  padding: 32px;
+  border-radius: 28px;
+
+  /* 🖼️ fondo con imagen */
+  background-image: url('/fondo8.png');
+  opacity: 9.95;
+  background-size: 100%;
+  background-position: right 105% top 10%;
+
+
+  background-repeat: no-repeat;
+
+  /* overlay sutil para legibilidad */
+  position: relative;
+  border: 1px solid rgba(209, 205, 205, 0.088);
+}
+.agent-chat::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+
+  background: rgba(154, 148, 148, 0.178); /* 👈 ajusta aquí */
+  z-index: 0;
+}
+.agent-chat > * {
+  position: relative;
+  z-index: 1;
+}
+
+.agent-chat-header {
+  flex: 0 0 auto;
+  margin-bottom: 20px;
+  color: black;
+}
+
+.agent-chat-header h1 {
+  font-size: 40px;
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  margin: 0;
+    color: rgb(240, 238, 238);
+}
+
+.agent-chat-header p {
+  margin-top: 6px;
+  color: var(--ink-muted);
+    color: rgb(255, 255, 255);
+}
+
+.agent-chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 🔒 evita que el body empuje el chat */
+  color: rgb(251, 249, 249);
+    width: 44%;
+  max-width: 60%;
+  gap: 16px;  
+}
+
+
+/* ================================================= */
+/* THREAD (CAJITA CON SCROLL)                         */
+/* ================================================= */
+
+.agent-thread {
+  /* ✅ La "cajita" real: alto acotado y scroll interno */
+  height: clamp(280px, 52vh, 520px);
+  max-height: 52vh;
+  overflow-y: auto;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding-right: 6px;
+  min-height: 0;
+  padding-bottom: 20px;
+}
+
+
+/* ================================================= */
+/* BUBBLES                                           */
+/* ================================================= */
+
+.agent-bubble {
+  max-width: 92%;
+  padding: 10px 20px;
+  border-radius: 10px;
+
+  background: var(--glass-soft);
+  border: 1px solid var(--border-soft);
+
+  font-size: 12px;
+  line-height: 1.7;
+  color: white;
+}
+
+.agent-bubble.user {
+  align-self: flex-end;
+  background: rgba(41, 40, 40, 0.55);
+  color: rgb(242, 238, 238)
+  ;
+}
+
+.agent-bubble.assistant {
+  align-self: flex-start;
+  background: rgba(0, 0, 0, 0.489);
+}
+
+.agent-bubble.muted {
+  background: transparent;
+  border: none;
+  opacity: 0.55;
+  font-style: italic;
+   color: rgb(255, 255, 255);
+
+}
+
+/* ================================================= */
+/* INPUT                                             */
+/* ================================================= */
+
+/* ================================================= */
+/* INPUT — LEGIBILIDAD EN FONDO CLARO                */
+/* ================================================= */
+
+.agent-input textarea {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #ffffffb7;                     /* negro suave */
+  background: transparent;
+  margin-top: 16px;
+
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.752);       /* antes 14px */
+  font-size: 50px;       /* antes 16px */
+     /* más compacto */
+
+  max-height: 64px;
+
+  font-size: 17px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+
+  resize: none;
+  max-height: 10px;
+  overflow-y: auto;
+}
+
+
+
+/* ================================================= */
+/* CONTROLES                                         */
+/* ================================================= */
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  color: #1a1a1a;
+}
+
+/* Botones legibles sobre fondo claro */
+.controls .continue-button,
+.controls .mic-button {
+  background: rgba(0, 0, 0, 0.107);       /* contraste sutil */
+  color: #5a5858;
+  border: 1px solid rgba(0, 0, 0, 0.418);
+  width: 20%;
+}
+
+/* Hover natural */
+.controls .continue-button:hover,
+.controls .mic-button:hover {
+  background: rgba(0, 0, 0, 0.844);
+  border-color: rgba(0,0,0,0.4);
+}
+
+/* ================================================= */
+/* HINT                                              */
+/* ================================================= */
+
+.hint {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  color: rgba(0,0,0,0.45);
+}
+
+/* ================================================= */
+/* PANEL                                             */
+/* ================================================= */
+
+.agent-panel {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+
+  width: 48%;
+  height: calc(100% - 1px);
+
+  padding: 1px;
+  overflow-y: auto;
+
+  pointer-events: auto;
+  z-index: 3;
+}
+
+/* ================================================= */
+/* PANEL GRID                                        */
+/* ================================================= */
+
+.panel-grid {
+  height: 90%;
+  display: grid;
+
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: auto;
+  gap: 7px;
+
+  overflow: hidden;
+}
+
+.finance-dual-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 90%;
+}
+
+/* ================================================= */
+/* PANEL CARD — FIXED + IMAGE + SCROLL                */
+/* ================================================= */
+
+.panel-card {
+  position: relative;
+  height: 95%;
+  min-height: 0;
+  width: 90%;
+
+  display: flex;
+  flex-direction: column;
+
+  padding: 10px 10px;
+  border-radius: 20px;
+
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
+
+  overflow: hidden; /* 🔒 nunca crece */
+}
+
+/* ================================================= */
+/* CARD BACKGROUND IMAGE (CONTROL POR VARIABLES)     */
+/* ================================================= */
+
+.panel-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background-image: var(--card-bg);
+  background-size: cover;
+  background-position: var(--bg-position);
+
+  transform: scale(var(--bg-scale, 0.05));
+  z-index: 0;
+}
+
+/* ================================================= */
+/* OVERLAY (CLARIDAD / OSCURIDAD POR CARD)            */
+/* ================================================= */
+
+.panel-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background: rgba(
+    var(--overlay-color, 0,0,0),
+    var(--overlay-opacity, 2.5)
+  );
+
+  z-index: 0;
+}
+
+/* ================================================= */
+/* CONTENT ABOVE IMAGE                               */
+/* ================================================= */
+
+.panel-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ================================================= */
+/* HEADER TEXT                                       */
+/* ================================================= */
+
+.panel-label {
+  flex: 0 0 auto;
+  margin-bottom: 6px;
+
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+
+  color: rgba(255,255,255,0.7);
+}
+
+.panel-value {
+  flex: 0 0 auto;
+  margin-bottom: 10px;
+
+  font-size: 13px;
+  font-weight: 300;
+  color: rgba(255,255,255,0.9);
+}
+
+/* ================================================= */
+/* SCROLLABLE BODY (INVISIBLE SCROLLBAR)              */
+/* ================================================= */
+
+.panel-text {
+  flex: 1 1 auto;
+  min-height: 0;
+
+  overflow-y: auto;
+  padding-right: 0.5px;
+
+  font-size: 13px;
+  line-height: 1.0;
+  color: rgba(255,255,255,0.78);
+
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* IE */
+}
+
+.panel-text::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+
+.panel-card:hover::before {
+  transform: scale(calc(var(--bg-scale, 1.05) + 0.03));
+  transition: transform 0.6s ease;
+}
+
+
+
+/* Colores */
+.violet { background: var(--violet); }
+.blue   { background: var(--blue); }
+.green  { background: var(--green); }
+.orange { background: var(--amber); }
+
+/* Grid spans */
+
+.x1 { grid-column: span 1; }
+.x2 { grid-column: span 2; }
+.x3 { grid-column: span 3; }
+.x5 { grid-column: span 5; }
+.x6 { grid-column: span 6; }
+
+.y0 { grid-row: span 0; }
+.y1 { grid-row: span 1; }
+.y2 { grid-row: span 2; }
+.y3 { grid-row: span 3; }
+
+
+/* ================================================= */
+/* TEXT                                              */
+/* ================================================= */
+
+.panel-label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+
+  margin-bottom: 6px;
+}
+
+.panel-value {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.4;
+}
+
+
+/* ================================================= */
+/* NEWS / INTERVIEW CARDS                             */
+/* ================================================= */
+
+.news-card,
+.interview-card {
+  padding: 0px;
+  overflow: hidden;
+  height: 90%;
+}
+
+.news-link,
+.interview-link {
+  display: block;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+}
+
+.news-image,
+.interview-image {
+  height: 150%;
+  min-height: 110px;
+  width: 100%;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.news-image {
+  background-image: url('/news-preview.jpg');
+  
+}
+
+.interview-image {
+  background-image:
+    linear-gradient(
+      rgba(154, 148, 148, 0.26),
+      rgba(154, 148, 148, 0.218)
+    ),
+    url('/fondo8.png');
+  background-size: 350%;
+  background-position: 200% 1%;
+
+}
+
+
+
+
+.news-image::after,
+.interview-image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,0.25),
+    rgba(0,0,0,0.45)
+  );
+}
+
+/* Contenido centrado */
+.news-overlay,
+.interview-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+
+  padding: 10px;
+  text-align: center;
+}
+
+/* Título editorial */
+.news-title,
+.interview-title {
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+
+  color: #fff;
+  line-height: 1.;
+}
+
+
+/* ================================================= */
+/* PROFILE CARD — PRO                                */
+/* ================================================= */
+
+.profile-card.premium {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  height: 95%;
+
+  padding: 10px;
+  border-radius: 22px;            /* 🔥 CLAVE */
+
+  /* 🖼️ fondo con imagen */
+  background-image: url('/fondo8.png');
+  background-size: 700%;
+
+  background-repeat: no-repeat;
+
+  /* borde igual a las otras cards */
+  border: 1px solid rgba(255, 255, 255, 0.237);
+
+
+}
+.profile-card.premium::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+
+  background: rgba(154, 148, 148, 0.216); /* 👈 ajusta aquí */
+  z-index: 0;
+  border-radius: 22px; 
+
+
+}
+
+/* Badge inyectado */
+.profile-badge {
+  position: absolute;
+  top: 12px;
+  right: 10px;
+
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+
+
+
+}
+
+/* HEADER */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-avatar {
+  width: 60px;
+  height: 44px;
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 500;
+  font-size: 14px;
+
+  background: rgba(208, 204, 204, 0.573);
+  color: #000;
+}
+
+.profile-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.profile-subtitle {
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+}
+
+/* META */
+.profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Pills */
+.pill {
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+* COHERENCE */
+.coherence {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.coherence-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255,255,255,0.65);
+}
+
+.coherence-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.15);
+  overflow: hidden;
+}
+
+.coherence-fill {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(70, 81, 22, 0.814),
+    rgb(126, 163, 171)
+  );
+}
+/* ================================================= */
+/* RESPONSIVE                                        */
+/* ================================================= */
+
+@media (max-width: 1024px) {
+  .agent-layout {
+    grid-template-columns: 1fr;
+    padding: 24px;
+  }
+
+  .agent-panel {
+    display: none;
+  }
+}
+/* ================================================= */
+/* SIMULACIONES — PDF STACK (NO CARD)                */
+/* ================================================= */
+
+
+/* ================================================= */
+/* LABEL                                             */
+/* ================================================= */
+
+.simulations-label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 14px;
+}
+
+
+/* ================================================= */
+/* META                                              */
+/* ================================================= */
+
+.simulations-meta {
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+}
+
+/* ================================================= */
+/* SCROLL INVISIBLE (para vistas futuras)            */
+/* ================================================= */
+
+.simulations-scroll {
+  overflow-y: auto;
+  scrollbar-width: none;       /* Firefox */
+}
+
+.simulations-scroll::-webkit-scrollbar {
+  display: none;               /* WebKit */
+}
+
+.simulations-slot { cursor: pointer; }
+.pdf-stack { position: relative; height: 10px; margin-top: 1px; }
+.pdf-sheet {
+  position: absolute;
+  width: 140px;
+  height: 130px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.pdf-sheet:nth-child(1) { transform: translate(0px, 10px); z-index: 1; }
+.pdf-sheet:nth-child(2) { transform: translate(10px, 5px); z-index: 2; }
+.pdf-sheet:nth-child(3) { transform: translate(20px, 0px); z-index: 3; }
+
+.pdf-preview {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none; /* para que el click sea de la tarjeta */
+}
+
+
+/* ================================================= */
+/* DOCUMENTS (EDITORIAL)                              */
+/* ================================================= */
+
+.agent-bubble.artifact,
+.agent-bubble.citation {
+  background: transparent;
+  border: none;
+  padding: 0;
+  max-width: 100%;
+}
+
+.doc-bubble {
+  width: min(720px, 100%);
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.30);
+  overflow: hidden;
+  box-shadow: 0 18px 44px rgba(0,0,0,0.45);
+}
+
+.doc-top {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 14px 14px;
+}
+
+.doc-title {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: rgba(255,255,255,0.92);
+}
+
+.doc-subtitle {
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.55);
+}
+
+.doc-desc {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255,255,255,0.66);
+  max-width: 520px;
+}
+
+.doc-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.doc-btn {
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.82);
+  background: rgba(255,255,255,0.04);
+  transition: transform 0.12s ease, background 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
+}
+
+.doc-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.28);
+}
+
+.doc-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.doc-btn-primary {
+  border-color: rgba(255,255,255,0.28);
+  background: rgba(255,255,255,0.10);
+}
+
+.doc-btn-primary.is-saved {
+  background: rgba(120, 255, 190, 0.10);
+  border-color: rgba(120, 255, 190, 0.22);
+}
+
+.doc-preview {
+  padding: 14px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  cursor: pointer;
+}
+
+.doc-preview-img {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  display: block;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.doc-preview-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.doc-a4 {
+  width: 86px;
+  height: 120px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+}
+
+.doc-preview-hint {
+  font-size: 12px;
+  color: rgba(255,255,255,0.62);
+}
+
+.doc-error {
+  padding: 10px 14px 14px;
+  font-size: 12px;
+  color: rgba(255,140,140,0.92);
+}
+
+/* ================================================= */
+/* CITATIONS (MICRO BUBBLES)                          */
+/* ================================================= */
+
+.citation-bubble {
+  width: min(620px, 100%);
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  padding: 10px 12px;
+}
+
+.citation-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.citation-pill {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.72);
+}
+
+.citation-source {
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+}
+
+.citation-link {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(255,255,255,0.86);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255,255,255,0.22);
+  padding-bottom: 2px;
+  word-break: break-word;
+}
+
+.citation-link:hover {
+  border-bottom-color: rgba(255,255,255,0.55);
+}
+
+
+/* ================================================= */
+/* META                                              */
+/* ================================================= */
+
+.simulations-meta {
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+}
+
+/* ================================================= */
+/* SCROLL INVISIBLE (para vistas futuras)            */
+/* ================================================= */
+
+.simulations-scroll {
+  overflow-y: auto;
+  scrollbar-width: none;       /* Firefox */
+}
+
+.simulations-scroll::-webkit-scrollbar {
+  display: none;               /* WebKit */
+}
+
+.simulations-slot { cursor: pointer; }
+.pdf-stack { position: relative; height: 10px; margin-top: 1px; }
+.pdf-sheet {
+  position: absolute;
+  width: 140px;
+  height: 130px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.pdf-sheet:nth-child(1) { transform: translate(0px, 10px); z-index: 1; }
+.pdf-sheet:nth-child(2) { transform: translate(10px, 5px); z-index: 2; }
+.pdf-sheet:nth-child(3) { transform: translate(20px, 0px); z-index: 3; }
+
+.pdf-preview {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none; /* para que el click sea de la tarjeta */
+}
+
+/* ================================================= */
+/* CHAT — Burbujas PRO (sin tocar layout)            */
+/* ================================================= */
+
+.agent-bubble {
+  transition: background 0.25s ease, transform 0.15s ease;
+}
+
+.agent-bubble.user {
+  background: rgba(255,255,255,0.14);
+  border-radius: 18px 18px 6px 18px;
+  font-size: 14px;
+}
+
+.agent-bubble.assistant {
+  border-radius: 18px 18px 18px 6px;
+}
+
+.agent-bubble--document {
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.10),
+    rgba(255,255,255,0.04)
+  );
+  border: 1px solid rgba(255,255,255,0.18);
+}
+
+.agent-doc-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.agent-doc-heading {
+  font-size: 11px;
+  opacity: 0.65;
+  text-transform: uppercase;
+  margin-top: 10px;
+}
+
+.agent-doc-content {
+  font-size: 13px;
+  white-space: pre-line;
+}
+
+/* Animación sutil */
+.agent-bubble {
+  animation: chatIn 0.18s ease-out;
+}
+
+@keyframes chatIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

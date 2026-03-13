@@ -1,0 +1,6277 @@
+# WEB SNAPSHOT
+# Generated at: viernes, 13 de marzo de 2026, 01:26:42 -03
+
+==========================
+WEB TREE
+==========================
+apps/web
+├── app
+│   ├── agent
+│   │   └── page.tsx
+│   ├── api
+│   │   ├── artifacts
+│   │   │   └── save
+│   │   │       └── route.ts
+│   │   └── transcribe
+│   │       └── route.ts
+│   ├── diagnosis
+│   │   ├── latest
+│   │   │   └── route.ts
+│   │   └── page.tsx
+│   ├── followup
+│   ├── intake
+│   │   ├── steps
+│   │   │   ├── CashflowStep.tsx
+│   │   │   ├── ContextStep.tsx
+│   │   │   ├── KnowledgeStep.tsx
+│   │   │   ├── ProductsStep.tsx
+│   │   │   ├── SavingsStep.tsx
+│   │   │   └── index.ts
+│   │   └── page.tsx
+│   ├── interview
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── login
+│   │   └── page.tsx
+│   ├── register
+│   │   └── page.tsx
+│   ├── agent.css
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
+├── components
+│   ├── agent
+│   │   ├── cards
+│   │   │   └── DocumentCard.tsx
+│   │   ├── AgentBlockBubble.tsx
+│   │   ├── AgentBlocksRenderer.tsx
+│   │   └── ChartBlockRenderer.tsx
+│   ├── conversation
+│   │   ├── ArtifactBubble.tsx
+│   │   ├── CitationBubble.tsx
+│   │   ├── ChartBlock.tsx
+│   │   ├── DocumentBubble.tsx
+│   │   ├── QuestionCard.tsx
+│   │   ├── SummaryCard.tsx
+│   │   └── test.tsx
+│   ├── diagnosis
+│   │   ├── DiagnosticNarrative.tsx
+│   │   ├── FinancialProfileCard.tsx
+│   │   ├── HypothesesList.tsx
+│   │   ├── OpenQuestionsCard.tsx
+│   │   ├── TensionsList.tsx
+│   │   └── index.ts
+│   ├── layout
+│   │   └── AnimatedBackground.tsx
+│   ├── motion
+│   │   ├── FadeIn.tsx
+│   │   └── SlideUp.tsx
+│   ├── ui
+│   │   ├── FormBlock.tsx
+│   │   └── TypewriterText.tsx
+│   ├── ChatRenderer.tsx
+│   ├── PanelCard.tsx
+│   └── ProfileCard.tsx
+├── lib
+│   ├── types
+│   │   └── chat.ts
+│   ├── agent.response.types.ts
+│   ├── agent.ts
+│   ├── api.ts
+│   ├── artifacts.ts
+│   ├── diagnosis.i18n.ts
+│   ├── handleAgentResponse.ts
+│   ├── intake.ts
+│   ├── session.ts
+│   ├── toChatItems.ts
+│   ├── uiEventDispatcher.ts
+│   └── uiEventDispatcher.ts.bak.20260110_014200
+├── src
+│   ├── components
+│   │   └── conversation
+│   └── lib
+│       └── agent.response.types.ts
+├── state
+│   ├── chat.store.ts
+│   ├── interview.store.ts
+│   ├── profile.store.ts
+│   └── session.store.ts
+├── styles
+├── next-env.d.ts
+├── next.config.js
+├── package.json
+└── tsconfig.json
+
+31 directories, 66 files
+
+==========================
+FILE CONTENTS
+==========================
+
+----------------------------------------
+FILE: apps/web/app/agent.css
+----------------------------------------
+/* ================================================= */
+/* AGENT — PREMIUM CHAT (AISLADO Y ESTABLE)          */
+/* ================================================= */
+
+.agent-page {
+  --bg-main: radial-gradient(circle at 20% 20%, #2c3aa2, #07080d);
+
+  --ink: rgba(255,255,255,0.92);
+  --ink-muted: rgba(255, 255, 255, 0.657);
+
+  --glass-strong: rgba(255,255,255,0.12);
+  --glass-soft: rgba(255,255,255,0.08);
+
+  --border-soft: rgba(255,255,255,0.18);
+
+  --violet: rgba(130, 110, 220, 0.714);
+  --blue:   rgba(95,160,175,0.18);
+  --green:  rgba(110,170,150,0.22);
+  --amber:  rgba(175,150,110,0.22);
+
+  height: 80vh;
+
+  background: var(--bg-main);
+  color: var(--ink);
+}
+
+/* ================================================= */
+/* LAYOUT                                            */
+/* ================================================= */
+
+.agent-layout {
+  position: relative; /* clave para anclar absolutos */
+  height: 90%;
+  display: grid;
+  grid-template-columns: 1fr; /* ⬅️ una sola columna */
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+
+/* ================================================= */
+/* CHAT                                              */
+/* ================================================= */
+
+.agent-chat {
+  height: clamp(560px, 860vh, 860px);
+  max-height: 96vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  grid-column: 1 / -1;
+  width: 100%;
+  padding-right: 48%;
+  
+
+  padding: 32px;
+  border-radius: 28px;
+
+  /* 🖼️ fondo con imagen */
+  background-image: url('/fondo8.png');
+  opacity: 9.95;
+  background-size: 100%;
+  background-position: right 105% top 10%;
+
+
+  background-repeat: no-repeat;
+
+  /* overlay sutil para legibilidad */
+  position: relative;
+  border: 1px solid rgba(209, 205, 205, 0.088);
+}
+.agent-chat::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+
+  background: rgba(154, 148, 148, 0.178); /* 👈 ajusta aquí */
+  z-index: 0;
+}
+.agent-chat > * {
+  position: relative;
+  z-index: 1;
+}
+
+.agent-chat-header {
+  flex: 0 0 auto;
+  margin-bottom: 20px;
+  color: black;
+}
+
+.agent-chat-header h1 {
+  font-size: 40px;
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  margin: 0;
+    color: rgb(240, 238, 238);
+}
+
+.agent-chat-header p {
+  margin-top: 6px;
+  color: var(--ink-muted);
+    color: rgb(255, 255, 255);
+}
+
+.agent-chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 🔒 evita que el body empuje el chat */
+  color: rgb(251, 249, 249);
+    width: 44%;
+  max-width: 60%;
+  gap: 16px;  
+}
+
+
+/* ================================================= */
+/* THREAD (CAJITA CON SCROLL)                         */
+/* ================================================= */
+
+.agent-thread {
+  /* ✅ La "cajita" real: alto acotado y scroll interno */
+  height: clamp(280px, 52vh, 520px);
+  max-height: 52vh;
+  overflow-y: auto;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding-right: 6px;
+  min-height: 0;
+  padding-bottom: 20px;
+}
+
+
+/* ================================================= */
+/* BUBBLES                                           */
+/* ================================================= */
+
+.agent-bubble {
+  max-width: 92%;
+  padding: 10px 20px;
+  border-radius: 10px;
+
+  background: var(--glass-soft);
+  border: 1px solid var(--border-soft);
+
+  font-size: 12px;
+  line-height: 1.7;
+  color: white;
+}
+
+.agent-bubble.user {
+  align-self: flex-end;
+  background: rgba(41, 40, 40, 0.55);
+  color: rgb(242, 238, 238)
+  ;
+}
+
+.agent-bubble.assistant {
+  align-self: flex-start;
+  background: rgba(0, 0, 0, 0.489);
+}
+
+.agent-bubble.muted {
+  background: transparent;
+  border: none;
+  opacity: 0.55;
+  font-style: italic;
+   color: rgb(255, 255, 255);
+
+}
+
+/* ================================================= */
+/* INPUT                                             */
+/* ================================================= */
+
+/* ================================================= */
+/* INPUT — LEGIBILIDAD EN FONDO CLARO                */
+/* ================================================= */
+
+.agent-input textarea {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #ffffffb7;                     /* negro suave */
+  background: transparent;
+  margin-top: 16px;
+
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.752);       /* antes 14px */
+  font-size: 50px;       /* antes 16px */
+     /* más compacto */
+
+  max-height: 64px;
+
+  font-size: 17px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+
+  resize: none;
+  max-height: 10px;
+  overflow-y: auto;
+}
+
+
+
+/* ================================================= */
+/* CONTROLES                                         */
+/* ================================================= */
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  color: #1a1a1a;
+}
+
+/* Botones legibles sobre fondo claro */
+.controls .continue-button,
+.controls .mic-button {
+  background: rgba(0, 0, 0, 0.107);       /* contraste sutil */
+  color: #5a5858;
+  border: 1px solid rgba(0, 0, 0, 0.418);
+  width: 20%;
+}
+
+/* Hover natural */
+.controls .continue-button:hover,
+.controls .mic-button:hover {
+  background: rgba(0, 0, 0, 0.844);
+  border-color: rgba(0,0,0,0.4);
+}
+
+/* ================================================= */
+/* HINT                                              */
+/* ================================================= */
+
+.hint {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  color: rgba(0,0,0,0.45);
+}
+
+/* ================================================= */
+/* PANEL                                             */
+/* ================================================= */
+
+.agent-panel {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+
+  width: 48%;
+  height: calc(100% - 1px);
+
+  padding: 1px;
+  overflow-y: auto;
+
+  pointer-events: auto;
+  z-index: 3;
+}
+
+/* ================================================= */
+/* PANEL GRID                                        */
+/* ================================================= */
+
+.panel-grid {
+  height: 90%;
+  display: grid;
+
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: auto;
+  gap: 7px;
+
+  overflow: hidden;
+}
+
+.finance-dual-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 90%;
+}
+
+/* ================================================= */
+/* PANEL CARD — FIXED + IMAGE + SCROLL                */
+/* ================================================= */
+
+.panel-card {
+  position: relative;
+  height: 95%;
+  min-height: 0;
+  width: 90%;
+
+  display: flex;
+  flex-direction: column;
+
+  padding: 10px 10px;
+  border-radius: 20px;
+
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
+
+  overflow: hidden; /* 🔒 nunca crece */
+}
+
+/* ================================================= */
+/* CARD BACKGROUND IMAGE (CONTROL POR VARIABLES)     */
+/* ================================================= */
+
+.panel-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background-image: var(--card-bg);
+  background-size: cover;
+  background-position: var(--bg-position);
+
+  transform: scale(var(--bg-scale, 0.05));
+  z-index: 0;
+}
+
+/* ================================================= */
+/* OVERLAY (CLARIDAD / OSCURIDAD POR CARD)            */
+/* ================================================= */
+
+.panel-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background: rgba(
+    var(--overlay-color, 0,0,0),
+    var(--overlay-opacity, 2.5)
+  );
+
+  z-index: 0;
+}
+
+/* ================================================= */
+/* CONTENT ABOVE IMAGE                               */
+/* ================================================= */
+
+.panel-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ================================================= */
+/* HEADER TEXT                                       */
+/* ================================================= */
+
+.panel-label {
+  flex: 0 0 auto;
+  margin-bottom: 6px;
+
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+
+  color: rgba(255,255,255,0.7);
+}
+
+.panel-value {
+  flex: 0 0 auto;
+  margin-bottom: 10px;
+
+  font-size: 13px;
+  font-weight: 300;
+  color: rgba(255,255,255,0.9);
+}
+
+/* ================================================= */
+/* SCROLLABLE BODY (INVISIBLE SCROLLBAR)              */
+/* ================================================= */
+
+.panel-text {
+  flex: 1 1 auto;
+  min-height: 0;
+
+  overflow-y: auto;
+  padding-right: 0.5px;
+
+  font-size: 13px;
+  line-height: 1.0;
+  color: rgba(255,255,255,0.78);
+
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* IE */
+}
+
+.panel-text::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+
+.panel-card:hover::before {
+  transform: scale(calc(var(--bg-scale, 1.05) + 0.03));
+  transition: transform 0.6s ease;
+}
+
+
+
+/* Colores */
+.violet { background: var(--violet); }
+.blue   { background: var(--blue); }
+.green  { background: var(--green); }
+.orange { background: var(--amber); }
+
+/* Grid spans */
+
+.x1 { grid-column: span 1; }
+.x2 { grid-column: span 2; }
+.x3 { grid-column: span 3; }
+.x5 { grid-column: span 5; }
+.x6 { grid-column: span 6; }
+
+.y0 { grid-row: span 0; }
+.y1 { grid-row: span 1; }
+.y2 { grid-row: span 2; }
+.y3 { grid-row: span 3; }
+
+
+/* ================================================= */
+/* TEXT                                              */
+/* ================================================= */
+
+.panel-label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+
+  margin-bottom: 6px;
+}
+
+.panel-value {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.4;
+}
+
+
+/* ================================================= */
+/* NEWS / INTERVIEW CARDS                             */
+/* ================================================= */
+
+.news-card,
+.interview-card {
+  padding: 0px;
+  overflow: hidden;
+  height: 90%;
+}
+
+.news-link,
+.interview-link {
+  display: block;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+}
+
+.news-image,
+.interview-image {
+  height: 150%;
+  min-height: 110px;
+  width: 100%;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.news-image {
+  background-image: url('/news-preview.jpg');
+  
+}
+
+.interview-image {
+  background-image:
+    linear-gradient(
+      rgba(154, 148, 148, 0.26),
+      rgba(154, 148, 148, 0.218)
+    ),
+    url('/fondo8.png');
+  background-size: 350%;
+  background-position: 200% 1%;
+
+}
+
+
+
+
+.news-image::after,
+.interview-image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,0.25),
+    rgba(0,0,0,0.45)
+  );
+}
+
+/* Contenido centrado */
+.news-overlay,
+.interview-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+
+  padding: 10px;
+  text-align: center;
+}
+
+/* Título editorial */
+.news-title,
+.interview-title {
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+
+  color: #fff;
+  line-height: 1.;
+}
+
+
+/* ================================================= */
+/* PROFILE CARD — PRO                                */
+/* ================================================= */
+
+.profile-card.premium {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  height: 95%;
+
+  padding: 10px;
+  border-radius: 22px;            /* 🔥 CLAVE */
+
+  /* 🖼️ fondo con imagen */
+  background-image: url('/fondo8.png');
+  background-size: 700%;
+
+  background-repeat: no-repeat;
+
+  /* borde igual a las otras cards */
+  border: 1px solid rgba(255, 255, 255, 0.237);
+
+
+}
+.profile-card.premium::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+
+  background: rgba(154, 148, 148, 0.216); /* 👈 ajusta aquí */
+  z-index: 0;
+  border-radius: 22px; 
+
+
+}
+
+/* Badge inyectado */
+.profile-badge {
+  position: absolute;
+  top: 12px;
+  right: 10px;
+
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+
+
+
+}
+
+/* HEADER */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-avatar {
+  width: 60px;
+  height: 44px;
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 500;
+  font-size: 14px;
+
+  background: rgba(208, 204, 204, 0.573);
+  color: #000;
+}
+
+.profile-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.profile-subtitle {
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+}
+
+/* META */
+.profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Pills */
+.pill {
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+* COHERENCE */
+.coherence {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.coherence-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255,255,255,0.65);
+}
+
+.coherence-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.15);
+  overflow: hidden;
+}
+
+.coherence-fill {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(70, 81, 22, 0.814),
+    rgb(126, 163, 171)
+  );
+}
+/* ================================================= */
+/* RESPONSIVE                                        */
+/* ================================================= */
+
+@media (max-width: 1024px) {
+  .agent-layout {
+    grid-template-columns: 1fr;
+    padding: 24px;
+  }
+
+  .agent-panel {
+    display: none;
+  }
+}
+/* ================================================= */
+/* SIMULACIONES — PDF STACK (NO CARD)                */
+/* ================================================= */
+
+
+/* ================================================= */
+/* LABEL                                             */
+/* ================================================= */
+
+.simulations-label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 14px;
+}
+
+
+/* ================================================= */
+/* META                                              */
+/* ================================================= */
+
+.simulations-meta {
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+}
+
+/* ================================================= */
+/* SCROLL INVISIBLE (para vistas futuras)            */
+/* ================================================= */
+
+.simulations-scroll {
+  overflow-y: auto;
+  scrollbar-width: none;       /* Firefox */
+}
+
+.simulations-scroll::-webkit-scrollbar {
+  display: none;               /* WebKit */
+}
+
+.simulations-slot { cursor: pointer; }
+.pdf-stack { position: relative; height: 10px; margin-top: 1px; }
+.pdf-sheet {
+  position: absolute;
+  width: 140px;
+  height: 130px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.pdf-sheet:nth-child(1) { transform: translate(0px, 10px); z-index: 1; }
+.pdf-sheet:nth-child(2) { transform: translate(10px, 5px); z-index: 2; }
+.pdf-sheet:nth-child(3) { transform: translate(20px, 0px); z-index: 3; }
+
+.pdf-preview {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none; /* para que el click sea de la tarjeta */
+}
+
+
+/* ================================================= */
+/* DOCUMENTS (EDITORIAL)                              */
+/* ================================================= */
+
+.agent-bubble.artifact,
+.agent-bubble.citation {
+  background: transparent;
+  border: none;
+  padding: 0;
+  max-width: 100%;
+}
+
+.doc-bubble {
+  width: min(720px, 100%);
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.30);
+  overflow: hidden;
+  box-shadow: 0 18px 44px rgba(0,0,0,0.45);
+}
+
+.doc-top {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 14px 14px;
+}
+
+.doc-title {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: rgba(255,255,255,0.92);
+}
+
+.doc-subtitle {
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.55);
+}
+
+.doc-desc {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255,255,255,0.66);
+  max-width: 520px;
+}
+
+.doc-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.doc-btn {
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.82);
+  background: rgba(255,255,255,0.04);
+  transition: transform 0.12s ease, background 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
+}
+
+.doc-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.28);
+}
+
+.doc-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.doc-btn-primary {
+  border-color: rgba(255,255,255,0.28);
+  background: rgba(255,255,255,0.10);
+}
+
+.doc-btn-primary.is-saved {
+  background: rgba(120, 255, 190, 0.10);
+  border-color: rgba(120, 255, 190, 0.22);
+}
+
+.doc-preview {
+  padding: 14px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  cursor: pointer;
+}
+
+.doc-preview-img {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  display: block;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.doc-preview-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.doc-a4 {
+  width: 86px;
+  height: 120px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+}
+
+.doc-preview-hint {
+  font-size: 12px;
+  color: rgba(255,255,255,0.62);
+}
+
+.doc-error {
+  padding: 10px 14px 14px;
+  font-size: 12px;
+  color: rgba(255,140,140,0.92);
+}
+
+/* ================================================= */
+/* CITATIONS (MICRO BUBBLES)                          */
+/* ================================================= */
+
+.citation-bubble {
+  width: min(620px, 100%);
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  padding: 10px 12px;
+}
+
+.citation-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.citation-pill {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.72);
+}
+
+.citation-source {
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+}
+
+.citation-link {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(255,255,255,0.86);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255,255,255,0.22);
+  padding-bottom: 2px;
+  word-break: break-word;
+}
+
+.citation-link:hover {
+  border-bottom-color: rgba(255,255,255,0.55);
+}
+
+
+/* ================================================= */
+/* META                                              */
+/* ================================================= */
+
+.simulations-meta {
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+}
+
+/* ================================================= */
+/* SCROLL INVISIBLE (para vistas futuras)            */
+/* ================================================= */
+
+.simulations-scroll {
+  overflow-y: auto;
+  scrollbar-width: none;       /* Firefox */
+}
+
+.simulations-scroll::-webkit-scrollbar {
+  display: none;               /* WebKit */
+}
+
+.simulations-slot { cursor: pointer; }
+.pdf-stack { position: relative; height: 10px; margin-top: 1px; }
+.pdf-sheet {
+  position: absolute;
+  width: 140px;
+  height: 130px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.pdf-sheet:nth-child(1) { transform: translate(0px, 10px); z-index: 1; }
+.pdf-sheet:nth-child(2) { transform: translate(10px, 5px); z-index: 2; }
+.pdf-sheet:nth-child(3) { transform: translate(20px, 0px); z-index: 3; }
+
+.pdf-preview {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none; /* para que el click sea de la tarjeta */
+}
+
+/* ================================================= */
+/* CHAT — Burbujas PRO (sin tocar layout)            */
+/* ================================================= */
+
+.agent-bubble {
+  transition: background 0.25s ease, transform 0.15s ease;
+}
+
+.agent-bubble.user {
+  background: rgba(255,255,255,0.14);
+  border-radius: 18px 18px 6px 18px;
+  font-size: 14px;
+}
+
+.agent-bubble.assistant {
+  border-radius: 18px 18px 18px 6px;
+}
+
+.agent-bubble--document {
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.10),
+    rgba(255,255,255,0.04)
+  );
+  border: 1px solid rgba(255,255,255,0.18);
+}
+
+.agent-doc-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.agent-doc-heading {
+  font-size: 11px;
+  opacity: 0.65;
+  text-transform: uppercase;
+  margin-top: 10px;
+}
+
+.agent-doc-content {
+  font-size: 13px;
+  white-space: pre-line;
+}
+
+/* Animación sutil */
+.agent-bubble {
+  animation: chatIn 0.18s ease-out;
+}
+
+@keyframes chatIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+----------------------------------------
+FILE: apps/web/app/agent/page.tsx
+----------------------------------------
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState, useRef } from 'react';
+
+import { getSessionId } from '@/lib/session';
+import { sendToAgent } from '@/lib/agent';
+import { useProfileStore } from '@/state/profile.store';
+import {
+  getSessionInfo,
+  removeInjectedProfile,
+  removeInjectedIntake,
+} from '@/lib/api';
+
+import PanelCard from '../../components/PanelCard';
+import ProfileCard from '../../components/ProfileCard';
+
+import type { AgentResponse, ChatItem } from '@/lib/agent.response.types';
+import { toChatItemsFromAgentResponse } from '@/lib/agent.response.types';
+import { DocumentBubble } from '@/components/conversation/DocumentBubble';
+import { AgentBlocksRenderer } from '@/components/agent/AgentBlocksRenderer';
+import { CitationBubble } from '@/components/conversation/CitationBubble';
+
+type AgentMeta = {
+  objective?: string;
+  mode?: string;
+  ui_events?: any[];
+  citations?: any[];
+};
+
+export default function AgentPage() {
+  const router = useRouter();
+
+  /* ================= STATE ================= */
+
+  const [items, setItems] = useState<ChatItem[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [micActive, setMicActive] = useState(false);
+
+  const agentMetaRef = useRef<AgentMeta>({});
+  const [, forceRender] = useState(0);
+
+  const [sessionInfo, setSessionInfo] = useState<any>(null);
+
+  const loadProfileIfNeeded = useProfileStore((s) => s.loadProfileIfNeeded);
+  const profile = useProfileStore((s) => s.profile);
+
+  const lastAssistant = useMemo(() => {
+    return [...items]
+      .reverse()
+      .find(
+        (it) => it.type === 'message' && it.role === 'assistant'
+      ) as
+      | Extract<ChatItem, { type: 'message'; role: 'assistant' }>
+      | undefined;
+  }, [items]);
+
+  // 👇 CAST DEFENSIVO (solo lectura UI)
+  const lastAssistantBlocks =
+    (lastAssistant as any)?.agent_blocks ?? [];
+
+  const actionPlans = ['/planes/plan1.pdf', '/planes/plan2.pdf'];
+
+  /* ================= SESSION ================= */
+
+  useEffect(() => {
+    let alive = true;
+
+    const tick = async () => {
+      try {
+        const info = await getSessionInfo();
+        if (alive) setSessionInfo(info);
+      } catch {}
+    };
+
+    tick();
+    const t = setInterval(tick, 5000);
+
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  useEffect(() => {
+    loadProfileIfNeeded().catch(() => {});
+  }, [loadProfileIfNeeded]);
+
+  /* ================= CHAT ================= */
+
+  async function onSend() {
+    if (!input.trim() || loading) return;
+
+    const userMessage = input.trim();
+    setInput('');
+    setLoading(true);
+
+    const historySnapshot = items
+      .filter((it) => it.type === 'message')
+      .map((m) => ({
+        role: (m as any).role,
+        content: (m as any).content,
+      }))
+      .slice(-12);
+
+    setItems((prev) => [
+      ...prev,
+      { type: 'message', role: 'user', content: userMessage },
+    ]);
+
+    try {
+      const res = (await sendToAgent({
+        user_message: userMessage,
+        session_id: getSessionId(),
+        history: historySnapshot,
+      })) as AgentResponse;
+
+      agentMetaRef.current.objective =
+        res?.react?.objective ?? agentMetaRef.current.objective;
+      agentMetaRef.current.mode =
+        res?.mode ?? agentMetaRef.current.mode;
+
+      forceRender((x) => x + 1);
+
+      const next = toChatItemsFromAgentResponse(res);
+
+      if (next.length === 0) {
+        setItems((prev) => [
+          ...prev,
+          {
+            type: 'message',
+            role: 'assistant',
+            content: (res as any)?.message ?? '—',
+            mode: res.mode ?? (res as any).reasoning_mode,
+            objective: (res as any)?.react?.objective,
+            agent_blocks: (res as any).agent_blocks,
+          } as any, // 👈 CAST DEFENSIVO (no rompe contrato global)
+        ]);
+      } else {
+        setItems((prev) => [...prev, ...next]);
+      }
+    } catch {
+      setItems((prev) => [
+        ...prev,
+        {
+          type: 'message',
+          role: 'assistant',
+          content: 'Ocurrió un error. Intenta nuevamente.',
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function toggleMic() {
+    setMicActive((v) => !v);
+  }
+
+  /* ================= RENDER ================= */
+
+  return (
+    <main className="agent-layout">
+      <section className="agent-chat">
+        <header className="agent-chat-header">
+          <h1>Financiera — Mente</h1>
+          <p className="muted">Asistente financiero interactivo</p>
+        </header>
+
+        <div className="agent-chat-body">
+          <div className="agent-thread">
+            {items.length === 0 && !loading && (
+              <div className="agent-bubble assistant muted">
+                Puedes comenzar escribiendo una pregunta financiera o una inquietud.
+              </div>
+            )}
+
+            {items.map((it, i) => {
+              if (it.type === 'message') {
+                return (
+                  <div key={i} className={`agent-bubble ${it.role}`}>
+                    {it.content}
+                  </div>
+                );
+              }
+
+              if (it.type === 'artifact') {
+                return (
+                  <div key={i} className="agent-bubble assistant artifact">
+                    <DocumentBubble artifact={it.artifact} />
+                  </div>
+                );
+              }
+
+              if (it.type === 'citation') {
+                return (
+                  <div key={i} className="agent-bubble assistant citation">
+                    <CitationBubble citation={it.citation} />
+                  </div>
+                );
+              }
+
+              return null;
+            })}
+
+            {/* ✅ AGENT BLOCKS (charts, tablas, etc.) */}
+            {lastAssistantBlocks.length > 0 && (
+              <div className="agent-bubble assistant">
+                <AgentBlocksRenderer blocks={lastAssistantBlocks} />
+              </div>
+            )}
+
+            {loading && (
+              <div className="agent-bubble assistant muted">Pensando…</div>
+            )}
+          </div>
+
+          <div className="agent-input">
+            <textarea
+              placeholder="Escribe tu mensaje…"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  onSend();
+                }
+              }}
+            />
+
+            <div className="controls">
+              <button
+                type="button"
+                className={`continue-button ${micActive ? 'active' : ''}`}
+                onClick={toggleMic}
+              >
+                {micActive ? '●' : 'hablar'}
+              </button>
+
+              <div style={{ flex: 1 }} />
+
+              <button type="button" className="continue-button" onClick={onSend}>
+                Enviar
+              </button>
+            </div>
+
+            <div className="hint">
+              Presiona <span>Enter</span> para enviar
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= PANEL ================= */}
+      <aside className="agent-panel">
+        <div className="panel-grid">
+          <ProfileCard
+            userName={sessionInfo?.name ?? undefined}
+            profile={sessionInfo?.injectedProfile ? { profile: sessionInfo.injectedProfile } : profile}
+            injected={Boolean(sessionInfo?.injectedProfile)}
+          />
+
+          {sessionInfo?.injectedProfile && (
+            <button
+              className="continue-ghost"
+              onClick={async () => {
+                await removeInjectedProfile();
+                window.location.reload();
+              }}
+            >
+              Remover perfil inyectado
+            </button>
+          )}
+
+          {sessionInfo?.injectedIntake && (
+            <button
+              className="continue-ghost"
+              onClick={async () => {
+                await removeInjectedIntake();
+                window.location.reload();
+              }}
+            >
+              Remover intake inyectado
+            </button>
+          )}
+
+          {/* OBJETIVO */}
+          <PanelCard
+            label="Objetivo"
+            className="blue x2 y0"
+            bgImage="/fondo8.png"
+            overlayColor="154,148,148"
+            overlayOpacity={0.1228}
+            bgScale={4.5}
+            bgPosition="290955% 98%"
+          >
+            {agentMetaRef.current.objective ?? 'Aún no definido'}
+          </PanelCard>
+
+          {/* MODO COGNITIVO */}
+          <PanelCard
+            label="Modo cognitivo"
+            value={agentMetaRef.current.mode ?? '—'}
+            className="x3 y1"
+            bgImage="/image3.png"
+            overlayOpacity={0.25}
+            bgScale={1}
+          />
+
+          {/* COLUMNA TRANSACCIONES + PRESUPUESTO */}
+          <div className="finance-dual-stack x1 y0">
+            <PanelCard
+              label="Transacciones"
+              bgImage="/fondo8.png"
+              overlayColor="154,148,148"
+              overlayOpacity={0.1028}
+              bgScale={3.5}
+              bgPosition="54455555550% 5%"
+            >
+              Historial, categorización y análisis de movimientos.
+            </PanelCard>
+
+            <PanelCard
+              label="Presupuesto"
+              bgImage="/fondo8.png"
+              overlayColor="154,148,148"
+              overlayOpacity={0.19228}
+              bgScale={4.5}
+              bgPosition="2060% 1%"
+            >
+              Planificación mensual y control de desvíos.
+            </PanelCard>
+          </div>
+
+          {/* ENTREVISTA */}
+          <PanelCard className="x3 y0 interview-card">
+            <a className="interview-link" href="/interview">
+              <div className="interview-image">
+                <div className="interview-overlay">
+                  <span className="interview-title">
+                    Entrevista para análisis financiero profundo
+                  </span>
+                </div>
+              </div>
+            </a>
+          </PanelCard>
+
+          {/* PLANES DE ACCIÓN — PDFs (apilados) */}
+          <div
+            className="simulations-slot x2 y1"
+            onClick={() => router.push('/agent/planes')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                router.push('/agent/planes');
+              }
+            }}
+          >
+            <div className="simulations-label">Planes de acción</div>
+
+            <div className="pdf-stack">
+              {actionPlans.slice(0, 3).map((pdf, i) => (
+                <div key={i} className="pdf-sheet">
+                  <embed
+                    src={`${pdf}#page=1&view=FitH&zoom=80`}
+                    type="application/pdf"
+                    className="pdf-sheet"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="simulations-meta">{actionPlans.length} planes generados</div>
+          </div>
+
+          {/* NOTICIAS */}
+          <PanelCard className="news-card x2 y2">
+            <a
+              href="https://fintualist.com/chile/"
+              target="_blank"
+              rel="noreferrer"
+              className="news-link"
+            >
+              <div className="news-image">
+                <div className="news-overlay">
+                  <span className="news-title">Noticias & Actualidad</span>
+                </div>
+              </div>
+            </a>
+          </PanelCard>
+
+        
+
+          {/* SEGUIMIENTO PROACTIVO */}
+          <PanelCard
+            label="Seguimiento proactivo"
+            className="x2 y2"
+            bgImage="/fondo8.png"
+            overlayColor="154,148,148"
+            overlayOpacity={0.1228}
+            bgScale={3.5}
+            bgPosition="20600% 1%"
+          >
+            <div style={{ fontSize: 14, opacity: 0.85 }}>
+              Estado, notificaciones y configuración del agente seguimiento
+            </div>
+          </PanelCard>
+
+      
+
+          {/* SIMULACIONES */}
+          <div
+            className="simulations-slot x2 y3"
+            onClick={() => router.push('/agent/simulaciones')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                router.push('/agent/simulaciones');
+              }
+            }}
+          >
+            <div className="simulations-label">Simulaciones</div>
+            <div className="simulations-meta">Biblioteca: /public/pdfs/simulaciones</div>
+          </div>
+          </div>
+      </aside>
+    </main>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/app/api/artifacts/save/route.ts
+----------------------------------------
+import { NextResponse } from 'next/server';
+import path from 'path';
+import fs from 'fs/promises';
+
+type Body = {
+  id: string;
+  title?: string;
+  fileUrl?: string; // puede ser relativa (/pdfs/...) o absoluta (http...)
+};
+
+function safeId(id: string) {
+  return String(id || 'artifact')
+    .toLowerCase()
+    .replace(/[^a-z0-9\-_]/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 120);
+}
+
+async function fetchPdfBytes(fileUrl: string) {
+  // Si viene relativa, asumimos que es servida desde el mismo host.
+  // En local suele ser /pdfs/... (public), o desde backend.
+  const isAbs = /^https?:\/\//i.test(fileUrl);
+  const url = isAbs ? fileUrl : `${process.env.NEXT_PUBLIC_APP_ORIGIN ?? 'http://localhost:3001'}${fileUrl}`;
+
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`No se pudo descargar PDF (${res.status})`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  return buf;
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = (await req.json()) as Body;
+
+    if (!body?.id) {
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    }
+    if (!body?.fileUrl) {
+      return NextResponse.json({ error: 'Missing fileUrl' }, { status: 400 });
+    }
+
+    const id = safeId(body.id);
+    const outDir = path.join(process.cwd(), 'public', 'pdfs', 'simulaciones');
+    const outPath = path.join(outDir, `${id}.pdf`);
+    await fs.mkdir(outDir, { recursive: true });
+
+    const bytes = await fetchPdfBytes(body.fileUrl);
+    await fs.writeFile(outPath, bytes);
+
+    const publicUrl = `/pdfs/simulaciones/${id}.pdf`;
+    return NextResponse.json({ ok: true, publicUrl });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message ?? 'Save error' },
+      { status: 500 }
+    );
+  }
+}
+
+----------------------------------------
+FILE: apps/web/app/api/transcribe/route.ts
+----------------------------------------
+import { NextResponse } from 'next/server';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
+});
+
+export async function POST(req: Request) {
+  const formData = await req.formData();
+  const file = formData.get('file') as File;
+
+  if (!file) {
+    return NextResponse.json({ error: 'No audio' }, { status: 400 });
+  }
+
+  const transcription = await openai.audio.transcriptions.create({
+    file,
+    model: 'whisper-1',
+    language: 'es',
+  });
+
+  return NextResponse.json({
+    text: transcription.text,
+  });
+}
+
+----------------------------------------
+FILE: apps/web/app/diagnosis/latest/route.ts
+----------------------------------------
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  try {
+    const res = await fetch(
+      'http://localhost:3000/diagnosis/latest',
+      {
+        cache: 'no-store',
+        credentials: 'include',
+      }
+    );
+
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: 'No se pudo obtener diagnóstico' },
+        { status: res.status }
+      );
+    }
+
+    const data = await res.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Error conectando con backend' },
+      { status: 500 }
+    );
+  }
+}
+
+----------------------------------------
+FILE: apps/web/app/diagnosis/page.tsx
+----------------------------------------
+// apps/web/app/diagnosis/page.tsx
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+import {
+  DiagnosticNarrative,
+  FinancialProfileCard,
+  TensionsList,
+  HypothesesList,
+  OpenQuestionsCard,
+} from '@/components/diagnosis';
+
+import { useProfileStore } from '@/state/profile.store';
+
+export default function DiagnosisPage() {
+  const router = useRouter();
+
+  const {
+    profile,
+    loading,
+    error,
+    loadProfileIfNeeded,
+  } = useProfileStore();
+
+  /* ────────────────────────────── */
+  /* Carga segura                   */
+  /* ────────────────────────────── */
+
+  useEffect(() => {
+    if (!profile) {
+      loadProfileIfNeeded();
+    }
+  }, [profile, loadProfileIfNeeded]);
+
+  useEffect(() => {
+    if (!loading && !profile && !error) {
+      router.replace('/intake');
+    }
+  }, [loading, profile, error, router]);
+
+  /* ────────────────────────────── */
+  /* Estados                        */
+  /* ────────────────────────────── */
+
+  if (loading) {
+    return (
+      <div className="app-shell">
+        <div className="app-content">
+          <p className="text-muted">
+            Analizando tu situación financiera…
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="app-shell">
+        <div className="app-content">
+          <p style={{ color: 'rgba(255,120,120,0.9)' }}>
+            {error}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile) return null;
+
+  /* ────────────────────────────── */
+  /* Render                         */
+  /* ────────────────────────────── */
+
+  return (
+    <div className="app-shell">
+      <div className="app-content diagnosis-report">
+
+        {/* ───────────── Header ───────────── */}
+        <section className="app-section animate-fade-in">
+          <div style={{ maxWidth: 720 }}>
+            <h1 style={{ fontSize: 38, lineHeight: 1.2 }}>
+              Diagnóstico financiero
+            </h1>
+
+            <p className="text-muted" style={{ marginTop: 12 }}>
+              Lectura integrada y descriptiva de tu situación financiera actual.
+              Este documento no contiene recomendaciones ni juicios.
+            </p>
+          </div>
+        </section>
+
+        {/* ───────────── Narrativa ───────────── */}
+        <section className="app-section">
+          <DiagnosticNarrative
+            narrative={profile.diagnosticNarrative}
+          />
+        </section>
+
+        {/* ───────────── Perfil ───────────── */}
+        <section className="app-section">
+          <FinancialProfileCard profile={profile.profile} />
+        </section>
+
+        {/* ───────────── Tensiones ───────────── */}
+        <section className="app-section">
+          <TensionsList tensions={profile.tensions} />
+        </section>
+
+        {/* ───────────── Hipótesis ───────────── */}
+        <section className="app-section">
+          <HypothesesList hypotheses={profile.hypotheses} />
+        </section>
+
+        {/* ───────────── Preguntas abiertas ───────────── */}
+        <section className="app-section">
+          <OpenQuestionsCard questions={profile.openQuestions} />
+        </section>
+
+        {/* ───────────── Acciones finales ───────────── */}
+        <section className="app-section animate-fade-in no-print">
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 16,
+              marginTop: 48,
+              flexWrap: 'wrap',
+            }}
+          >
+            <button
+              className="continue-ghost"
+              onClick={() => window.print()}
+            >
+              Guardar como PDF
+            </button>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+            <button
+                  className="continue-ghost"
+                  onClick={() => router.push('/agent')}
+                >
+                  Continuar conversación
+                </button>
+
+              <button
+                className="button-primary"
+                onClick={() => router.push('/followup')}
+              >
+                Profundizar diagnóstico
+              </button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  );
+}
+----------------------------------------
+FILE: apps/web/app/globals.css
+----------------------------------------
+/* ================================================= */
+/* Global reset & base                               */
+/* ================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 10%;
+  color: #f5f5f5;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  background: #0a0a0a;
+}
+
+/* ================================================= */
+/* Animated background — editorial image motion      */
+/* ================================================= */
+
+.animated-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+
+  /* Fondo base */
+  background-image: url('/fondo9.png');
+  background-size: 100% auto;
+  background-position: 40% 60%;
+  background-repeat: no-repeat;
+
+  animation: bgDrift 208s ease-in-out infinite alternate;
+}
+
+/* Overlay frío editorial */
+.animated-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+    background: rgba(154, 148, 148, 0.178); /* 👈 ajusta aquí */
+
+;
+
+  z-index: 0;
+}
+
+/* Capa de profundidad (grano / sombra orgánica) */
+.animated-bg::after {
+  content: '';
+  position: absolute;
+  inset: -20%;
+
+  background: radial-gradient(
+    circle at 30% 40%,
+    rgba(30, 40, 70, 0.35),
+    transparent 60%
+  );
+
+  animation: grainFloat 226s ease-in-out infinite alternate;
+  z-index: 2;
+}
+
+/* ================================================= */
+/* Animaciones — lentas, invisibles                  */
+/* ================================================= */
+
+@keyframes bgDrift {
+  0% {
+    background-position: 80% 60%;
+    background-size: 105%;
+  }
+  50% {
+    background-position: 90% 20%;
+    background-size: 200%;
+  }
+  100% {
+    background-position: 18% 10%;
+    background-size: 100%;
+  }
+}
+
+@keyframes grainFloat {
+  from {
+    transform: translate(-6%, -4%);
+    opacity: 55;
+  }
+  to {
+    transform: translate(6%, 4%);
+    opacity: 55;
+  }
+}
+
+/* ================================================= *
+/* ================================================= */
+/* Typography                                        */
+/* ================================================= */
+
+h1,
+h2,
+h3 {
+  font-weight: 400;
+  color: #e0e0e0;
+  letter-spacing: -0.025em;
+}
+
+h1 {
+  line-height: 1.25;
+}
+
+p {
+  color: #c0c0c0;
+  line-height: 1.6;
+}
+
+/* ================================================= */
+/* Inputs & selects                                  */
+/* ================================================= */
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 18px;
+  padding: 10px 10px;
+  color: #f5f5f5;
+  outline: none;
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.04);
+}
+
+select {
+  appearance: none;
+  cursor: pointer;
+}
+
+/* ================================================= */
+/* Buttons                                          */
+/* ================================================= */
+
+button {
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+}
+
+/* ================================================= */
+/* Button reset (CRÍTICO)                            */
+/* ================================================= */
+
+button {
+  background: transparent;
+  color: inherit;
+  border: none;
+  padding: 0;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+/* Primary button */
+
+.button-primary {
+  background: rgba(255, 255, 255, 0.221);
+  color: #ffffff;
+  min-width: 180px;
+  height: 38px;
+  padding: 12px 32px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.button-primary:hover {
+  transform: translateY(-1px);
+  opacity: 0.92;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+}
+
+/* Ghost / secondary */
+
+.continue-ghost {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.75);
+  padding: 14px 42px;
+  border-radius: 999px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  transition: all 0.25s ease;
+}
+
+.continue-ghost:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.4);
+  color: white;
+}
+
+/* ================================================= */
+/* Form layout helpers                               */
+/* ================================================= */
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.65);
+}
+
+/* ================================================= */
+/* Footer separation (CLAVE)                         */
+/* ================================================= */
+
+.form-footer {
+  margin-top: 10px;
+  padding-top: 28px;
+  border-top: 1px solid rgba(255,255,255,0.12);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ================================================= */
+/* Animations & transitions                          */
+/* ================================================= */
+
+.animate-fade-in {
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ================================================= */
+/* Sliders                                           */
+/* ================================================= */
+
+input[type="range"] {
+  appearance: none;
+  height: 2px;
+  background: rgba(255,255,255,0.25);
+  border-radius: 2px;
+  margin-top: 12px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+}
+
+/* ================================================= */
+/* Checkboxes                                       */
+/* ================================================= */
+
+/* ================================================= */
+/* Utility                                           */
+/* ================================================= */
+
+.text-muted {
+  color: rgba(255,255,255,0.55);
+}
+
+.text-small {
+  font-size: 11px;
+}
+
+/* ================================================= */
+/* Knowledge pills                                   */
+/* ================================================= */
+
+.knowledge-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.knowledge-group-title {
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.knowledge-group-desc {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 10px;
+}
+
+
+.knowledge-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 5px;
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+
+  transition: transform 0.12s ease, background 0.18s ease,
+    border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.knowledge-pill:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.knowledge-pill:active {
+  transform: translateY(1px);
+}
+
+.knowledge-pill.is-active {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.04);
+}
+
+/* ============================= */
+/* Editorial Range Slider        */
+/* ============================= */
+
+.range-editorial {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 70%;
+  height: -50px;
+  background: rgba(3, 13, 212, 0.25);
+  border-radius: -50px;
+  outline: none;
+  cursor: pointer;
+  margin-top: -1px;
+}
+
+/* Track hover */
+.range-editorial:hover {
+  background: rgba(107, 107, 107, 0.35);
+}
+
+/* Thumb (WebKit) */
+.range-editorial::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: -14px;
+  height: -14px;
+  border-radius: 500%;
+  background: white;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 6px rgba(40, 118, 155, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.range-editorial::-webkit-slider-thumb:hover {
+  transform: scale(0.5 .1);
+  box-shadow:
+    0 0 0 8px rgba(135, 194, 228, 0.12);
+}
+
+/* Thumb (Firefox) */
+.range-editorial::-moz-range-thumb {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgb(239, 235, 235);
+  cursor: pointer;
+  border: none;
+}
+
+/* CONTENEDOR GENERAL */
+.question-wrapper {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 64px 24px;
+}
+
+/* PREGUNTA */
+.question-text {
+  font-size: 30px;
+  font-weight: 300;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.543);
+  max-width: 720px;
+}
+
+/* RESPUESTA */
+
+
+
+
+
+/* INPUT + MIC */
+.answer-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* INPUT LIMPIO */
+.answer-input {
+  flex: 1;
+  font-size: 20px;
+  color: rgb(255, 255, 255);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgb(255, 255, 255);
+  padding: 10px 0;
+  outline: none;
+}
+
+.answer-input::placeholder {
+  color: rgba(255, 255, 255, 0.772);
+}
+
+/* BOTÓN MIC */
+.mic-button {
+  width: 80px;
+  height: 48px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: transparent;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.mic-button:hover {
+  border-color: white;
+  transform: scale(1.05);
+}
+
+.mic-button.active {
+  background: white;
+  color: black;
+}
+
+/* CONTINUAR */
+.continue-button {
+  margin-top: 10px;
+  padding: 10px 28px;
+  border-radius: 999px;
+  border: 1px solid white;
+  background: rgb(252, 252, 252);
+  color: black;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+
+.question-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 🔥 ESTE ES EL SECRETO */
+.question-spacer {
+  height: 48px; /* prueba 40–56 si quieres más aire */
+}
+
+/* Animación ya existente */
+.answer-wrapper.hidden {
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+}
+
+.answer-wrapper.visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+/* ================================================= */
+/* HOME – BASE                                      */
+/* ================================================= */
+
+.home-grid {
+  width: 100%;
+  max-width: 1100px;
+
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 48px;
+
+  align-items: start;
+  margin: 0 auto;
+}
+
+@media (max-width: 500px) {
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-aside {
+    display: none;
+  }
+}
+
+.home-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.home-card {
+  padding: 18px 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255, 255, 255, 0.591);
+}
+
+.home-card.muted {
+  background: rgba(255, 255, 255, 0.226);
+}
+
+.home-title {
+  font-size: 40px;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+}
+
+.home-subtitle {
+  margin-top: 8px;
+  color: rgba(255,255,255,0.65);
+}
+
+.home-actions {
+  display: flex;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+/* Aside decorativo */
+.home-aside {
+  align-self: start;
+  display: flex;
+  align-items: flex-start; 
+  opacity: 0.7;
+}
+
+.machine-frame {
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.machine-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.2px;
+  line-height: 1.2;
+  white-space: pre;
+  max-height: none;
+  overflow: hidden;
+  color: rgb(255, 255, 255);
+  white-space: pre-wrap;
+
+}
+
+.home-grid > * {
+  min-width: 0;
+}
+
+.home-aside,
+.machine-frame {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* ================================================= */
+/* ROOT – IDENTIDAD                                 */
+/* ================================================= */
+
+/* Variables globales (única definición consolidada) */
+:root {
+  --bg-main: radial-gradient(circle at 20% 20%, #140b2a, #05070a);
+
+  --ink: rgba(255,255,255,0.95);
+  --ink-muted: rgba(255,255,255,0.58);
+
+  --border-soft: rgba(255,255,255,0.12);
+  --glass: rgba(255,255,255,0.045);
+  --glass-2: rgba(255,255,255,0.028);
+
+  --panel-violet: linear-gradient(180deg, rgba(130,110,220,0.12), rgba(130,110,220,0.04));
+  --panel-blue:   linear-gradient(180deg, rgba(95,160,175,0.12), rgba(95,160,175,0.04));
+  --panel-green:  linear-gradient(180deg, rgba(110,170,150,0.12), rgba(110,170,150,0.04));
+  --panel-amber:  linear-gradient(180deg, rgba(175,150,110,0.12), rgba(175,150,110,0.04));
+}
+
+/* Mantener altura y fondo desde variables; permitir scroll cuando la vista lo requiera */
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+/* ================================================= */
+/* APP SHELL                                        */
+/* ================================================= */
+
+.app-shell {
+  position: relative;
+  max-width: 100%;
+  height: 100%;
+
+  min-height: 10vh;
+}
+
+.app-content {
+  width: 100%;
+  height: 100vh;
+  max-width: 650px;
+  margin: 0 auto;
+  padding: 45px 80px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.page-container {
+  width: 100%;
+  max-width: 1100px;   /* ancho editorial real */
+  height: 100vh;       /* ocupa la pantalla */
+  margin: 0 auto;
+
+  padding: 64px 48px;  /* aire controlado */
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  overflow: hidden;    /* 🔥 no scroll interno */
+  box-sizing: border-box;
+}
+
+
+
+----------------------------------------
+FILE: apps/web/app/intake/page.tsx
+----------------------------------------
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useInterviewStore } from '@/state/interview.store';
+import { submitIntake } from '@/lib/intake';
+
+import type {
+  IntakeQuestionnaire,
+  FinancialProductEntry,
+} from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+
+import {
+  ContextStep,
+  CashflowStep,
+  SavingsStep,
+  ProductsStep,
+  KnowledgeStep,
+} from './steps';
+
+// ──────────────────────────────
+// Constantes
+// ──────────────────────────────
+const EMPTY_PRODUCT: FinancialProductEntry = {
+  product: '',
+  institution: '',
+  notes: '',
+  acquisitionCost: undefined,
+  monthlyCost: undefined,
+  anualCost: undefined,
+};
+
+const INITIAL_FORM: IntakeQuestionnaire = {
+  age: undefined,
+  employmentStatus: 'employed',
+  profession: '',
+
+  incomeBand: '500k-1M',
+  exactMonthlyIncome: undefined,
+
+  expensesCoverage: 'tight',
+  tracksExpenses: 'sometimes',
+
+  hasSavingsOrInvestments: false,
+  savingsBand: undefined,
+  exactSavingsAmount: undefined,
+
+  hasDebt: false,
+
+  financialProducts: [structuredClone(EMPTY_PRODUCT)],
+
+  financialKnowledge: {
+    interest: false,
+    inflation: false,
+    creditCard: false,
+    creditLine: false,
+    loanComponents: false,
+    interestRate: false,
+    liquidity: false,
+    returnConcept: false,
+    diversification: false,
+    assetVsLiability: false,
+    financialRisk: false,
+    capitalMarkets: false,
+    alternativeInvestments: false,
+    fintech: false,
+    CAE : false,
+  },
+
+  riskReaction: 'hold',
+  riskReactionOther: '',
+
+  selfRatedUnderstanding: 4,
+  moneyStressLevel: 5,
+};
+
+// ──────────────────────────────
+// Page
+// ──────────────────────────────
+export default function IntakePage() {
+  const router = useRouter();
+  const setIntake = useInterviewStore((s) => s.setIntake);
+
+  const [form, setForm] = useState<IntakeQuestionnaire>(
+    structuredClone(INITIAL_FORM)
+  );
+  const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // ──────────────────────────────
+  // Helpers
+  // ──────────────────────────────
+  const update = <K extends keyof IntakeQuestionnaire>(
+    key: K,
+    value: IntakeQuestionnaire[K]
+  ) => setForm((f) => ({ ...f, [key]: value }));
+
+  const updateProduct = (
+    index: number,
+    field: keyof FinancialProductEntry,
+    value: any
+  ) => {
+    setForm((f) => {
+      const next = [...f.financialProducts];
+      next[index] = { ...next[index], [field]: value };
+      return { ...f, financialProducts: next };
+    });
+  };
+
+  const addProductRow = () =>
+    setForm((f) => ({
+      ...f,
+      financialProducts: [
+        ...f.financialProducts,
+        structuredClone(EMPTY_PRODUCT),
+      ],
+    }));
+
+  const nextStep = () =>
+    setStep((s) => Math.min(s + 1, 4));
+
+  const prevStep = () =>
+    setStep((s) => Math.max(s - 1, 0));
+
+  const onSubmit = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const res = await submitIntake(form);
+      setIntake(res.intake);
+      router.push('/agent');
+    } catch (e: any) {
+      setError(e.message ?? 'Error enviando el diagnóstico');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ──────────────────────────────
+  // Render
+  // ──────────────────────────────
+  return (
+    <div className="w-full min-h-screen flex justify-center pt-24">
+      {step === 0 && (
+        <ContextStep
+          form={form}
+          update={update}
+          onNext={nextStep}
+        />
+      )}
+
+      {step === 1 && (
+        <CashflowStep
+          form={form}
+          update={update}
+          onNext={nextStep}
+          onBack={prevStep}
+        />
+      )}
+
+      {step === 2 && (
+        <SavingsStep
+          form={form}
+          update={update}
+          onNext={nextStep}
+          onBack={prevStep}
+        />
+      )}
+
+      {step === 3 && (
+        <ProductsStep
+          form={form}
+          updateProduct={updateProduct}
+          addProductRow={addProductRow}
+          onNext={nextStep}
+          onBack={prevStep}
+        />
+      )}
+
+      {step === 4 && (
+        <KnowledgeStep
+          form={form}
+          update={update}
+          onSubmit={onSubmit}
+          loading={loading}
+          onBack={prevStep}
+        />
+      )}
+
+      {error && (
+        <p className="fixed bottom-8 text-red-400 text-sm">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/app/intake/steps/CashflowStep.tsx
+----------------------------------------
+import type { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+import { FormBlock } from '@/components/ui/FormBlock';
+
+export function CashflowStep({
+  form,
+  update,
+  onNext,
+  onBack,
+}: {
+  form: IntakeQuestionnaire;
+  update: <K extends keyof IntakeQuestionnaire>(
+    key: K,
+    value: IntakeQuestionnaire[K]
+  ) => void;
+  onNext: () => void;
+  onBack: () => void;
+}) {
+  const ready =
+    !!form.incomeBand &&
+    !!form.expensesCoverage &&
+    !!form.tracksExpenses;
+
+  return (
+    <div className="app-content animate-fade-in">
+      {/* Intro */}
+      <div className="app-section">
+        <p className="text-small text-muted">
+          Paso 2 · Ingresos y gastos
+        </p>
+
+        <h1>Ingresos y gastos</h1>
+
+        <p className="text-muted max-w-xl">
+          Esta sección nos ayuda a entender tu flujo mensual de dinero
+          y si tus ingresos actuales son suficientes para cubrir tus gastos.
+        </p>
+      </div>
+
+      {/* Form */}
+      <div className="form-section">
+        <FormBlock
+          label="¿Cuál es tu nivel de ingresos mensuales aproximado?"
+          help="Selecciona un rango aproximado."
+        >
+          <select
+            value={form.incomeBand}
+            onChange={(e) =>
+              update('incomeBand', e.target.value as any)
+            }
+          >
+            <option value="<500k">Menos de $500.000</option>
+            <option value="500k-1M">$500.000 – $1.000.000</option>
+            <option value="1M-2M">$1.000.000 – $2.000.000</option>
+            <option value=">2M">Más de $2.000.000</option>
+          </select>
+        </FormBlock>
+
+        <FormBlock
+          label="¿Tus ingresos cubren tus gastos mensuales?"
+          help="Evalúa tu situación al final del mes."
+        >
+          <select
+            value={form.expensesCoverage}
+            onChange={(e) =>
+              update('expensesCoverage', e.target.value as any)
+            }
+          >
+            <option value="surplus">Sí, me sobra dinero</option>
+            <option value="tight">Llego justo a fin de mes</option>
+            <option value="sometimes">A veces no alcanza</option>
+            <option value="no">No logro cubrirlos</option>
+          </select>
+        </FormBlock>
+
+        <FormBlock
+          label="¿Registras o haces seguimiento de tus gastos?"
+          help="Puede ser con una app, Excel o de forma manual."
+        >
+          <select
+            value={form.tracksExpenses}
+            onChange={(e) =>
+              update('tracksExpenses', e.target.value as any)
+            }
+          >
+            <option value="yes">Sí, de forma regular</option>
+            <option value="sometimes">A veces</option>
+            <option value="no">No</option>
+          </select>
+        </FormBlock>
+      </div>
+
+      {/* Footer */}
+      <div className="form-footer">
+        <button
+          type="button"
+          onClick={onBack}
+          className="continue-ghost"
+        >
+          Volver
+        </button>
+
+        {ready && (
+          <button
+            type="button"
+            onClick={onNext}
+            className="continue-ghost"
+          >
+            Continuar
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/app/intake/steps/ContextStep.tsx
+----------------------------------------
+import type { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+import { FormBlock } from '@/components/ui/FormBlock';
+
+export function ContextStep({
+  form,
+  update,
+  onNext,
+}: {
+  form: IntakeQuestionnaire;
+  update: <K extends keyof IntakeQuestionnaire>(
+    key: K,
+    value: IntakeQuestionnaire[K]
+  ) => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="app-content animate-fade-in">
+      {/* Intro */}
+      <div className="app-section">
+        <p className="text-small text-muted">
+          Paso 1 · Contexto inicial
+        </p>
+
+        <h1>Contexto personal</h1>
+
+        <p className="text-muted max-w-xl">
+          Este cuestionario inicial nos permite entender tu situación actual
+          y adaptar el análisis financiero a tu realidad personal.
+          No tomará más de unos minutos.
+        </p>
+      </div>
+
+      {/* Form */}
+      <div className="form-section">
+        <FormBlock
+          label="¿Cuál es tu edad?"
+          help="Nos ayuda a contextualizar tu etapa financiera."
+        >
+          <input
+            type="number"
+            value={form.age ?? ''}
+            onChange={(e) =>
+              update('age', Number(e.target.value))
+            }
+          />
+        </FormBlock>
+
+        <FormBlock
+          label="Situación laboral actual"
+          help="Determina estabilidad y tipo de ingresos."
+        >
+          <select
+            value={form.employmentStatus}
+            onChange={(e) =>
+              update('employmentStatus', e.target.value as any)
+            }
+          >
+            <option value="employed">Empleado</option>
+            <option value="freelance">Independiente</option>
+            <option value="unemployed">Sin trabajo</option>
+          </select>
+        </FormBlock>
+
+        <FormBlock
+          label="Profesión u ocupación principal"
+          help="Opcional. Solo si aplica a tu situación actual."
+        >
+          <input
+            placeholder="Ej: Ingeniero, Diseñador, Emprendedor"
+            value={form.profession}
+            onChange={(e) =>
+              update('profession', e.target.value)
+            }
+          />
+        </FormBlock>
+      </div>
+
+      {/* Footer */}
+      {form.age && (
+        <div className="form-footer">
+          <button
+            onClick={onNext}
+            className="continue-ghost"
+          >
+            Continuar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/app/intake/steps/KnowledgeStep.tsx
+----------------------------------------
+import type { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+
+type FinancialKnowledgeKey =
+  keyof IntakeQuestionnaire['financialKnowledge'];
+
+const KNOWLEDGE_LABELS: Record<FinancialKnowledgeKey, string> = {
+  interest: 'Intereses en un crédito',
+  CAE : 'Carga Anual Equivalente (CAE)',
+  inflation: 'Inflación y poder adquisitivo',
+  creditCard: 'Tarjeta de crédito',
+  creditLine: 'Línea de crédito',
+  loanComponents: 'Componentes de un crédito',
+  interestRate: 'Tasa nominal vs tasa real',
+  liquidity: 'Liquidez',
+  returnConcept: 'Riesgo y retorno',
+  diversification: 'Diversificación',
+  assetVsLiability: 'Activos y pasivos',
+  financialRisk: 'Riesgo financiero',
+  capitalMarkets: 'Mercados financieros',
+  alternativeInvestments: 'Inversiones alternativas',
+  fintech: 'Fintech',
+};
+
+const KNOWLEDGE_GROUPS: {
+  title: string;
+  description: string;
+  keys: FinancialKnowledgeKey[];
+}[] = [
+  {
+    title: 'Créditos y deudas',
+    description: 'Préstamos, tarjetas y costos financieros',
+    keys: [
+      'interest',
+      'CAE',
+      'creditCard',
+      'creditLine',
+      'loanComponents',
+      'interestRate',
+    ],
+  },
+  {
+    title: 'Economía personal',
+    description: 'Conceptos del día a día',
+    keys: [
+      'inflation',
+      'liquidity',
+      'assetVsLiability',
+      'financialRisk',
+    ],
+  },
+  {
+    title: 'Inversión y mercado',
+    description: 'Ahorro, inversión y crecimiento',
+    keys: [
+      'returnConcept',
+      'diversification',
+      'capitalMarkets',
+      'alternativeInvestments',
+      'fintech',
+    ],
+  },
+];
+
+export function KnowledgeStep({
+  form,
+  update,
+  onSubmit,
+  loading,
+  onBack,
+}: {
+  form: IntakeQuestionnaire;
+  update: <K extends keyof IntakeQuestionnaire>(
+    key: K,
+    value: IntakeQuestionnaire[K]
+  ) => void;
+  onSubmit: () => void;
+  loading: boolean;
+  onBack: () => void;
+}) {
+  // En el contrato financialKnowledge es requerido, así que esto siempre debería existir.
+  // Igual lo dejamos robusto.
+  const knowledge = form.financialKnowledge ?? ({} as IntakeQuestionnaire['financialKnowledge']);
+
+  const toggle = (key: FinancialKnowledgeKey) => {
+    update('financialKnowledge', {
+      ...knowledge,
+      [key]: !knowledge[key],
+    });
+  };
+
+  return (
+    <div className="app-content animate-fade-in">
+      {/* HEADER */}
+      <div className="app-section" style={{ gap: 8 }}>
+        <p className="text-small text-muted">Paso final</p>
+
+        <h1>Conocimiento financiero</h1>
+
+        <p className="text-muted" style={{ maxWidth: 420 }}>
+          Selecciona los conceptos que reconoces o utilizas en la práctica.
+          No es una prueba, solo contexto para el diagnóstico.
+        </p>
+      </div>
+
+      {/* GRUPOS */}
+      <div className="app-section" style={{ marginTop: 0, gap: 4 }}>
+        {KNOWLEDGE_GROUPS.map((group) => (
+          <div key={group.title} className="knowledge-group">
+            <div>
+              <div className="knowledge-group-title">{group.title}</div>
+              <div className="knowledge-group-desc">{group.description}</div>
+            </div>
+
+            <div className="knowledge-pills">
+              {group.keys.map((key) => {
+                const active = Boolean(knowledge[key]);
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => toggle(key)}
+                    className={`knowledge-pill ${active ? 'is-active' : ''}`}
+                    aria-pressed={active}
+                  >
+                    {KNOWLEDGE_LABELS[key]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+{/* ───────────────── Reflexión final ───────────────── */}
+<div className="app-section max-w-[520px] mt-20 gap-12">
+  <p className="text-small text-muted">
+    Antes de continuar, queremos entender cómo percibes tu situación
+    financiera actual. No hay respuestas correctas o incorrectas.
+  </p>
+
+  {/* Comprensión financiera */}
+  <div className="flex flex-col gap-4">
+    <label className="form-label">
+      ¿Qué tan sólida sientes que es tu comprensión financiera?
+    </label>
+
+    <input
+      type="range"
+      min={0}
+      max={10}
+      value={form.selfRatedUnderstanding}
+      onChange={(e) =>
+        update('selfRatedUnderstanding', Number(e.target.value))
+      }
+      className="range-editorial"
+    />
+
+    <span className="text-small text-muted">
+      Nivel seleccionado: {form.selfRatedUnderstanding} de 10
+    </span>
+  </div>
+
+  {/* Separador visual */}
+  <div className="h-px bg-white/10" />
+
+  {/* Estrés financiero */}
+  <div className="flex flex-col gap-4">
+    <label className="form-label">
+      ¿Cuánto estrés te genera hoy tu situación financiera?
+    </label>
+
+    <input
+      type="range"
+      min={0}
+      max={10}
+      value={form.moneyStressLevel}
+      onChange={(e) =>
+        update('moneyStressLevel', Number(e.target.value))
+      }
+      className="range-editorial"
+    />
+
+    <span className="text-small text-muted">
+      Nivel seleccionado: {form.moneyStressLevel} de 10
+    </span>
+  </div>
+</div>
+
+
+
+
+      {/* FOOTER */}
+      <div className="form-footer">
+        <button type="button" onClick={onBack} className="continue-ghost">
+          Volver
+        </button>
+
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={loading}
+          className="continue-ghost"
+        >
+          {loading ? 'Analizando…' : 'Comenzar conversación'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/app/intake/steps/ProductsStep.tsx
+----------------------------------------
+import type {
+  IntakeQuestionnaire,
+  FinancialProductEntry,
+} from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+
+export function ProductsStep({
+  form,
+  updateProduct,
+  addProductRow,
+  onNext,
+  onBack,
+}: {
+  form: IntakeQuestionnaire;
+  updateProduct: (
+    index: number,
+    field: keyof FinancialProductEntry,
+    value: any
+  ) => void;
+  addProductRow: () => void;
+  onNext: () => void;
+  onBack: () => void;
+}) {
+  const hasAtLeastOneProduct =
+    form.financialProducts.some((p) => p.product.trim());
+
+  return (
+    <div className="app-content animate-fade-in">
+      {/* Intro */}
+      <div className="app-section">
+        <p className="text-small text-muted">
+          Paso 4 · Productos financieros
+        </p>
+
+        <h1>Productos financieros</h1>
+
+        <p className="text-muted max-w-xl">
+          Ingresa los productos financieros que utilizas actualmente.
+          No es necesario ser exacto: una estimación aproximada es suficiente
+          para el análisis.
+        </p>
+      </div>
+
+      {/* Productos */}
+      <div className="form-section">
+        {form.financialProducts.map((p, i) => (
+          <div
+            key={i}
+            className="
+              flex flex-col gap-10
+              border border-white/10
+              rounded-3xl
+              p-10
+              bg-white/[0.02]
+            "
+          >
+            <div className="text-small text-muted">
+              Producto {i + 1}
+            </div>
+
+            {/* Datos principales */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="form-group">
+                <label className="form-label">
+                  Tipo de producto
+                </label>
+                <input
+                  placeholder="Ej: Tarjeta de crédito, crédito consumo"
+                  value={p.product}
+                  onChange={(e) =>
+                    updateProduct(i, 'product', e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  Institución
+                </label>
+                <input
+                  placeholder="Ej: Banco, fintech, aseguradora"
+                  value={p.institution}
+                  onChange={(e) =>
+                    updateProduct(i, 'institution', e.target.value)
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Costos */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="form-group">
+                <label className="form-label">
+                  Costo mensual aproximado
+                </label>
+                <input
+                  type="number"
+                  placeholder="Monto en pesos"
+                  value={p.monthlyCost ?? ''}
+                  onChange={(e) =>
+                    updateProduct(
+                      i,
+                      'monthlyCost',
+                      Number(e.target.value)
+                    )
+                  }
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  Notas u observaciones
+                  <span className="text-muted"> (opcional)</span>
+                </label>
+                <input
+                  placeholder="Ej: costo anual, pago variable"
+                  value={p.notes}
+                  onChange={(e) =>
+                    updateProduct(i, 'notes', e.target.value)
+                  }
+                />
+              </div>
+            </div>
+            </div>
+        ))}
+        {/* Agregar producto */}
+        <div className="flex justify-center pt-10">
+          <button
+            type="button"
+            onClick={addProductRow}
+            className="continue-ghost"
+          >
+            <span className="text-lg leading-none">+</span>
+            Agregar otro producto
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div className="form-footer">
+          <button
+            type="button"
+            onClick={onBack}
+            className="continue-ghost"
+          >
+            Volver
+          </button>
+
+          {hasAtLeastOneProduct && (
+            <button
+              type="button"
+              onClick={onNext}
+              className="continue-ghost"
+            >
+              Continuar
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/app/intake/steps/SavingsStep.tsx
+----------------------------------------
+import type { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+import { FormBlock } from '@/components/ui/FormBlock';
+
+export function SavingsStep({
+  form,
+  update,
+  onNext,
+  onBack,
+}: {
+  form: IntakeQuestionnaire;
+  update: <K extends keyof IntakeQuestionnaire>(
+    key: K,
+    value: IntakeQuestionnaire[K]
+  ) => void;
+  onNext: () => void;
+  onBack: () => void;
+}) {
+  const ready =
+    form.hasSavingsOrInvestments === false ||
+    (form.hasSavingsOrInvestments === true &&
+      Boolean(form.savingsBand));
+
+  return (
+    <div className="app-content animate-fade-in">
+      {/* Intro */}
+      <div className="app-section">
+        <p className="text-small text-muted">
+          Paso 3 · Ahorro, inversión y deudas
+        </p>
+
+        <h1>Ahorro, inversión y deudas</h1>
+
+        <p className="text-muted max-w-xl">
+          Esta sección nos permite entender tu situación financiera general:
+          si tienes un respaldo de ahorro y si mantienes compromisos de deuda
+          activos actualmente.
+        </p>
+      </div>
+
+      {/* Form */}
+      <div className="form-section">
+        {/* ───────── Ahorro ───────── */}
+        <FormBlock
+          label="¿Actualmente tienes ahorros o dinero destinado a inversión?"
+          help="Incluye ahorros en cuentas, depósitos, fondos o inversiones."
+        >
+          <select
+            value={form.hasSavingsOrInvestments ? 'yes' : 'no'}
+            onChange={(e) =>
+              update(
+                'hasSavingsOrInvestments',
+                e.target.value === 'yes'
+              )
+            }
+          >
+            <option value="yes">Sí</option>
+            <option value="no">No</option>
+          </select>
+        </FormBlock>
+
+        {form.hasSavingsOrInvestments && (
+          <FormBlock
+            label="¿A cuánto asciende aproximadamente ese ahorro o inversión?"
+            help="Selecciona un rango aproximado. No es necesario ser exacto."
+          >
+            <select
+              value={form.savingsBand ?? ''}
+              onChange={(e) =>
+                update('savingsBand', e.target.value as any)
+              }
+            >
+              <option value="" disabled>
+                Selecciona un rango
+              </option>
+              <option value="<500k">Menos de $500.000</option>
+              <option value="500k-1M">$500.000 – $1.000.000</option>
+              <option value="1M-2M">$1.000.000 – $2.000.000</option>
+              <option value=">2M">Más de $2.000.000</option>
+            </select>
+          </FormBlock>
+        )}
+
+        {/* ───────── Deudas ───────── */}
+        <FormBlock
+          label="¿Actualmente tienes deudas o compromisos financieros activos?"
+          help="Incluye créditos, tarjetas, préstamos o pagos en cuotas."
+        >
+          <select
+            value={form.hasDebt ? 'yes' : 'no'}
+            onChange={(e) =>
+              update('hasDebt', e.target.value === 'yes')
+            }
+          >
+            <option value="yes">Sí</option>
+            <option value="no">No</option>
+          </select>
+        </FormBlock>
+
+        {form.hasDebt && (
+          <div className="text-small text-muted max-w-xl">
+            Más adelante te pediremos el detalle de tus productos financieros
+            para entender mejor estas deudas (montos, costos y condiciones).
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="form-footer">
+        <button
+          type="button"
+          onClick={onBack}
+          className="continue-ghost"
+        >
+          Volver
+        </button>
+
+        {ready && (
+          <button
+            type="button"
+            onClick={onNext}
+            className="continue-ghost"
+          >
+            Continuar
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/app/intake/steps/index.ts
+----------------------------------------
+export * from './ContextStep';
+export * from './CashflowStep';
+export * from './SavingsStep';
+export * from './ProductsStep';
+export * from './KnowledgeStep';
+
+----------------------------------------
+FILE: apps/web/app/interview/layout.tsx
+----------------------------------------
+export default function InterviewLayout({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        {children}
+      </div>
+    );
+  }
+  
+----------------------------------------
+FILE: apps/web/app/interview/page.tsx
+----------------------------------------
+// apps/web/app/interview/page.tsx
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+
+import { QuestionCard } from '@/components/conversation/QuestionCard';
+import { SummaryCard } from '@/components/conversation/SummaryCard';
+
+import { useInterviewStore } from '@/state/interview.store';
+import { useProfileStore } from '@/state/profile.store';
+
+import { nextConversationStep } from '@/lib/api';
+
+export default function InterviewPage() {
+  const router = useRouter();
+  const bootedRef = useRef(false);
+
+  const {
+    intake,
+    answersByBlock,
+    completedBlocks,
+    lastResponse,
+    addAnswer,
+    resetBlock,
+    setResponse,
+  } = useInterviewStore();
+
+  const { setProfile } = useProfileStore();
+
+  // Guard
+  useEffect(() => {
+    if (!intake) router.replace('/intake');
+  }, [intake, router]);
+
+  // Boot
+  useEffect(() => {
+    if (!intake || bootedRef.current || lastResponse) return;
+    bootedRef.current = true;
+
+    nextConversationStep({
+      intake,
+      completedBlocks,
+    }).then(setResponse);
+  }, [intake, completedBlocks, lastResponse, setResponse]);
+
+  // Avance automático
+  useEffect(() => {
+    if (lastResponse?.type !== 'block_completed') return;
+
+    const updatedCompleted =
+      lastResponse.completedBlocks ?? completedBlocks;
+
+    nextConversationStep({
+      intake,
+      completedBlocks: updatedCompleted,
+    }).then((res) => {
+      if (res?.blockId) resetBlock(res.blockId);
+      setResponse(res);
+    });
+  }, [lastResponse, intake, completedBlocks, resetBlock, setResponse]);
+
+  // 🎯 FIN ENTREVISTA
+  useEffect(() => {
+    if (lastResponse?.type === 'interview_complete') {
+      setProfile(lastResponse.profile);
+      router.push('/diagnosis');
+    }
+  }, [lastResponse, setProfile, router]);
+
+  if (!intake || !lastResponse) return null;
+
+  const blockId = lastResponse.blockId;
+  const answersInBlock = blockId
+    ? answersByBlock[blockId] ?? []
+    : [];
+
+  return (
+    <div className="interview-shell">
+      <div className="interview-column">
+
+        {lastResponse.type === 'question' && blockId && (
+          <QuestionCard
+            question={lastResponse.question}
+            onSubmit={async (answer) => {
+              const clean = answer?.trim();
+              if (!clean) return;
+
+              addAnswer(blockId, clean);
+
+              const res = await nextConversationStep({
+                intake,
+                blockId,
+                answersInCurrentBlock: [
+                  ...answersInBlock,
+                  clean,
+                ],
+                completedBlocks,
+              });
+
+              setResponse(res);
+            }}
+          />
+        )}
+
+        {lastResponse.type === 'block_summary' && blockId && (
+          <SummaryCard
+            summary={lastResponse.summary}
+            onAccept={async () => {
+              const res = await nextConversationStep({
+                intake,
+                blockId,
+                completedBlocks,
+                summaryValidation: { accepted: true },
+              });
+              setResponse(res);
+            }}
+            onReject={async (comment) => {
+              const res = await nextConversationStep({
+                intake,
+                blockId,
+                completedBlocks,
+                summaryValidation: {
+                  accepted: false,
+                  comment,
+                },
+              });
+              setResponse(res);
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/app/layout.tsx
+----------------------------------------
+// apps/web/app/layout.tsx
+import './globals.css';
+import './agent.css';
+import { AnimatedBackground } from '@/components/layout/AnimatedBackground';
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="es">
+      <body>
+        {/* Fondo animado global */}
+        <AnimatedBackground />
+
+        {/* App shell neutro (SIN padding) */}
+        <div className="app-shell">
+          {children}
+        </div>
+      </body>
+    </html>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/app/login/page.tsx
+----------------------------------------
+
+----------------------------------------
+FILE: apps/web/app/page.tsx
+----------------------------------------
+// apps/web/app/page.tsx
+'use client';
+
+import Link from 'next/link';
+import { TypewriterText } from '@/components/ui/TypewriterText';
+
+const MACHINE_TEXT = `
+────────────────────▄▄▄▄
+────────────────▄▄█▀▀──▀▀█▄
+─────────────▄█▀▀─────────▀▀█▄
+────────────▄█▀──▄▄▄▄▄▄──────▀█
+────────────█───█▌────▀▀█▄─────█
+────────────█──▄█────────▀▀▀█──█
+────────────█──█──▀▀▀──▀▀▀▄─▐──█
+────────────█──▌────────────▐──█
+────────────█──▌─▄▀▀▄───────▐──█
+───────────█▀▌█──▄▄▄───▄▀▀▄─▐──█
+───────────▌─▀───█▄█▌─▄▄▄────█─█
+───────────▌──────▀▀──█▄█▌────█
+───────────█───────────▀▀─────▐
+────────────█──────▌──────────█
+────────────██────█──────────█
+─────────────█──▄──█▄█─▄────█
+─────────────█──▌─▄▄▄▄▄hagamos que tu ─────────────█──▌─▄dinero valga la pena :) 
+─────────────█─────▄▄──▄▀─█
+─────────────█▄──────────█
+─────────────█▀█▄▄──▄▄▄▄▄█▄▄▄▄▄
+───────────▄██▄──▀▀▀█─────────█
+──────────██▄─█▄────█─────────█
+───▄▄▄▄███──█▄─█▄───█─────────██▄▄▄
+▄█▀▀────█────█──█▄──█▓▓▓▓▓▓▓▓▓█───▀▀▄
+█──────█─────█───████▓▓▓▓▓▓▓▓▓█────▀█
+█──────█─────█───█████▓▓▓▓▓▓▓█──────█
+█─────█──────█───███▀▀▀▀█▓▓▓█───────█
+█────█───────█───█───▄▄▄▄████───────█
+█────█───────█──▄▀───────────█──▄───█
+█────█───────█─▄▀─────█████▀▀▀─▄█───█
+█────█───────█▄▀────────█─█────█────█
+█────█───────█▀───────███─█────█────█
+█─────█────▄█▀──────────█─█────█────█
+█─────█──▄██▀────────▄▀██─█▄───█────█
+█────▄███▀─█───────▄█─▄█───█▄──█────█
+█─▄██▀──█──█─────▄███─█─────█──█────█
+██▀────▄█───█▄▄▄█████─▀▀▀▀█▀▀──█────█
+█──────█────▄▀──█████─────█────▀█───█
+
+
+`;
+export default function HomePage() {
+  return (
+    <main
+      className="page-container"
+      style={{ position: 'relative', zIndex: 1 }}
+    >
+      <div className="home-grid">
+
+        {/* COLUMNA IZQUIERDA */}
+        <section className="home-panel">
+
+          <div
+            className="home-card"
+            style={{
+    
+              backgroundSize: '90%',
+              backgroundPosition: '20% 30%',
+              opacity: 0.9,
+              backgroundColor: 'black',
+            }}
+          >
+            <h1 className="home-title">Financiera - Mente</h1>
+            <p className="home-subtitle">
+              Claridad financiera, antes de decidir.
+            </p>
+          </div>
+
+          <div
+            className="home-card muted"
+            style={{
+              backgroundImage: "url('/fondo8.png')",
+              backgroundSize: '100%',
+              backgroundPosition: '60% 20%',
+              opacity: 0.7,
+            }}
+          >
+            <p>
+              Un agente conversacional diseñado para ayudarte a pensar tu
+              situación financiera con calma, contexto y sin juicios.
+            </p>
+          </div>
+
+          <div
+            className="home-card muted"
+            style={{
+         
+              backgroundSize: '100%',
+              backgroundPosition: '50% 80%',
+              backgroundColor: 'black',
+              opacity: 0.8,
+            
+            }}
+          >
+            <p className="text-small">
+              No vendo productos financieros.<br />
+              No entrego consejos automáticos.<br />
+              No tomo decisiones por ti.
+            </p>
+          </div>
+
+          <div className="home-actions">
+            <Link href="/register" passHref legacyBehavior>
+              <a className="continue-ghost">
+                Iniciar conversación
+              </a>
+            </Link>
+
+            <Link href="/login" passHref legacyBehavior>
+              <a className="continue-ghost">
+                Retomar conversación
+              </a>
+            </Link>
+          </div>
+        </section>
+
+        {/* COLUMNA DERECHA — decorativa */}
+        <aside className="home-aside" aria-hidden>
+          <div className="machine-frame">
+            <div className="machine-text">
+              <TypewriterText text={MACHINE_TEXT} speed={2} />
+            </div>
+          </div>
+        </aside>
+
+      </div>
+    </main>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/app/register/page.tsx
+----------------------------------------
+// apps/web/app/register/page.tsx
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { registerUser } from '@/lib/api';
+import { useSessionStore } from '@/state/session.store';
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const setAuthenticated = useSessionStore((s) => s.setAuthenticated);
+
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const update = (k: keyof typeof form, v: string) =>
+    setForm((f) => ({ ...f, [k]: v }));
+
+  const onSubmit = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const res = await registerUser(form);
+      try {
+        if (form.name) localStorage.setItem('user_name', form.name);
+        if (res?.user?.id) localStorage.setItem('user_id', res.user.id);
+      } catch {}
+      setAuthenticated();
+      router.push('/intake');
+    } catch (e: any) {
+      setError(e.message ?? 'Ocurrió un error al crear la cuenta');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      {/* Fondo animado */}
+      <div className="animated-bg">
+        <div className="bg-layer layer-1" />
+        <div className="bg-layer layer-2" />
+      </div>
+
+      <main className="app-shell">
+        <div className="app-content">
+
+          <section className="app-section animate-fade-in">
+            <h1 className="text-3xl font-light">
+              Crear cuenta
+            </h1>
+
+            <p className="text-muted max-w-sm">
+              Un primer paso breve.  
+              Luego, conversamos con calma.
+            </p>
+          </section>
+
+          <section className="app-section">
+            <div className="form-section max-w-md">
+
+              <div className="form-group">
+                <label className="form-label">Nombre</label>
+                <input
+                  placeholder="Cómo prefieres que te llame"
+                  value={form.name}
+                  onChange={(e) => update('name', e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Email</label>
+                <input
+                  placeholder="Tu correo personal"
+                  value={form.email}
+                  onChange={(e) => update('email', e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Contraseña</label>
+                <input
+                  type="password"
+                  placeholder="Una clave simple, solo para ti"
+                  value={form.password}
+                  onChange={(e) => update('password', e.target.value)}
+                />
+              </div>
+
+              {error && (
+                <p className="text-small text-muted">
+                  {error}
+                </p>
+              )}
+
+            </div>
+          </section>
+
+          <section className="app-section">
+            <div className="form-footer max-w-md">
+              <button
+                onClick={onSubmit}
+                disabled={loading}
+                className="button-primary"
+              >
+                {loading ? 'Creando…' : 'Continuar'}
+              </button>
+
+              <span className="text-small text-muted">
+                Toma menos de un minuto
+              </span>
+            </div>
+          </section>
+
+        </div>
+      </main>
+    </>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/ChatRenderer.tsx
+----------------------------------------
+import Link from 'next/link';
+
+export function ArtifactBubble({ artifact }: { artifact: any }) {
+  if (artifact.type === 'pdf') {
+    return (
+      <div className="border rounded-lg p-4 bg-white shadow-sm space-y-2">
+        <div className="font-semibold">{artifact.title}</div>
+        {artifact.description && (
+          <div className="text-sm text-gray-600">{artifact.description}</div>
+        )}
+        <Link
+          href={artifact.fileUrl}
+          target="_blank"
+          className="inline-block mt-2 text-blue-600 underline"
+        >
+          Descargar PDF
+        </Link>
+      </div>
+    );
+  }
+
+  if (artifact.type === 'chart') {
+    return (
+      <div className="border rounded-lg p-4 bg-white shadow-sm">
+        <div className="font-semibold">{artifact.title}</div>
+        <img
+          src={artifact.previewImageUrl}
+          alt={artifact.title}
+          className="mt-2 rounded"
+        />
+      </div>
+    );
+  }
+
+  return null;
+}
+
+----------------------------------------
+FILE: apps/web/components/PanelCard.tsx
+----------------------------------------
+"use client";
+import React from "react";
+
+type Props = {
+  label?: string;
+  value?: React.ReactNode;
+  children?: React.ReactNode;
+  className?: string;
+  title?: string;
+
+  /* 🎨 NUEVO */
+  bgImage?: string;
+  overlayOpacity?: number; // 0 → 1
+  overlayColor?: string;   // ej: '0,0,0' o '255,255,255'
+  bgScale?: number;        // ej: 1, 1.1, 1.25
+  bgPosition?: string;     // ej: 'center', 'top', '50% 30%'
+};
+
+export default function PanelCard({
+  label,
+  value,
+  children,
+  className = "",
+  title,
+
+  bgImage,
+  overlayOpacity = 0.45,
+  overlayColor = "0,0,0",
+  bgScale = 1.05,
+  bgPosition = "center",
+}: Props) {
+  return (
+    <div
+      className={`panel-card ${className}`.trim()}
+      style={
+        bgImage
+          ? ({
+              ["--card-bg" as any]: `url('${bgImage}')`,
+              ["--overlay-opacity" as any]: overlayOpacity,
+              ["--overlay-color" as any]: overlayColor,
+              ["--bg-scale" as any]: bgScale,
+              ["--bg-position" as any]: bgPosition,
+            } as React.CSSProperties)
+          : undefined
+      }
+    >
+      {label && <span className="panel-label">{label}</span>}
+      {value !== undefined && <div className="panel-value">{value}</div>}
+      {title && <div className="panel-value">{title}</div>}
+      {children && <div className="panel-text">{children}</div>}
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/ProfileCard.tsx
+----------------------------------------
+'use client';
+import React from 'react';
+
+type Props = {
+  userName?: string | null;
+  profile?: any;
+  injected?: boolean;
+  className?: string;
+};
+
+export default function ProfileCard({
+  userName,
+  profile,
+  injected,
+  className = '',
+}: Props) {
+  const initials = userName
+    ? userName
+        .split(' ')
+        .map((s) => s[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : 'U';
+
+  const clarityLabel =
+    ({ low: 'Baja', medium: 'Media', high: 'Alta' } as any)[
+      profile?.profile?.financialClarity
+    ] ?? profile?.profile?.financialClarity;
+
+  const horizonLabel =
+    ({ short_term: 'Corto plazo', mixed: 'Mixto', long_term: 'Largo plazo' } as any)[
+      profile?.profile?.timeHorizon
+    ] ?? profile?.profile?.timeHorizon;
+
+  const coherence = Math.round((profile?.profile?.coherenceScore ?? 0) * 100);
+
+  return (
+    <div className={`profile-card premium ${className}`.trim()}>
+      {injected && (
+        <span className="profile-badge">Inyectado</span>
+      )}
+
+      {/* HEADER */}
+      <div className="profile-header">
+        <div className="profile-avatar" aria-hidden>
+          {initials}
+        </div>
+
+        <div className="profile-identity">
+          <div className="profile-name">
+            {userName ?? 'Usuario'}
+          </div>
+          <div className="profile-subtitle">
+            Perfil financiero
+          </div>
+        </div>
+      </div>
+
+      {/* META */}
+      <div className="profile-meta">
+        {profile?.profile ? (
+          <>
+            <span className="pill">
+              Claridad · {clarityLabel}
+            </span>
+            <span className="pill">
+              Horizonte · {horizonLabel}
+            </span>
+          </>
+        ) : (
+          <span className="text-small text-muted">
+            Perfil aún no disponible
+          </span>
+        )}
+      </div>
+
+      {/* COHERENCE */}
+      <div className="coherence">
+        <div className="coherence-head">
+          <span className="coherence-label">Coherencia</span>
+          <span className="coherence-value">{coherence}%</span>
+        </div>
+
+        <div className="coherence-bar" aria-hidden>
+          <div
+            className="coherence-fill"
+            style={{ width: `${coherence}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/agent/AgentBlockBubble.tsx
+----------------------------------------
+import React from "react";
+
+export function AgentBlockBubble({ block }: { block: any }) {
+  if (block.type !== "document") return null;
+
+  return (
+    <div className="agent-bubble agent-bubble--document">
+      <div className="agent-doc-title">{block.title}</div>
+      {block.sections?.map((s: any, i: number) => (
+        <div key={i} className="agent-doc-section">
+          <div className="agent-doc-heading">{s.heading}</div>
+          <div className="agent-doc-content">{s.content}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/agent/AgentBlocksRenderer.tsx
+----------------------------------------
+'use client';
+
+import { ChartBlockRenderer } from './ChartBlockRenderer';
+
+type AgentBlock =
+  | {
+      type: 'chart';
+      chart: any;
+    };
+
+export function AgentBlocksRenderer({
+  blocks,
+}: {
+  blocks: AgentBlock[];
+}) {
+  if (!blocks?.length) return null;
+
+  return (
+    <div className="mt-4 space-y-4">
+      {blocks.map((block, i) => {
+        switch (block.type) {
+          case 'chart':
+            return <ChartBlockRenderer key={i} block={block} />;
+
+          default:
+            return null;
+        }
+      })}
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/agent/ChartBlockRenderer.tsx
+----------------------------------------
+'use client';
+
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+
+type ChartBlock = {
+  type: 'chart';
+  chart: {
+    kind: 'line' | 'bar' | 'area';
+    title: string;
+    subtitle?: string;
+    xKey: string;
+    yKey: string;
+    data: Record<string, number>[];
+    format?: 'currency' | 'percentage' | 'number';
+    currency?: string;
+  };
+};
+
+function formatValue(
+  value: number,
+  format?: ChartBlock['chart']['format'],
+  currency?: string
+) {
+  if (format === 'currency') {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: currency ?? 'CLP',
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  if (format === 'percentage') {
+    return `${value.toFixed(2)} %`;
+  }
+
+  return value.toLocaleString('es-CL');
+}
+
+export function ChartBlockRenderer({ block }: { block: ChartBlock }) {
+  const { chart } = block;
+
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold text-neutral-100">
+          {chart.title}
+        </h3>
+        {chart.subtitle && (
+          <p className="text-xs text-neutral-400">
+            {chart.subtitle}
+          </p>
+        )}
+      </div>
+
+      <div className="h-56 w-full">
+        <ResponsiveContainer width="70%" height="70%">
+          <LineChart data={chart.data}>
+            <XAxis
+              dataKey={chart.xKey}
+              tick={{ fontSize: 5, fill: '#9ca3af' }}
+            />
+            <YAxis
+              tick={{ fontSize: 5, fill: '#9ca3af' }}
+              tickFormatter={(v) =>
+                formatValue(v, chart.format, chart.currency)
+              }
+
+            />
+            <Tooltip
+            formatter={(value: any) =>
+                formatValue(
+                Number(value),
+                chart.format,
+                chart.currency
+                )
+            }
+            />
+
+            <Line
+              type="monotone"
+              dataKey={chart.yKey}
+              stroke="#8b5cf6"
+              strokeWidth={2}
+              dot={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/agent/cards/DocumentCard.tsx
+----------------------------------------
+import React from "react";
+
+export function DocumentCard({ block }: { block: any }) {
+  return (
+    <div style={{
+      marginTop: 16,
+      padding: 16,
+      borderRadius: 14,
+      background: "rgba(255,255,255,0.08)",
+      backdropFilter: "blur(10px)",
+      boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+      color: "white",
+      maxWidth: 720
+    }}>
+      <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>
+        {block.title}
+      </h3>
+
+      {block.sections?.map((s: any, i: number) => (
+        <div key={i} style={{ marginBottom: 10 }}>
+          <div style={{
+            fontSize: 12,
+            opacity: 0.65,
+            textTransform: "uppercase",
+            marginBottom: 4
+          }}>
+            {s.heading}
+          </div>
+          <div style={{ whiteSpace: "pre-line", fontSize: 14 }}>
+            {s.content}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/conversation/ArtifactBubble.tsx
+----------------------------------------
+import Link from 'next/link';
+
+export function ArtifactBubble({ artifact }: { artifact: any }) {
+  if (artifact.type === 'pdf') {
+    return (
+      <div className="border rounded-lg p-4 bg-white shadow-sm space-y-2">
+        <div className="font-semibold">{artifact.title}</div>
+        {artifact.description && (
+          <div className="text-sm text-gray-600">{artifact.description}</div>
+        )}
+        <Link
+          href={artifact.fileUrl}
+          target="_blank"
+          className="inline-block mt-2 text-blue-600 underline"
+        >
+          Descargar PDF
+        </Link>
+      </div>
+    );
+  }
+
+  if (artifact.type === 'chart') {
+    return (
+      <div className="border rounded-lg p-4 bg-white shadow-sm">
+        <div className="font-semibold">{artifact.title}</div>
+        <img
+          src={artifact.previewImageUrl}
+          alt={artifact.title}
+          className="mt-2 rounded"
+        />
+      </div>
+    );
+  }
+
+  return null;
+}
+
+----------------------------------------
+FILE: apps/web/components/conversation/CitationBubble.tsx
+----------------------------------------
+'use client';
+
+import React from 'react';
+import type { Citation } from '@/lib/agent.response.types';
+
+export function CitationBubble({ citation }: { citation: Citation }) {
+  return (
+    <div className="citation-bubble">
+      <div className="citation-head">
+        <span className="citation-pill">fuente</span>
+        <span className="citation-source">{citation.source}</span>
+      </div>
+
+      <a className="citation-link" href={citation.url} target="_blank" rel="noreferrer">
+        {citation.title || citation.url}
+      </a>
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/conversation/ChartBlock.tsx
+----------------------------------------
+'use client';
+
+type ChartBlockProps = {
+  chart: {
+    kind: string;
+    data: any[];
+    xKey?: string;
+    yKey?: string;
+  };
+};
+
+export function ChartBlock({ chart }: ChartBlockProps) {
+  return (
+    <div style={{ fontSize: 11, opacity: 0.85 }}>
+      <strong>Gráfico ({chart.kind})</strong>
+
+      {chart.xKey && chart.yKey && (
+        <div style={{ fontSize: 10, opacity: 0.6 }}>
+          Ejes: {chart.xKey} · {chart.yKey}
+        </div>
+      )}
+
+      <pre style={{ whiteSpace: 'pre-wrap' }}>
+        {JSON.stringify(chart.data, null, 2)}
+      </pre>
+    </div>
+  );
+}
+
+
+----------------------------------------
+FILE: apps/web/components/conversation/DocumentBubble.tsx
+----------------------------------------
+'use client';
+
+import React, { useMemo, useState } from 'react';
+import type { Artifact } from '@/lib/agent.response.types';
+import { downloadFile, savePdfArtifact } from '@/lib/artifacts';
+
+export function DocumentBubble({ artifact }: { artifact: Artifact }) {
+  const [saving, setSaving] = useState(false);
+  const [savedUrl, setSavedUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const openUrl = useMemo(() => {
+    return savedUrl ?? artifact.fileUrl ?? '';
+  }, [savedUrl, artifact.fileUrl]);
+
+  const subtitle = useMemo(() => {
+    const parts: string[] = [];
+    if (artifact.source) parts.push(artifact.source === 'simulation' ? 'Simulación' : 'Análisis');
+    if (artifact.createdAt) parts.push(new Date(artifact.createdAt).toLocaleString());
+    return parts.join(' · ');
+  }, [artifact.source, artifact.createdAt]);
+
+  const onOpen = () => {
+    if (!openUrl) return;
+    window.open(openUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const onDownload = () => {
+    if (!openUrl) return;
+    const safeName = (artifact.title || artifact.id || 'documento')
+      .toLowerCase()
+      .replace(/[^a-z0-9\-_\s]/gi, '')
+      .trim()
+      .replace(/\s+/g, '-');
+    downloadFile(openUrl, `${safeName}.pdf`);
+  };
+
+  const onSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+
+      // Solo tiene sentido para PDFs con fileUrl
+      if (!artifact.fileUrl) throw new Error('Este documento aún no tiene URL.');
+
+      const out = await savePdfArtifact(artifact);
+      setSavedUrl(out.publicUrl);
+    } catch (e: any) {
+      setError(e?.message ?? 'Error guardando el documento');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="doc-bubble">
+      <div className="doc-top">
+        <div className="doc-meta">
+          <div className="doc-title">{artifact.title}</div>
+          {subtitle && <div className="doc-subtitle">{subtitle}</div>}
+          {artifact.description && <div className="doc-desc">{artifact.description}</div>}
+        </div>
+
+        <div className="doc-actions">
+          <button type="button" className="doc-btn" onClick={onOpen} disabled={!openUrl}>
+            Abrir
+          </button>
+          <button type="button" className="doc-btn" onClick={onDownload} disabled={!openUrl}>
+            Descargar
+          </button>
+          <button
+            type="button"
+            className={`doc-btn doc-btn-primary ${savedUrl ? 'is-saved' : ''}`}
+            onClick={onSave}
+            disabled={saving || Boolean(savedUrl)}
+            title={savedUrl ? 'Guardado' : 'Guardar en biblioteca'}
+          >
+            {savedUrl ? 'Guardado ✓' : saving ? 'Guardando…' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+
+      {/* Preview */}
+      <div className="doc-preview" onClick={onOpen} role="button" tabIndex={0}>
+        {artifact.previewImageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className="doc-preview-img" src={artifact.previewImageUrl} alt="Preview del documento" />
+        ) : artifact.fileUrl ? (
+          <div className="doc-preview-placeholder">
+            <div className="doc-a4" />
+            <div className="doc-preview-hint">Documento PDF listo para abrir</div>
+          </div>
+        ) : (
+          <div className="doc-preview-placeholder">
+            <div className="doc-a4" />
+            <div className="doc-preview-hint">Generando documento…</div>
+          </div>
+        )}
+      </div>
+
+      {error && <div className="doc-error">{error}</div>}
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/conversation/QuestionCard.tsx
+----------------------------------------
+// apps/web/components/conversation/QuestionCard.tsx
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { TypewriterText } from '@/components/ui/TypewriterText';
+
+declare global {
+  interface Window {
+    webkitSpeechRecognition?: any;
+    SpeechRecognition?: any;
+  }
+}
+
+export function QuestionCard({
+  question,
+  onSubmit,
+}: {
+  question: string;
+  onSubmit: (answer: string) => void;
+}) {
+  const [value, setValue] = useState('');
+  const [listening, setListening] = useState(false);
+  const [reveal, setReveal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /* ────────────────────────────── */
+  /* 🔊 TEXT TO SPEECH (Pregunta)   */
+  /* ────────────────────────────── */
+  const synthRef = useRef<SpeechSynthesis | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  const speakQuestion = () => {
+    if (typeof window === 'undefined') return;
+    if (!('speechSynthesis' in window)) return;
+
+    // Cancela cualquier lectura previa
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(question);
+
+    // 🎙️ Configuración “voz agente senior”
+    utterance.lang = 'es-CL'; // fallback automático a es-ES
+    utterance.rate = 1.3;    // más humano
+    utterance.pitch = 0.9;    // más sobrio
+    utterance.volume = 1;
+
+    // Elegir mejor voz disponible
+    const voices = window.speechSynthesis.getVoices();
+    const preferred =
+      voices.find(v => v.lang.startsWith('es') && /Google|Natural|Premium/i.test(v.name)) ||
+      voices.find(v => v.lang.startsWith('es')) ||
+      null;
+
+    if (preferred) utterance.voice = preferred;
+
+    utteranceRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    if (typeof window === 'undefined') return;
+    window.speechSynthesis.cancel();
+  };
+
+  /* ────────────────────────────── */
+  /* Ritmo visual + auto-voz        */
+  /* ────────────────────────────── */
+  useEffect(() => {
+    setReveal(false);
+    setValue('');
+    setError(null);
+
+    const delay = Math.min(1200 + question.length * 18, 3200);
+    const t = setTimeout(() => {
+      setReveal(true);
+      speakQuestion(); // 🔥 lee la pregunta automáticamente
+    }, delay);
+
+    return () => {
+      clearTimeout(t);
+      stopSpeaking();
+    };
+  }, [question]);
+
+  /* ────────────────────────────── */
+  /* Dictado: cuando habla, calla   */
+  /* ────────────────────────────── */
+  const startListening = () => {
+    stopSpeaking(); // 👈 clave UX
+    setListening(true);
+    // tu lógica de SR / Whisper sigue igual
+  };
+
+  const stopListening = () => {
+    setListening(false);
+  };
+
+  const submit = () => {
+    const clean = value.trim();
+    if (!clean) return;
+    stopSpeaking();
+    onSubmit(clean);
+    setValue('');
+  };
+
+  return (
+    <div className="question-wrapper">
+      {/* Pregunta */}
+      <h1 className="question-text">
+        <TypewriterText text={question} />
+      </h1>
+
+      <div className="question-spacer" />
+
+      {/* Respuesta */}
+      <div className={`answer-wrapper ${reveal ? 'visible' : 'hidden'}`}>
+        <input
+          className="answer-input"
+          placeholder={listening ? 'Escuchando…' : 'Escribe o habla…'}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+        />
+
+        {error && (
+          <div style={{ marginTop: 10, fontSize: 13, color: 'rgba(255,120,120,0.95)' }}>
+            {error}
+          </div>
+        )}
+
+        <div
+          style={{
+            display: 'flex',
+            gap: 14,
+            marginTop: 16,
+            alignItems: 'center',
+          }}
+        >
+          <button
+            onClick={listening ? stopListening : startListening}
+            className={`mic-button ${listening ? 'active' : ''}`}
+            type="button"
+          >
+            {listening ? 'Detener' : 'Hablar'}
+          </button>
+
+          {/* 🔁 Repetir pregunta */}
+          <button
+            onClick={speakQuestion}
+            className="continue-ghost"
+            type="button"
+          >
+            Repetir pregunta
+          </button>
+
+          {value.trim() && (
+            <button
+              onClick={submit}
+              className="continue-button"
+              type="button"
+            >
+              Continuar
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/conversation/SummaryCard.tsx
+----------------------------------------
+'use client';
+
+import { useEffect, useState } from 'react';
+import { TypewriterText } from '@/components/ui/TypewriterText';
+
+export function SummaryCard({
+  summary,
+  onAccept,
+  onReject,
+}: {
+  summary: string;
+  onAccept: () => void;
+  onReject: (comment: string) => void;
+}) {
+  const [showActions, setShowActions] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [comment, setComment] = useState('');
+
+  /* ────────────────────────────── */
+  /* 🔊 TEXT TO SPEECH (Summary)    */
+  /* ────────────────────────────── */
+  const speakSummary = () => {
+    if (typeof window === 'undefined') return;
+    if (!('speechSynthesis' in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(summary);
+    utterance.lang = 'es-CL';
+    utterance.rate = 1.2;
+    utterance.pitch = 0.85;
+    utterance.volume = 1;
+
+    const voices = window.speechSynthesis.getVoices();
+    const preferred =
+      voices.find(v => v.lang.startsWith('es') && /Google|Natural|Premium/i.test(v.name)) ||
+      voices.find(v => v.lang.startsWith('es')) ||
+      null;
+
+    if (preferred) utterance.voice = preferred;
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    if (typeof window === 'undefined') return;
+    window.speechSynthesis.cancel();
+  };
+
+  /* ────────────────────────────── */
+  /* Ritmo visual + auto-lectura    */
+  /* ────────────────────────────── */
+  useEffect(() => {
+    setShowActions(false);
+    setEditing(false);
+    setComment('');
+    stopSpeaking();
+
+    const delay = Math.min(1800 + summary.length * 18, 5200);
+    const t = setTimeout(() => {
+      setShowActions(true);
+      speakSummary();
+    }, delay);
+
+    return () => {
+      clearTimeout(t);
+      stopSpeaking();
+    };
+  }, [summary]);
+
+  /* ────────────────────────────── */
+  /* Acciones                       */
+  /* ────────────────────────────── */
+  const accept = () => {
+    stopSpeaking();
+    onAccept();
+  };
+
+  const reject = () => {
+    stopSpeaking();
+    onReject(comment);
+  };
+
+  return (
+    <div className="question-wrapper">
+      {/* ───────────── Resumen ───────────── */}
+      <h1 className="question-text text-white/80 text-center">
+        <TypewriterText text={summary} />
+      </h1>
+
+      <div className="question-spacer" />
+
+      {/* ───────────── Acciones ───────────── */}
+      {showActions && !editing && (
+        <div className="answer-wrapper visible">
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <button
+              onClick={accept}
+              className="continue-button"
+              type="button"
+            >
+              Sí, esto refleja mi situación
+            </button>
+
+            <button
+              onClick={() => setEditing(true)}
+              className="continue-ghost"
+              type="button"
+            >
+              Quiero ajustar algo
+            </button>
+
+            <button
+              onClick={speakSummary}
+              className="continue-ghost opacity-70"
+              type="button"
+            >
+              Releer resumen
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────── Edición ───────────── */}
+      {showActions && editing && (
+        <div className="answer-wrapper visible">
+          <input
+            className="answer-input"
+            placeholder="Dime qué debería corregirse…"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            onFocus={stopSpeaking}
+          />
+
+          <div style={{ marginTop: 16 }}>
+            <button
+              onClick={reject}
+              className="continue-button"
+              type="button"
+              disabled={!comment.trim()}
+            >
+              Enviar corrección
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/conversation/test.tsx
+----------------------------------------
+import { useState } from 'react';
+
+export function Test() {
+  const [v, setV] = useState('');
+
+  return (
+    <textarea
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+    />
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/diagnosis/DiagnosticNarrative.tsx
+----------------------------------------
+'use client';
+
+interface DiagnosticNarrativeProps {
+  narrative: string;
+}
+
+export function DiagnosticNarrative({
+  narrative,
+}: DiagnosticNarrativeProps) {
+  return (
+    <section className="app-section animate-fade-in">
+      <h2 className="text-muted text-small">
+        Diagnóstico integrado
+      </h2>
+
+      <p style={{ fontSize: 18, marginTop: 24 }}>
+        {narrative}
+      </p>
+    </section>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/diagnosis/FinancialProfileCard.tsx
+----------------------------------------
+'use client';
+
+import {
+  financialClarityMap,
+  decisionStyleMap,
+  timeHorizonMap,
+  financialPressureMap,
+  emotionalPatternMap,
+} from '@/lib/diagnosis.i18n';
+
+interface FinancialProfile {
+  financialClarity: keyof typeof financialClarityMap;
+  decisionStyle: keyof typeof decisionStyleMap;
+  timeHorizon: keyof typeof timeHorizonMap;
+  financialPressure: keyof typeof financialPressureMap;
+  emotionalPattern: keyof typeof emotionalPatternMap;
+  coherenceScore: number;
+}
+
+interface FinancialProfileCardProps {
+  profile: FinancialProfile;
+}
+
+export function FinancialProfileCard({
+  profile,
+}: FinancialProfileCardProps) {
+  return (
+    <section className="app-section animate-fade-in">
+      <h2 className="text-muted text-small">
+        Perfil financiero inferido
+      </h2>
+
+      <div className="home-card" style={{ marginTop: 24 }}>
+        <ul style={{ lineHeight: 1.8, fontSize: 15 }}>
+          <li>
+            <strong>Claridad financiera:</strong>{' '}
+            {financialClarityMap[profile.financialClarity]}
+          </li>
+
+          <li>
+            <strong>Estilo de decisión:</strong>{' '}
+            {decisionStyleMap[profile.decisionStyle]}
+          </li>
+
+          <li>
+            <strong>Horizonte temporal:</strong>{' '}
+            {timeHorizonMap[profile.timeHorizon]}
+          </li>
+
+          <li>
+            <strong>Presión financiera:</strong>{' '}
+            {financialPressureMap[profile.financialPressure]}
+          </li>
+
+          <li>
+            <strong>Patrón emocional:</strong>{' '}
+            {emotionalPatternMap[profile.emotionalPattern]}
+          </li>
+
+          <li>
+            <strong>Coherencia interna:</strong>{' '}
+            {(profile.coherenceScore * 100).toFixed(0)}%
+          </li>
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/diagnosis/HypothesesList.tsx
+----------------------------------------
+'use client';
+
+interface HypothesesListProps {
+  hypotheses: string[];
+}
+
+export function HypothesesList({
+  hypotheses,
+}: HypothesesListProps) {
+  if (!hypotheses?.length) return null;
+
+  return (
+    <section className="app-section animate-fade-in">
+      <h2 className="text-muted text-small">
+        Hipótesis interpretativas
+      </h2>
+
+      <ul style={{ marginTop: 24, lineHeight: 1.7 }}>
+        {hypotheses.map((h, i) => (
+          <li key={i} style={{ marginBottom: 12 }}>
+            {h}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/diagnosis/OpenQuestionsCard.tsx
+----------------------------------------
+'use client';
+
+interface OpenQuestionsCardProps {
+  questions: string[];
+}
+
+export function OpenQuestionsCard({
+  questions,
+}: OpenQuestionsCardProps) {
+  if (!questions?.length) return null;
+
+  return (
+    <section className="app-section animate-fade-in">
+      <h2 className="text-muted text-small">
+        Preguntas abiertas
+      </h2>
+
+      <div className="home-card muted" style={{ marginTop: 24 }}>
+        <ul style={{ lineHeight: 1.7 }}>
+          {questions.map((q, i) => (
+            <li key={i} style={{ marginBottom: 10 }}>
+              {q}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/diagnosis/TensionsList.tsx
+----------------------------------------
+'use client';
+
+interface TensionsListProps {
+  tensions: string[];
+}
+
+export function TensionsList({
+  tensions,
+}: TensionsListProps) {
+  if (!tensions?.length) return null;
+
+  return (
+    <section className="app-section animate-fade-in">
+      <h2 className="text-muted text-small">
+        Tensiones observadas
+      </h2>
+
+      <ul style={{ marginTop: 24, lineHeight: 1.7 }}>
+        {tensions.map((t, i) => (
+          <li key={i} style={{ marginBottom: 12 }}>
+            {t}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+----------------------------------------
+FILE: apps/web/components/diagnosis/index.ts
+----------------------------------------
+export { DiagnosticNarrative } from './DiagnosticNarrative';
+export { FinancialProfileCard } from './FinancialProfileCard';
+export { TensionsList } from './TensionsList';
+export { HypothesesList } from './HypothesesList';
+export { OpenQuestionsCard } from './OpenQuestionsCard';
+
+----------------------------------------
+FILE: apps/web/components/layout/AnimatedBackground.tsx
+----------------------------------------
+// apps/web/components/layout/AnimatedBackground.tsx
+'use client';
+
+export function AnimatedBackground() {
+  return (
+    <div className="animated-bg" aria-hidden />
+  );
+}
+----------------------------------------
+FILE: apps/web/components/motion/FadeIn.tsx
+----------------------------------------
+
+----------------------------------------
+FILE: apps/web/components/motion/SlideUp.tsx
+----------------------------------------
+
+----------------------------------------
+FILE: apps/web/components/ui/FormBlock.tsx
+----------------------------------------
+// components/ui/FormBlock.tsx
+export function FormBlock({
+    label,
+    help,
+    children,
+  }: {
+    label: string;
+    help?: string;
+    children: React.ReactNode;
+  }) {
+    return (
+      <div className="flex flex-col gap-6">
+        {/* Texto */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm text-white/80 font-light">
+            {label}
+          </label>
+          {help && (
+            <p className="text-xs text-white/40 leading-relaxed">
+              {help}
+            </p>
+          )}
+        </div>
+  
+        {/* INPUT WRAPPER (CLAVE) */}
+        <div className="pt-6">
+          {children}
+        </div>
+      </div>
+    );
+  }
+  
+----------------------------------------
+FILE: apps/web/components/ui/TypewriterText.tsx
+----------------------------------------
+//apps/web/components/ui/TypewriterText.tsx
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+
+export function TypewriterText({
+  text,
+  speed = 18,
+  onComplete,
+}: {
+  text: string;
+  speed?: number;
+  onComplete?: () => void;
+}) {
+  const [visible, setVisible] = useState('');
+  const indexRef = useRef(0);
+
+  useEffect(() => {
+    setVisible('');
+    indexRef.current = 0;
+
+    const interval = setInterval(() => {
+      indexRef.current += 1;
+      setVisible(text.slice(0, indexRef.current));
+
+      if (indexRef.current >= text.length) {
+        clearInterval(interval);
+        onComplete?.();
+      }
+    }, speed);
+
+    return () => clearInterval(interval);
+  }, [text, speed]);
+
+  return <span>{visible}</span>;
+}
+
+----------------------------------------
+FILE: apps/web/lib/agent.response.types.ts
+----------------------------------------
+export type Artifact = {
+  id: string;
+  type: 'pdf' | 'chart' | 'table';
+  title: string;
+  description?: string;
+  fileUrl?: string;
+  previewImageUrl?: string;
+  source?: 'simulation' | 'analysis';
+  createdAt: string;
+  saved?: boolean;
+};
+export type AgentBlock =
+  | {
+      type: 'chart';
+      chart: {
+        kind: string;
+        data: any[];
+        xKey: string;
+        yKey: string;
+      };
+    }
+  | {
+      type: 'document';
+      artifact: Artifact;
+    };
+
+export type Citation = {
+  id: string;
+  title: string;
+  url: string;
+  source: string;
+};
+
+export type AgentResponse = {
+  message?: string;
+
+  artifacts?: Artifact[];
+  citations?: Citation[];
+
+  tool_calls?: any[];
+  ui_events?: any[];
+  react?: { objective?: string };
+  reasoning_mode?: string;
+
+  // compat: algunos backends pueden mandar mode directo
+  mode?: string;
+};
+
+export type ChatItem =
+  | { type: 'agent_block'; role: 'assistant'; block: any }
+  | { type: 'message'; role: 'user' | 'assistant'; content: string; mode?: string; objective?: string }
+  | { type: 'artifact'; role: 'assistant'; artifact: Artifact }
+  | { type: 'citation'; role: 'assistant'; citation: Citation };
+
+export function toChatItemsFromAgentResponse(res: AgentResponse): ChatItem[] {
+  const items: ChatItem[] = [];
+
+  if (res?.message) {
+    items.push({
+      type: 'message',
+      role: 'assistant',
+      content: res.message,
+      mode: res.mode ?? res.reasoning_mode,
+      objective: res.react?.objective,
+    });
+  }
+
+  if (Array.isArray(res?.artifacts)) {
+    for (const a of res.artifacts) {
+      if (!a?.id || !a?.type) continue;
+      items.push({ type: 'artifact', role: 'assistant', artifact: a });
+    }
+  }
+
+  if (Array.isArray(res?.citations)) {
+    for (const c of res.citations) {
+      if (!c?.url) continue;
+      items.push({ type: 'citation', role: 'assistant', citation: c });
+    }
+  }
+
+  return items;
+}
+
+----------------------------------------
+FILE: apps/web/lib/agent.ts
+----------------------------------------
+/* ────────────────────────────────────────────── */
+/* Envío al agente central (LIMPIO)               */
+/* ────────────────────────────────────────────── */
+
+export async function sendToAgent(payload: {
+  user_message: string;
+  session_id?: string;
+  history?: { role: 'user' | 'assistant'; content: string }[];
+  profile?: unknown;
+  user_info?: { name?: string };
+}) {
+  const { profile, user_info, history, ...rest } = payload;
+
+  /* user_id persistente */
+  let userId = 'anonymous';
+  try {
+    const persisted = localStorage.getItem('user_id');
+    if (persisted) userId = persisted;
+  } catch {}
+
+  /* history mínimo */
+  const safeHistory = Array.isArray(history)
+    ? history
+        .filter(
+          (h) =>
+            h &&
+            (h.role === 'user' || h.role === 'assistant') &&
+            typeof h.content === 'string' &&
+            h.content.trim().length > 0
+        )
+        .slice(-12)
+    : [];
+
+  /* user_name garantizado */
+  let resolvedUserInfo = user_info;
+  if (!resolvedUserInfo) {
+    try {
+      const name = localStorage.getItem('user_name');
+      if (name) resolvedUserInfo = { name };
+    } catch {}
+  }
+
+  const body = {
+    user_id: userId,
+    ...rest,
+    history: safeHistory,
+    context: {
+      ...(profile ? { profile } : {}),
+      ...(resolvedUserInfo ? { user_info: resolvedUserInfo } : {}),
+    },
+  };
+
+  console.log("[DEV] payload.user_message =", payload.user_message);
+  const res = await fetch('http://localhost:3000/api/agent', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    let err: any = {};
+    try {
+      err = await res.json();
+    } catch {}
+    throw new Error(err.error ?? 'Agent error');
+  }
+
+  return res.json();
+}
+
+----------------------------------------
+FILE: apps/web/lib/api.ts
+----------------------------------------
+const API_URL = 'http://localhost:3000';
+
+export async function nextConversationStep(payload: any) {
+  const res = await fetch(`${API_URL}/conversation/next`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Error al avanzar la conversación');
+  }
+
+  return res.json();
+}
+
+export async function registerUser(payload: {
+  name: string;
+  email: string;
+  password: string;
+}) {
+  const res = await fetch(`${API_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Error registrando usuario');
+  }
+
+  return res.json();
+}
+
+export async function injectProfileToAgent(profile: any) {
+  const res = await fetch(`${API_URL}/api/inject-profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ profile }),
+  });
+
+  if (!res.ok) {
+    throw new Error('Error inyectando perfil');
+  }
+
+  return res.json();
+}
+
+export async function injectIntakeToAgent(payload: { intake: any; llmSummary?: any }) {
+  const res = await fetch(`${API_URL}/api/inject-intake`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Error inyectando intake');
+  }
+
+  return res.json();
+}
+
+export async function removeInjectedIntake() {
+  const res = await fetch(`${API_URL}/api/remove-injected-intake`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    throw new Error('Error removiendo intake inyectado');
+  }
+
+  return res.json();
+}
+
+export async function getSessionInfo() {
+  const res = await fetch(`${API_URL}/api/session`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    throw new Error('No session');
+  }
+
+  return res.json();
+}
+
+export async function removeInjectedProfile() {
+  const res = await fetch(`${API_URL}/api/remove-injected-profile`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to remove injected profile');
+  }
+
+  return res.json();
+}
+
+----------------------------------------
+FILE: apps/web/lib/artifacts.ts
+----------------------------------------
+import type { Artifact } from './agent.response.types';
+
+export async function savePdfArtifact(artifact: Artifact) {
+  // Guardado "real" (self-host): Next route escribe en /public/pdfs/simulaciones.
+  // Si estás en Vercel u otro FS read-only, este endpoint debe migrar a storage (S3/R2).
+  const res = await fetch('/api/artifacts/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: artifact.id,
+      title: artifact.title,
+      fileUrl: artifact.fileUrl,
+    }),
+  });
+
+  if (!res.ok) {
+    let msg = 'No se pudo guardar el documento';
+    try {
+      const data = await res.json();
+      msg = data?.error ?? msg;
+    } catch {}
+    throw new Error(msg);
+  }
+
+  return res.json() as Promise<{ publicUrl: string }>;
+}
+
+export function downloadFile(url: string, filename: string) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+----------------------------------------
+FILE: apps/web/lib/diagnosis.i18n.ts
+----------------------------------------
+import { FinancialProfileTraits } from '@/state/profile.store';
+
+/* ────────────────────────────── */
+/* Traducciones de diagnóstico    */
+/* ────────────────────────────── */
+
+export const financialClarityMap: Record<
+  FinancialProfileTraits['financialClarity'],
+  string
+> = {
+  low: 'Baja',
+  medium: 'Media',
+  high: 'Alta',
+};
+
+export const decisionStyleMap: Record<
+  FinancialProfileTraits['decisionStyle'],
+  string
+> = {
+  reactive: 'Reactivo',
+  analytical: 'Analítico',
+  avoidant: 'Evitativo',
+  delegated: 'Delegado',
+  mixed: 'Mixto',
+};
+
+export const timeHorizonMap: Record<
+  FinancialProfileTraits['timeHorizon'],
+  string
+> = {
+  short_term: 'Corto plazo',
+  mixed: 'Mixto',
+  long_term: 'Largo plazo',
+};
+
+export const financialPressureMap: Record<
+  FinancialProfileTraits['financialPressure'],
+  string
+> = {
+  low: 'Baja',
+  moderate: 'Moderada',
+  high: 'Alta',
+};
+
+export const emotionalPatternMap: Record<
+  FinancialProfileTraits['emotionalPattern'],
+  string
+> = {
+  neutral: 'Neutral',
+  anxious: 'Ansioso',
+  avoidant: 'Evitativo',
+  controlling: 'Controlador',
+  conflicted: 'Conflictuado',
+};
+
+----------------------------------------
+FILE: apps/web/lib/handleAgentResponse.ts
+----------------------------------------
+import { dispatchUIEvent } from './uiEventDispatcher';
+
+export type ChatAgentResponse = {
+  message?: string;
+  tool_calls?: any[];
+  ui_events?: any[];
+  citations?: any[];
+  react?: {
+    objective?: string;
+  };
+  reasoning_mode?: string;
+};
+
+export function handleAgentResponse(
+  response: ChatAgentResponse,
+  opts: {
+    pushMessage: (msg: string) => void;
+    setMeta: (meta: {
+      objective?: string;
+      mode?: string;
+      tool_calls?: any[];
+      citations?: any[];
+    }) => void;
+  }
+) {
+  if (response.message) {
+    opts.pushMessage(response.message);
+  }
+
+  if (Array.isArray(response.ui_events)) {
+    response.ui_events.forEach(dispatchUIEvent);
+  }
+
+  opts.setMeta({
+    objective: response.react?.objective,
+    mode: response.reasoning_mode,
+    tool_calls: response.tool_calls,
+    citations: response.citations,
+  });
+}
+
+----------------------------------------
+FILE: apps/web/lib/intake.ts
+----------------------------------------
+// apps/web/lib/intake.ts
+import type { IntakeQuestionnaire } from
+  '@financial-agent/shared/src/intake/intake-questionnaire.types';
+
+export async function submitIntake(
+  data: IntakeQuestionnaire
+) {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/intake/submit`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error('Error enviando el cuestionario');
+  }
+
+  return res.json();
+}
+
+  
+----------------------------------------
+FILE: apps/web/lib/session.ts
+----------------------------------------
+export function getSessionId(): string {
+  if (typeof window === 'undefined') return '';
+
+  let sessionId = localStorage.getItem('agent_session_id');
+
+  if (!sessionId) {
+    sessionId = crypto.randomUUID();
+    localStorage.setItem('agent_session_id', sessionId);
+  }
+
+  return sessionId;
+}
+
+----------------------------------------
+FILE: apps/web/lib/toChatItems.ts
+----------------------------------------
+import type { AgentBlock } from './types/chat';
+
+/* =============================== */
+/* UI CHAT ITEMS                   */
+/* =============================== */
+
+export type ChatItem =
+  | { kind: 'text'; content: string }
+  | { kind: 'block'; block: AgentBlock }      // document | chart | question | summary
+  | { kind: 'artifact'; artifact: any };      // pdf | chart-image | future exports
+
+/* =============================== */
+/* RESPONSE → CHAT ITEMS MAPPER    */
+/* =============================== */
+
+export function toChatItems(res: any): ChatItem[] {
+  const items: ChatItem[] = [];
+
+  /* ────────────────────────────── */
+  /* Texto principal del agente     */
+  /* ────────────────────────────── */
+  if (res?.message) {
+    items.push({
+      kind: 'text',
+      content: res.message,
+    });
+  }
+
+  /* ────────────────────────────── */
+  /* Bloques del agente (UI-rich)   */
+  /* ────────────────────────────── */
+  for (const block of res?.agent_blocks ?? []) {
+    items.push({
+      kind: 'block',
+      block,
+    });
+  }
+
+  /* ────────────────────────────── */
+  /* Artifacts (PDFs, gráficos, etc)*/
+  /* ────────────────────────────── */
+  for (const artifact of res?.artifacts ?? []) {
+    items.push({
+      kind: 'artifact',
+      artifact,
+    });
+  }
+
+  return items;
+}
+
+----------------------------------------
+FILE: apps/web/lib/types/chat.ts
+----------------------------------------
+export type AgentBlock =
+  | {
+      type: 'document';
+      title?: string;
+      sections?: Array<{
+        heading: string;
+        content: string;
+      }>;
+    }
+  | {
+      type: 'chart';
+      chart: {
+        kind: 'line' | 'bar';
+        xKey: string;
+        yKey: string;
+        data: Array<Record<string, any>>;
+      };
+    };
+
+export type UIEvent =
+  | {
+      type: 'TOAST';
+      payload: {
+        kind?: 'info' | 'success' | 'warn' | 'error';
+        message: string;
+      };
+    }
+  | {
+      type: 'FOCUS_ARTIFACT';
+      payload: { artifactId: string };
+    }
+  | {
+      type: 'OPEN_ARTIFACT';
+      payload: { artifactId: string };
+    }
+  | {
+      type: 'SAVE_ARTIFACT';
+      payload: {
+        artifactId: string;
+        location?: 'simulaciones' | 'planes' | 'reportes';
+      };
+    }
+  | {
+      type: 'ANIMATE_TRANSFER';
+      payload: {
+        from: 'chat';
+        to: 'panel';
+        artifactId: string;
+      };
+    };
+
+----------------------------------------
+FILE: apps/web/lib/uiEventDispatcher.ts
+----------------------------------------
+import type { UIEvent } from './types/chat';
+
+export function dispatchUIEvent(event: UIEvent) {
+  switch (event.type) {
+    case 'TOAST':
+      console.log('[TOAST]', event.payload.message);
+      return;
+
+    case 'FOCUS_ARTIFACT':
+    case 'OPEN_ARTIFACT':
+    case 'SAVE_ARTIFACT':
+    case 'ANIMATE_TRANSFER':
+      // hooks futuros
+      return;
+
+    default:
+      return;
+  }
+}
+
+----------------------------------------
+FILE: apps/web/next-env.d.ts
+----------------------------------------
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/basic-features/typescript for more information.
+
+----------------------------------------
+FILE: apps/web/next.config.js
+----------------------------------------
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+};
+
+module.exports = nextConfig;
+
+----------------------------------------
+FILE: apps/web/package.json
+----------------------------------------
+{
+  "name": "@financial-agent/web",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@financial-agent/shared": "workspace:*",
+    "next": "14.2.5",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "recharts": "^3.7.0",
+    "zustand": "^5.0.9"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18"
+  }
+}
+----------------------------------------
+FILE: apps/web/src/lib/agent.response.types.ts
+----------------------------------------
+export type Artifact = {
+  id: string;
+  type: 'pdf' | 'chart' | 'table';
+  title: string;
+  description?: string;
+  fileUrl: string;
+  previewImageUrl?: string;
+  source?: 'simulation' | 'analysis';
+  createdAt: string;
+  saved?: boolean;
+};
+
+export type Citation = {
+  id: string;
+  title: string;
+  url: string;
+  source?: string;
+};
+
+export type UIEvent = {
+  type: string;
+  [key: string]: any;
+};
+
+export type AgentResponse = {
+  // compat
+  message?: string;
+
+  // recommended fields
+  reasoning_mode?: string;
+  mode?: string;
+
+  react?: {
+    objective?: string;
+  };
+
+  artifacts?: Artifact[];
+  citations?: Citation[];
+  ui_events?: UIEvent[];
+
+  // allow unknown stuff without breaking
+  [key: string]: any;
+};
+
+export type ChatItem =
+  | {
+      type: 'message';
+      role: 'user' | 'assistant';
+      content: string;
+      mode?: string;
+      objective?: string;
+    }
+  | { type: 'artifact'; artifact: Artifact }
+  | { type: 'citation'; citation: Citation };
+
+export function toChatItemsFromAgentResponse(res: AgentResponse): ChatItem[] {
+  const items: ChatItem[] = [];
+
+  const mode = res.mode ?? res.reasoning_mode;
+  const objective = res.react?.objective;
+
+  const msg = (res.message ?? '').trim();
+  if (msg.length > 0) {
+    items.push({
+      type: 'message',
+      role: 'assistant',
+      content: msg,
+      mode,
+      objective,
+    });
+  }
+
+  for (const a of res.artifacts ?? []) {
+    items.push({ type: 'artifact', artifact: a });
+  }
+
+  for (const c of res.citations ?? []) {
+    items.push({ type: 'citation', citation: c });
+  }
+
+  return items;
+}
+----------------------------------------
+FILE: apps/web/state/chat.store.ts
+----------------------------------------
+import { create } from 'zustand';
+
+type Message = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+type AgentState = {
+  messages: Message[];
+  addMessage: (m: Message) => void;
+  reset: () => void;
+};
+
+export const useAgentStore = create<AgentState>((set) => ({
+  messages: [],
+  addMessage: (m) =>
+    set((s) => ({ messages: [...s.messages, m] })),
+  reset: () => set({ messages: [] }),
+}));
+
+----------------------------------------
+FILE: apps/web/state/interview.store.ts
+----------------------------------------
+import { create } from 'zustand';
+
+/**
+ * En frontend usamos string para no acoplar
+ * directamente al tipo del backend.
+ */
+export type InterviewBlockId = string;
+
+/**
+ * Intake inicial COMPLETO y seguro.
+ * Se clona explícitamente para evitar mutaciones compartidas.
+ */
+const DEFAULT_INTAKE = {
+  age: undefined as number | undefined,
+
+  employmentStatus: 'employed' as
+    | 'employed'
+    | 'freelance'
+    | 'unemployed',
+  profession: undefined as string | undefined,
+  incomeBand: '500k-1M' as
+    | '<500k'
+    | '500k-1M'
+    | '1M-2M'
+    | '>2M',
+  exactMonthlyIncome: undefined as number | undefined,
+
+  expensesCoverage: 'tight' as
+    | 'surplus'
+    | 'tight'
+    | 'sometimes'
+    | 'no',
+  tracksExpenses: 'sometimes' as
+    | 'yes'
+    | 'sometimes'
+    | 'no',
+
+  hasSavingsOrInvestments: false,
+  savingsBand: undefined as
+    | 'none'
+    | '<300k'
+    | '300k-1M'
+    | '1M-3M'
+    | '>3M'
+    | undefined,
+  exactSavingsAmount: undefined as number | undefined,
+
+  hasDebt: false,
+
+  financialProducts: [] as any[],
+
+  financialKnowledge: {
+    interest: false,
+    CAE: false, 
+    inflation: false,
+    creditCard: false,
+    creditLine: false,
+    loanComponents: false,
+    interestRate: false,
+    liquidity: false,
+    returnConcept: false,
+    diversification: false,
+    assetVsLiability: false,
+    financialRisk: false,
+    capitalMarkets: false,
+    alternativeInvestments: false,
+    fintech: false,
+  },
+
+  riskReaction: 'hold' as
+    | 'sell'
+    | 'hold'
+    | 'buy_more'
+    | 'never_invest'
+    | 'other',
+  riskReactionOther: undefined as string | undefined,
+
+  selfRatedUnderstanding: 4,
+  moneyStressLevel: 5,
+};
+
+type InterviewState = {
+  /** Intake validado */
+  intake: typeof DEFAULT_INTAKE;
+
+  /** Bloque activo */
+  currentBlockId?: InterviewBlockId;
+
+  /** Respuestas locales por bloque */
+  answersByBlock: Record<InterviewBlockId, string[]>;
+
+  /** Evidencia FINAL cerrada (fuente de verdad backend) */
+  completedBlocks: Record<InterviewBlockId, any>;
+
+  /** Última respuesta cruda del backend */
+  lastResponse?: any;
+
+  /** Actions */
+  setIntake: (intake: Partial<typeof DEFAULT_INTAKE>) => void;
+  setResponse: (response: any) => void;
+  addAnswer: (blockId: InterviewBlockId, answer: string) => void;
+  resetBlock: (blockId: InterviewBlockId) => void;
+  resetInterview: () => void;
+};
+
+export const useInterviewStore = create<InterviewState>((set) => ({
+  /**
+   * Estado inicial
+   */
+  intake: JSON.parse(JSON.stringify(DEFAULT_INTAKE)),
+
+  currentBlockId: undefined,
+
+  answersByBlock: {},
+  completedBlocks: {},
+
+  lastResponse: undefined,
+
+  /**
+   * Actions
+   */
+
+  /**
+   * Intake solo se setea una vez
+   */
+  setIntake: (intakePatch) =>
+    set((s) => ({
+      intake: {
+        ...s.intake,
+        ...intakePatch,
+      },
+    })),
+
+  setLLMAnalysis: (analysis: any) =>
+    set(() => ({ llmAnalysis: analysis })),
+
+  /**
+   * Punto CRÍTICO de sincronización con backend
+   */
+  setResponse: (response) =>
+    set((s) => {
+      const incomingCompleted = response?.completedBlocks;
+
+      return {
+        lastResponse: response,
+
+        // solo cambia si backend manda blockId
+        currentBlockId:
+          response?.blockId ??
+          s.currentBlockId,
+
+        // MERGE defensivo (nunca borrar lo ya cerrado)
+        completedBlocks: incomingCompleted
+          ? {
+              ...s.completedBlocks,
+              ...incomingCompleted,
+            }
+          : s.completedBlocks,
+      };
+    }),
+
+  /**
+   * Guarda respuestas locales (solo UI)
+   */
+  addAnswer: (blockId, answer) =>
+    set((s) => ({
+      answersByBlock: {
+        ...s.answersByBlock,
+        [blockId]: [
+          ...(s.answersByBlock[blockId] ?? []),
+          answer,
+        ],
+      },
+    })),
+
+  /**
+   * Limpia SOLO el bloque que viene
+   */
+  resetBlock: (blockId) =>
+    set((s) => ({
+      answersByBlock: {
+        ...s.answersByBlock,
+        [blockId]: [],
+      },
+    })),
+
+  /**
+   * Reset TOTAL (útil para reiniciar diagnóstico)
+   */
+  resetInterview: () =>
+    set({
+      intake: JSON.parse(JSON.stringify(DEFAULT_INTAKE)),
+      currentBlockId: undefined,
+      answersByBlock: {},
+      completedBlocks: {},
+      lastResponse: undefined,
+    }),
+}));
+
+----------------------------------------
+FILE: apps/web/state/profile.store.ts
+----------------------------------------
+import { create } from 'zustand';
+
+export interface FinancialProfileTraits {
+  financialClarity: 'low' | 'medium' | 'high';
+  decisionStyle:
+    | 'reactive'
+    | 'analytical'
+    | 'avoidant'
+    | 'delegated'
+    | 'mixed';
+  timeHorizon: 'short_term' | 'mixed' | 'long_term';
+  financialPressure: 'low' | 'moderate' | 'high';
+  emotionalPattern:
+    | 'neutral'
+    | 'anxious'
+    | 'avoidant'
+    | 'controlling'
+    | 'conflicted';
+  coherenceScore: number;
+}
+
+export interface FinancialDiagnosticProfile {
+  diagnosticNarrative: string;
+  profile: FinancialProfileTraits;
+  tensions: string[];
+  hypotheses: string[];
+  openQuestions: string[];
+}
+
+interface ProfileState {
+  profile: FinancialDiagnosticProfile | null;
+  loading: boolean;
+  error: string | null;
+
+  loadProfileIfNeeded: () => Promise<void>;
+  setProfile: (profile: FinancialDiagnosticProfile) => void;
+  clearProfile: () => void;
+}
+
+export const useProfileStore = create<ProfileState>((set, get) => ({
+  profile: null,
+  loading: false,
+  error: null,
+
+  async loadProfileIfNeeded() {
+    if (get().profile || get().loading) return;
+
+    try {
+      set({ loading: true, error: null });
+
+      // ✅ RUTA CORRECTA
+      const res = await fetch('/diagnosis/latest');
+
+      if (!res.ok) {
+        throw new Error('No se pudo cargar el diagnóstico');
+      }
+
+      const data = await res.json();
+
+      set({
+        profile: data,
+        loading: false,
+      });
+    } catch (err: any) {
+      set({
+        error:
+          err?.message ??
+          'Error inesperado cargando diagnóstico',
+        loading: false,
+      });
+    }
+  },
+
+  setProfile(profile) {
+    set({ profile });
+  },
+
+  clearProfile() {
+    set({ profile: null, error: null });
+  },
+}));
+----------------------------------------
+FILE: apps/web/state/session.store.ts
+----------------------------------------
+import { create } from 'zustand';
+
+type SessionState = {
+  isAuthenticated: boolean;
+  setAuthenticated: () => void;
+};
+
+export const useSessionStore = create<SessionState>((set) => ({
+  isAuthenticated: false,
+  setAuthenticated: () => set({ isAuthenticated: true }),
+}));
+----------------------------------------
+FILE: apps/web/tsconfig.json
+----------------------------------------
+{
+    "compilerOptions": {
+      "target": "ES2020",
+      "lib": ["dom", "dom.iterable", "esnext"],
+      "allowJs": true,
+      "skipLibCheck": true,
+      "strict": true,
+      "noEmit": true,
+  
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
+  
+      "resolveJsonModule": true,
+      "isolatedModules": true,
+      "jsx": "preserve",
+  
+      "incremental": true,
+      "esModuleInterop": true,
+  
+      "baseUrl": ".",
+      "paths": {
+        "@/*": ["./*"]
+      },
+  
+      "plugins": [{ "name": "next" }]
+    },
+    "include": [
+      "next-env.d.ts",
+      "**/*.ts",
+      "**/*.tsx",
+      ".next/types/**/*.ts"
+, "../api/src/agents/core.agent/uiEventDispatcher.ts"    ],
+    "exclude": ["node_modules"]
+  }
+  

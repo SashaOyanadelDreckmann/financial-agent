@@ -1,0 +1,30 @@
+# Node
+node_modules/
+.pnpm-store/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Build
+.next/
+dist/
+build/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# Data (NO versionar estado)
+apps/api/data/
+apps/web/public/pdfs/
+storage/
+
+# Dumps
+*_snapshot.txt
+*_dump.txt
+procesozombi.txt
+recopilar.todo.txt

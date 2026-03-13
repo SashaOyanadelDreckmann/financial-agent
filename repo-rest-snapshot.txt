@@ -1,0 +1,492 @@
+# REPO SNAPSHOT (CLEAN — EXCLUDING API & WEB)
+# Generated at: viernes, 13 de marzo de 2026, 01:26:42 -03
+
+==========================
+REPO TREE (CORE ONLY)
+==========================
+.
+├── apps
+│   ├── api
+│   │   ├── src
+│   │   │   ├── agents
+│   │   │   │   ├── core.agent
+│   │   │   │   │   ├── presenters
+│   │   │   │   │   ├── tools
+│   │   │   │   │   ├── blockContext.ts
+│   │   │   │   │   ├── core.agent.ts
+│   │   │   │   │   ├── chat.types.ts
+│   │   │   │   │   └── system.prompts.ts
+│   │   │   │   ├── diagnostic
+│   │   │   │   │   └── diagnostic.agent.ts
+│   │   │   │   ├── intake
+│   │   │   │   │   ├── intake-analyzer.ts
+│   │   │   │   │   └── intake-llm.ts
+│   │   │   │   ├── followup.agent.ts
+│   │   │   │   └── interviewer.agent.ts
+│   │   │   ├── mcp
+│   │   │   │   ├── contracts
+│   │   │   │   ├── examples
+│   │   │   │   ├── guides
+│   │   │   │   │   └── system_limits.md
+│   │   │   │   ├── knowledge
+│   │   │   │   │   └── financial_definitions.json
+│   │   │   │   ├── tools
+│   │   │   │   │   ├── calc
+│   │   │   │   │   │   └── calculator.tool.ts
+│   │   │   │   │   ├── market
+│   │   │   │   │   │   ├── dollarCL.tool.ts
+│   │   │   │   │   │   ├── mindicadorClient.ts
+│   │   │   │   │   │   ├── tpmCL.tool.ts
+│   │   │   │   │   │   ├── ufCL.tool.ts
+│   │   │   │   │   │   └── utmCL.tool.ts
+│   │   │   │   │   ├── pdf
+│   │   │   │   │   │   └── generateSimulationPdf.tool.ts
+│   │   │   │   │   ├── rag
+│   │   │   │   │   │   └── ragLookup.tool.ts
+│   │   │   │   │   ├── scrape
+│   │   │   │   │   │   └── scrapeDo.tool.ts
+│   │   │   │   │   ├── simpro
+│   │   │   │   │   │   ├── montecarlo.tool.ts
+│   │   │   │   │   │   ├── portfolioProjection.tool.ts
+│   │   │   │   │   │   ├── riskDrawdown.tool.ts
+│   │   │   │   │   │   └── scenarioProjection.tool.ts
+│   │   │   │   │   ├── simulate
+│   │   │   │   │   │   └── simulator.tool.ts
+│   │   │   │   │   ├── time
+│   │   │   │   │   │   └── today.tool.ts
+│   │   │   │   │   ├── web
+│   │   │   │   │   │   ├── extractors.ts
+│   │   │   │   │   │   ├── scrapeDoClient.ts
+│   │   │   │   │   │   └── webExtract.tool.ts
+│   │   │   │   │   ├── registry.ts
+│   │   │   │   │   ├── runMCPTool.ts
+│   │   │   │   │   ├── toolcall.types.ts
+│   │   │   │   │   └── types.ts
+│   │   │   │   ├── README.md
+│   │   │   │   ├── bootstrap.ts
+│   │   │   │   └── glosario_cmf.csv
+│   │   │   ├── orchestrator
+│   │   │   │   ├── agentRouter.ts
+│   │   │   │   └── interview.flow.ts
+│   │   │   ├── routes
+│   │   │   │   ├── agent.ts
+│   │   │   │   ├── auth.ts
+│   │   │   │   ├── conversation.ts
+│   │   │   │   ├── diagnosis.ts
+│   │   │   │   ├── http.types.ts
+│   │   │   │   ├── intake.ts
+│   │   │   │   └── simulations.routes.ts
+│   │   │   ├── schemas
+│   │   │   │   ├── plan.schema.ts
+│   │   │   │   ├── product.schema.ts
+│   │   │   │   ├── profile.schema.ts
+│   │   │   │   └── user.schema.ts
+│   │   │   ├── services
+│   │   │   │   ├── artifacts
+│   │   │   │   ├── simulations
+│   │   │   │   │   ├── generateSimulationPdf.ts
+│   │   │   │   │   ├── simulation.library.ts
+│   │   │   │   │   └── simulation.service.ts
+│   │   │   │   ├── intake-context.service.ts
+│   │   │   │   ├── llm.service.ts
+│   │   │   │   ├── rag.service.ts
+│   │   │   │   ├── storage.service.ts
+│   │   │   │   └── user.service.ts
+│   │   │   ├── tools
+│   │   │   ├── types
+│   │   │   │   └── artifacts.ts
+│   │   │   └── server.ts
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   └── web
+│       ├── app
+│       │   ├── agent
+│       │   │   └── page.tsx
+│       │   ├── api
+│       │   │   ├── artifacts
+│       │   │   │   └── save
+│       │   │   │       └── route.ts
+│       │   │   └── transcribe
+│       │   │       └── route.ts
+│       │   ├── diagnosis
+│       │   │   ├── latest
+│       │   │   │   └── route.ts
+│       │   │   └── page.tsx
+│       │   ├── followup
+│       │   ├── intake
+│       │   │   ├── steps
+│       │   │   │   ├── CashflowStep.tsx
+│       │   │   │   ├── ContextStep.tsx
+│       │   │   │   ├── KnowledgeStep.tsx
+│       │   │   │   ├── ProductsStep.tsx
+│       │   │   │   ├── SavingsStep.tsx
+│       │   │   │   └── index.ts
+│       │   │   └── page.tsx
+│       │   ├── interview
+│       │   │   ├── layout.tsx
+│       │   │   └── page.tsx
+│       │   ├── login
+│       │   │   └── page.tsx
+│       │   ├── register
+│       │   │   └── page.tsx
+│       │   ├── agent.css
+│       │   ├── globals.css
+│       │   ├── layout.tsx
+│       │   └── page.tsx
+│       ├── components
+│       │   ├── agent
+│       │   │   ├── cards
+│       │   │   │   └── DocumentCard.tsx
+│       │   │   ├── AgentBlockBubble.tsx
+│       │   │   ├── AgentBlocksRenderer.tsx
+│       │   │   └── ChartBlockRenderer.tsx
+│       │   ├── conversation
+│       │   │   ├── ArtifactBubble.tsx
+│       │   │   ├── CitationBubble.tsx
+│       │   │   ├── ChartBlock.tsx
+│       │   │   ├── DocumentBubble.tsx
+│       │   │   ├── QuestionCard.tsx
+│       │   │   ├── SummaryCard.tsx
+│       │   │   └── test.tsx
+│       │   ├── diagnosis
+│       │   │   ├── DiagnosticNarrative.tsx
+│       │   │   ├── FinancialProfileCard.tsx
+│       │   │   ├── HypothesesList.tsx
+│       │   │   ├── OpenQuestionsCard.tsx
+│       │   │   ├── TensionsList.tsx
+│       │   │   └── index.ts
+│       │   ├── layout
+│       │   │   └── AnimatedBackground.tsx
+│       │   ├── motion
+│       │   │   ├── FadeIn.tsx
+│       │   │   └── SlideUp.tsx
+│       │   ├── ui
+│       │   │   ├── FormBlock.tsx
+│       │   │   └── TypewriterText.tsx
+│       │   ├── ChatRenderer.tsx
+│       │   ├── PanelCard.tsx
+│       │   └── ProfileCard.tsx
+│       ├── lib
+│       │   ├── types
+│       │   │   └── chat.ts
+│       │   ├── agent.response.types.ts
+│       │   ├── agent.ts
+│       │   ├── api.ts
+│       │   ├── artifacts.ts
+│       │   ├── diagnosis.i18n.ts
+│       │   ├── handleAgentResponse.ts
+│       │   ├── intake.ts
+│       │   ├── session.ts
+│       │   ├── toChatItems.ts
+│       │   ├── uiEventDispatcher.ts
+│       │   └── uiEventDispatcher.ts.bak.20260110_014200
+│       ├── src
+│       │   ├── components
+│       │   │   └── conversation
+│       │   └── lib
+│       │       └── agent.response.types.ts
+│       ├── state
+│       │   ├── chat.store.ts
+│       │   ├── interview.store.ts
+│       │   ├── profile.store.ts
+│       │   └── session.store.ts
+│       ├── styles
+│       ├── next-env.d.ts
+│       ├── next.config.js
+│       ├── package.json
+│       └── tsconfig.json
+├── packages
+│   └── shared
+│       ├── constants
+│       ├── src
+│       │   ├── intake
+│       │   │   └── intake-questionnaire.types.ts
+│       │   ├── index.ts
+│       │   └── ui-events.ts
+│       ├── types
+│       ├── utils
+│       └── package.json
+├── README.md
+├── mapa de conexión.md
+├── package.json
+├── pnpm-workspace.yaml
+└── recopilar.todo.txt
+
+71 directories, 136 files
+
+==========================
+FILE CONTENTS (CORE ONLY)
+==========================
+
+----------------------------------------
+FILE: ./README.md
+----------------------------------------
+
+----------------------------------------
+FILE: ./mapa de conexión.md
+----------------------------------------
+# Visión mental del proyecto (mapa de conexión)
+
+## Backend — apps/api
+Aquí vive **la inteligencia y la lógica**. Todo lo que “piensa”, decide, calcula o consulta datos está acá.
+
+agents/  
+→ **Cerebro del sistema**  
+- `core.agent/` → razonador principal (decide qué hacer, cuándo simular, cuándo preguntar)  
+- `diagnostic/` → genera diagnóstico financiero  
+- `intake/` → analiza formularios y contexto inicial  
+- `interviewer.agent.ts` / `followup.agent.ts` → conducción conversacional  
+
+mcp/  
+→ **Caja de herramientas del agente**  
+- tools/ → cálculos, simulaciones, scraping, RAG, indicadores económicos  
+- knowledge/ → definiciones financieras  
+- registry + runMCPTool → ejecución controlada de herramientas  
+
+orchestrator/  
+→ **Sistema nervioso**  
+- decide qué agente actúa  
+- mantiene el flujo de conversación  
+- conecta mensaje → agente → respuesta  
+
+routes/  
+→ **Puertas HTTP**  
+- lo único que ve el frontend  
+- expone conversación, intake, diagnóstico, simulaciones  
+
+services/  
+→ **Servicios puros**  
+- LLM, RAG, storage, simulaciones  
+- no saben nada de UI  
+
+schemas / types  
+→ **Contratos y forma de los datos**  
+
+server.ts  
+→ **Arranque del backend**  
+
+
+---
+
+## Frontend — apps/web
+Aquí vive **la experiencia**. Todo lo visible y lo interactivo.
+
+app/  
+→ **Rutas y pantallas**  
+- `/agent` → chat principal  
+- `/intake` → cuestionario guiado  
+- `/diagnosis` → resultado y narrativa  
+- `/interview` → modo entrevista  
+
+components/  
+→ **Bloques visuales**  
+- burbujas del agente  
+- cards de diagnóstico  
+- gráficos, documentos, citas  
+
+lib/  
+→ **Pegamento frontend-backend**  
+- `api.ts` → cliente HTTP  
+- `handleAgentResponse.ts` → traduce respuesta del agente a UI  
+- `uiEventDispatcher.ts` → efectos visuales y acciones  
+
+state/  
+→ **Memoria del usuario**  
+- chat.store → historial  
+- session.store → sesión activa  
+- profile.store → perfil financiero  
+
+styles / motion  
+→ **Estética y animaciones**  
+
+
+---
+
+## Shared — packages/shared
+→ **Lenguaje común**
+
+- tipos de intake  
+- eventos de UI  
+- contratos compartidos  
+Backend y frontend hablan el mismo idioma gracias a esto.
+
+
+---
+
+## Flujo completo (de extremo a extremo)
+
+Usuario  
+→ Frontend (pantalla / componente)  
+→ `lib/api.ts`  
+→ Backend `routes/`  
+→ `orchestrator`  
+→ `agent` + `mcp tools`  
+→ respuesta estructurada  
+→ Frontend traduce a UI  
+→ Estado se guarda  
+→ Usuario ve, interactúa, continúa
+
+
+---
+
+📌 **Idea clave**  
+- Backend = pensar  
+- Frontend = mostrar  
+- Shared = acordar  
+- Orchestrator = coordinar  
+
+Todo lo demás son órganos especializados trabajando en conjunto.
+
+----------------------------------------
+FILE: ./package.json
+----------------------------------------
+{
+  "dependencies": {
+    "openai": "^6.15.0",
+    "pnpm": "^10.26.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}
+
+----------------------------------------
+FILE: ./packages/shared/package.json
+----------------------------------------
+{
+    "name": "@financial-agent/shared",
+    "version": "0.0.1",
+    "private": true,
+    "main": "src/index.ts",
+    "types": "src/index.ts"
+
+}
+----------------------------------------
+FILE: ./packages/shared/src/index.ts
+----------------------------------------
+// packages/shared/src/index.ts
+export type {
+    IntakeQuestionnaire,
+    FinancialKnowledgeChecklist,
+    FinancialProductEntry,
+  } from './intake/intake-questionnaire.types';
+  
+  // index.ts
+export * from './ui-events';
+
+----------------------------------------
+FILE: ./packages/shared/src/intake/intake-questionnaire.types.ts
+----------------------------------------
+// packages/shared/src/intake/intake-questionnaire.types.ts
+export type EmploymentStatus =
+  | 'employed'
+  | 'freelance'
+  | 'unemployed';
+
+export type IncomeBand =
+  | '<500k'
+  | '500k-1M'
+  | '1M-2M'
+  | '>2M';
+
+export type ExpensesCoverage =
+  | 'surplus'
+  | 'tight'
+  | 'sometimes'
+  | 'no';
+
+export type ExpenseTracking =
+  | 'yes'
+  | 'sometimes'
+  | 'no';
+
+export type SavingsBand =
+  | 'none'
+  | '<300k'
+  | '300k-1M'
+  | '1M-3M'
+  | '>3M';
+
+export type RiskReaction =
+  | 'sell'
+  | 'hold'
+  | 'buy_more'
+  | 'never_invest'
+  | 'other';
+
+export interface FinancialProductEntry {
+  product: string;
+  institution?: string;
+  notes?: string;
+  acquisitionCost?: number;
+  monthlyCost?: number;
+  anualCost?: number;
+}
+
+export interface FinancialKnowledgeChecklist {
+  interest: boolean;
+  CAE: boolean;
+  inflation: boolean;
+  creditCard: boolean;
+  creditLine: boolean;
+  loanComponents: boolean;
+  interestRate: boolean;
+  liquidity: boolean;
+  returnConcept: boolean;
+  diversification: boolean;
+  assetVsLiability: boolean;
+  financialRisk: boolean;
+  capitalMarkets: boolean;
+  alternativeInvestments: boolean;
+  fintech: boolean;
+}
+
+export interface IntakeQuestionnaire {
+  age?: number;
+
+  employmentStatus: EmploymentStatus;
+  profession?: string;
+
+  incomeBand: IncomeBand;
+  exactMonthlyIncome?: number;
+
+  expensesCoverage: ExpensesCoverage;
+  tracksExpenses: ExpenseTracking;
+
+  hasSavingsOrInvestments: boolean;
+  savingsBand?: SavingsBand;
+  exactSavingsAmount?: number;
+
+  hasDebt: boolean;
+
+  financialProducts: FinancialProductEntry[];
+
+  financialKnowledge: FinancialKnowledgeChecklist;
+
+  riskReaction: RiskReaction;
+  riskReactionOther?: string;
+
+  selfRatedUnderstanding: number; // 0–10
+  moneyStressLevel: number; // 0–10
+}
+
+----------------------------------------
+FILE: ./packages/shared/src/ui-events.ts
+----------------------------------------
+export type UIEvent =
+  | { type: 'OPEN_ARTIFACT'; payload: { id: string } }
+  | { type: 'SAVE_ARTIFACT'; payload: { id: string } }
+  | { type: 'ANIMATE_TRANSFER'; payload: { from: string; to: string } }
+  | { type: 'PANEL_OPEN'; payload: { panel: string } }
+  | { type: 'PLAN_SET'; payload: { planId: string } }
+  | { type: 'PLAN_PROGRESS'; payload: { progress: number } };
+
+----------------------------------------
+FILE: ./pnpm-workspace.yaml
+----------------------------------------
+packages:
+  - apps/*
+  - packages/*
+
+ignoredBuiltDependencies:
+  - sharp

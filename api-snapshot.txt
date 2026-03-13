@@ -1,0 +1,5011 @@
+# API SNAPSHOT
+# Generated at: viernes, 13 de marzo de 2026, 01:26:41 -03
+
+==========================
+API TREE
+==========================
+apps/api
+├── src
+│   ├── agents
+│   │   ├── core.agent
+│   │   │   ├── presenters
+│   │   │   ├── tools
+│   │   │   ├── blockContext.ts
+│   │   │   ├── core.agent.ts
+│   │   │   ├── chat.types.ts
+│   │   │   └── system.prompts.ts
+│   │   ├── diagnostic
+│   │   │   └── diagnostic.agent.ts
+│   │   ├── intake
+│   │   │   ├── intake-analyzer.ts
+│   │   │   └── intake-llm.ts
+│   │   ├── followup.agent.ts
+│   │   └── interviewer.agent.ts
+│   ├── mcp
+│   │   ├── contracts
+│   │   ├── examples
+│   │   ├── guides
+│   │   │   └── system_limits.md
+│   │   ├── knowledge
+│   │   │   └── financial_definitions.json
+│   │   ├── tools
+│   │   │   ├── calc
+│   │   │   │   └── calculator.tool.ts
+│   │   │   ├── market
+│   │   │   │   ├── dollarCL.tool.ts
+│   │   │   │   ├── mindicadorClient.ts
+│   │   │   │   ├── tpmCL.tool.ts
+│   │   │   │   ├── ufCL.tool.ts
+│   │   │   │   └── utmCL.tool.ts
+│   │   │   ├── pdf
+│   │   │   │   └── generateSimulationPdf.tool.ts
+│   │   │   ├── rag
+│   │   │   │   └── ragLookup.tool.ts
+│   │   │   ├── scrape
+│   │   │   │   └── scrapeDo.tool.ts
+│   │   │   ├── simpro
+│   │   │   │   ├── montecarlo.tool.ts
+│   │   │   │   ├── portfolioProjection.tool.ts
+│   │   │   │   ├── riskDrawdown.tool.ts
+│   │   │   │   └── scenarioProjection.tool.ts
+│   │   │   ├── simulate
+│   │   │   │   └── simulator.tool.ts
+│   │   │   ├── time
+│   │   │   │   └── today.tool.ts
+│   │   │   ├── web
+│   │   │   │   ├── extractors.ts
+│   │   │   │   ├── scrapeDoClient.ts
+│   │   │   │   └── webExtract.tool.ts
+│   │   │   ├── registry.ts
+│   │   │   ├── runMCPTool.ts
+│   │   │   ├── toolcall.types.ts
+│   │   │   └── types.ts
+│   │   ├── README.md
+│   │   ├── bootstrap.ts
+│   │   └── glosario_cmf.csv
+│   ├── orchestrator
+│   │   ├── agentRouter.ts
+│   │   └── interview.flow.ts
+│   ├── routes
+│   │   ├── agent.ts
+│   │   ├── auth.ts
+│   │   ├── conversation.ts
+│   │   ├── diagnosis.ts
+│   │   ├── http.types.ts
+│   │   ├── intake.ts
+│   │   └── simulations.routes.ts
+│   ├── schemas
+│   │   ├── plan.schema.ts
+│   │   ├── product.schema.ts
+│   │   ├── profile.schema.ts
+│   │   └── user.schema.ts
+│   ├── services
+│   │   ├── artifacts
+│   │   ├── simulations
+│   │   │   ├── generateSimulationPdf.ts
+│   │   │   ├── simulation.library.ts
+│   │   │   └── simulation.service.ts
+│   │   ├── intake-context.service.ts
+│   │   ├── llm.service.ts
+│   │   ├── rag.service.ts
+│   │   ├── storage.service.ts
+│   │   └── user.service.ts
+│   ├── tools
+│   ├── types
+│   │   └── artifacts.ts
+│   └── server.ts
+├── package.json
+└── tsconfig.json
+
+31 directories, 61 files
+
+==========================
+FILE CONTENTS
+==========================
+
+----------------------------------------
+FILE: apps/api/package.json
+----------------------------------------
+{
+  "name": "api",
+  "private": true,
+  "scripts": {
+    "dev": "tsx src/server.ts"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.3",
+    "@types/pdfkit": "^0.17.4",
+    "openai": "^6.15.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@financial-agent/shared": "workspace:*",
+    "bcryptjs": "^3.0.3",
+    "chartjs-node-canvas": "^5.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "pdfkit": "^0.15.2",
+    "playwright": "^1.57.0",
+    "puppeteer": "^24.34.0",
+    "robots-parser": "^3.0.1",
+    "uuid": "^9.0.1",
+    "zod": "^4.2.1"
+  }
+}
+----------------------------------------
+FILE: apps/api/src/agents/core.agent/blockContext.ts
+----------------------------------------
+type BlockContextInput = {
+  blockId: string;
+  objective: string;
+  signals: string[];
+  intake: any;
+  answers: string[];
+};
+
+export function buildBlockContext({
+  blockId,
+  objective,
+  signals,
+  intake,
+  answers,
+}: BlockContextInput) {
+  return `
+🧩 BLOQUE
+ID: ${blockId}
+Objetivo: ${objective}
+
+🔍 SEÑALES A EXPLORAR
+${signals.map((s) => `- ${s}`).join('\n')}
+
+📋 CONTEXTO (INTAKE)
+${JSON.stringify(intake, null, 2)}
+
+🗣 RESPUESTAS PREVIAS:
+${
+  answers.length === 0
+    ? '(sin respuestas aún)'
+    : answers.map((a, i) => `${i + 1}. ${a}`).join('\n')
+}
+
+────────────────────────
+REGLAS:
+1. Haz UNA sola pregunta.
+2. NO saludes.
+3. NO uses el nombre del usuario.
+4. NO hagas cumplidos ni datos curiosos.
+5. Si la respuesta previa fue corta o poco clara:
+   - dilo con respeto
+`.trim();
+}
+
+----------------------------------------
+FILE: apps/api/src/agents/core.agent/core.agent.ts
+----------------------------------------
+import type {
+  ChatAgentInput,
+  ChatAgentResponse,
+  ReasoningMode,
+  ToolCall,
+  Citation,
+  AgentBlock,
+  ChartBlock,
+} from './chat.types';
+
+import {
+  ChatAgentResponseSchema,
+  ReasoningModeSchema,
+} from './chat.types';
+
+import { completeStructured, complete } from '../../services/llm.service';
+import { runMCPTool } from '../../mcp/tools/runMCPTool';
+import { randomUUID } from 'crypto';
+
+import {
+  CORE_CLASSIFIER_SYSTEM,
+  CORE_RESPONSE_SYSTEM,
+  CORE_PLANNER_SYSTEM,
+} from './system.prompts';
+
+type LLMMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+
+/* ────────────────────────────── */
+/* Helpers                        */
+/* ────────────────────────────── */
+function sourceName(c: { doc_id: string; doc_title?: string }): string {
+  if (c.doc_title) return c.doc_title;
+  try {
+    return new URL(c.doc_id).hostname;
+  } catch {
+    const parts = c.doc_id.split(/[\\/]/).filter(Boolean);
+    return parts[parts.length - 1] ?? 'source';
+  }
+}
+
+function isArtifactLike(x: any): boolean {
+  return (
+    x &&
+    typeof x === 'object' &&
+    typeof x.id === 'string' &&
+    typeof x.type === 'string' &&
+    typeof x.title === 'string'
+  );
+}
+
+/**
+ * Detecta si un output contiene una serie temporal graficable
+ */
+function extractChartFromToolOutput(
+  tool: string,
+  data: any
+): ChartBlock | null {
+  if (!data || !Array.isArray(data.series)) return null;
+
+  // Heurística mínima: series con month + balance / p50
+  const sample = data.series[0];
+  if (!sample || typeof sample.month !== 'number') return null;
+
+  const yKey =
+    'balance' in sample
+      ? 'balance'
+      : 'p50' in sample
+      ? 'p50'
+      : null;
+
+  if (!yKey) return null;
+
+  return {
+    type: 'chart',
+    chart: {
+      kind: 'line',
+      title: 'Evolución del portafolio',
+      subtitle: 'Proyección en el tiempo',
+      xKey: 'month',
+      yKey,
+      data: data.series,
+      format: 'currency',
+      currency: 'CLP',
+    },
+  };
+}
+
+/* ────────────────────────────── */
+/* Core Agent                     */
+/* ────────────────────────────── */
+export async function runCoreAgent(
+  input: ChatAgentInput
+): Promise<ChatAgentResponse> {
+  const turnId = randomUUID();
+  const startedAt = Date.now();
+  const text = input.user_message.trim();
+
+  /* ────────────────────────────── */
+  /* Clasificación                  */
+  /* ────────────────────────────── */
+  const classification = await completeStructured<{
+    mode: string;
+    intent: string;
+    requires_tools: boolean;
+    requires_rag?: boolean;
+    confidence: number;
+  }>({
+    system: CORE_CLASSIFIER_SYSTEM,
+    user: text,
+  });
+
+  const mode: ReasoningMode =
+    ReasoningModeSchema.safeParse(classification.mode).success
+      ? (classification.mode as ReasoningMode)
+      : 'information';
+
+  const confidence = Number.isFinite(classification.confidence)
+    ? classification.confidence
+    : 0.5;
+
+  /* ────────────────────────────── */
+  /* Buffers                        */
+  /* ────────────────────────────── */
+  const tool_calls: ToolCall[] = [];
+  const tool_outputs: Array<{ tool: string; data: any }> = [];
+  const citations: Citation[] = [];
+  const artifacts: any[] = [];
+  const agent_blocks: AgentBlock[] = [];
+
+  /* ────────────────────────────── */
+  /* RAG automático                 */
+  /* ────────────────────────────── */
+  if (confidence < 0.6) {
+    const rag = await runMCPTool({
+      tool: 'rag.lookup',
+      args: { query: text, limit: 5 },
+      turn_id: turnId,
+      user_id: input.user_id,
+      ctx: { mode, intent: classification.intent },
+    });
+
+    if (rag?.tool_call) tool_calls.push(rag.tool_call);
+    if (rag?.data) tool_outputs.push({ tool: 'rag.lookup', data: rag.data });
+    if (rag?.citations) citations.push(...rag.citations);
+  }
+
+  /* ────────────────────────────── */
+  /* Planning                       */
+  /* ────────────────────────────── */
+  const plan = classification.requires_tools
+    ? await completeStructured<{
+        objective: string;
+        steps: Array<{ goal: string; tool?: string; args?: any }>;
+      }>({
+        system: CORE_PLANNER_SYSTEM,
+        user: JSON.stringify({
+          message: text,
+          intent: classification.intent,
+          mode,
+        }),
+      })
+    : { objective: 'respond', steps: [] };
+
+  /* ────────────────────────────── */
+  /* Ejecutar tools                 */
+  /* ────────────────────────────── */
+  for (const step of plan.steps) {
+    if (!step.tool) continue;
+
+    const result = await runMCPTool({
+      tool: step.tool,
+      args: step.args ?? {},
+      turn_id: turnId,
+      user_id: input.user_id,
+      ctx: { mode, intent: classification.intent },
+    });
+
+    if (!result?.tool_call) continue;
+
+    tool_calls.push(result.tool_call);
+
+    if (result.data) {
+      tool_outputs.push({ tool: step.tool, data: result.data });
+
+      // 📦 artifacts
+      if (isArtifactLike(result.data)) {
+        artifacts.push(result.data);
+      }
+
+      // 📊 charts (NUEVO)
+      const chart = extractChartFromToolOutput(step.tool, result.data);
+      if (chart) agent_blocks.push(chart);
+    }
+
+    if (result.citations) citations.push(...result.citations);
+  }
+
+  /* ────────────────────────────── */
+  /* Prompt final                   */
+  /* ────────────────────────────── */
+  const messages: LLMMessage[] = [
+    {
+      role: 'system',
+      content: `${CORE_RESPONSE_SYSTEM}
+
+Reglas:
+- Explica resultados de forma clara y estructurada.
+- Si hay gráficos, descríbelos y refiérelos en el texto.
+- Si existe PDF, pregunta si desea guardarlo.`,
+    },
+    ...(input.history ?? []).map((h) => ({
+      role: h.role as LLMMessage['role'],
+      content: h.content,
+    })),
+    {
+      role: 'user',
+      content: JSON.stringify({
+        message: text,
+        objective: plan.objective,
+        tool_outputs,
+      }),
+    },
+  ];
+
+  const message = await complete(messages, { temperature: 0.4 });
+
+  /* ────────────────────────────── */
+  /* Response canónica              */
+  /* ────────────────────────────── */
+  const response: ChatAgentResponse = {
+    message,
+    mode,
+    tool_calls,
+    react: {
+      objective: plan.objective,
+      steps: plan.steps.map((s, i) => ({
+        step: i,
+        goal: s.goal,
+        decision: s.tool ?? 'none',
+      })),
+    },
+    agent_blocks,
+    artifacts,
+    citations,
+    compliance: {
+      mode,
+      no_auto_execution: true,
+      includes_recommendation: mode === 'decision_support',
+      includes_simulation: mode === 'simulation',
+      includes_regulation: mode === 'regulation',
+      risk_score: 1 - confidence,
+      missing_information: [],
+      disclaimers_shown: [],
+      blocked: { is_blocked: false },
+    },
+    state_updates: {},
+    meta: {
+      turn_id: turnId,
+      latency_ms: Date.now() - startedAt,
+    },
+  };
+
+  return ChatAgentResponseSchema.parse(response);
+}
+
+----------------------------------------
+FILE: apps/api/src/agents/core.agent/chat.types.ts
+----------------------------------------
+import { z } from 'zod';
+import type { UIEvent as SharedUIEvent } from '@financial-agent/shared/src/ui-events';
+
+/* ────────────────────────────────────────────── */
+/* Reasoning Modes                                */
+/* ────────────────────────────────────────────── */
+export const ReasoningModeSchema = z.enum([
+  'education',
+  'information',
+  'comparison',
+  'simulation',
+  'budgeting',
+  'planification',
+  'decision_support',
+  'regulation',
+  'containment',
+]);
+
+export type ReasoningMode = z.infer<typeof ReasoningModeSchema>;
+
+/* ────────────────────────────────────────────── */
+/* Compliance                                    */
+/* ────────────────────────────────────────────── */
+export const ComplianceSchema = z.object({
+  mode: ReasoningModeSchema,
+
+  no_auto_execution: z.boolean().default(true),
+
+  includes_recommendation: z.boolean().default(false),
+  includes_simulation: z.boolean().default(false),
+  includes_regulation: z.boolean().default(false),
+
+  missing_information: z.array(z.string()).default([]),
+  disclaimers_shown: z.array(z.string()).default([]),
+
+  risk_score: z.number().min(0).max(1).default(0),
+
+  blocked: z
+    .object({
+      is_blocked: z.boolean().default(false),
+      reason: z.string().optional(),
+    })
+    .default({ is_blocked: false }),
+});
+
+export type Compliance = z.infer<typeof ComplianceSchema>;
+
+/* ────────────────────────────────────────────── */
+/* Citations (canónico MCP + Core)                */
+/* ────────────────────────────────────────────── */
+export const CitationSchema = z.object({
+  doc_id: z.string(),
+  doc_title: z.string().optional(),
+  chunk_id: z.string().optional(),
+  section: z.string().optional(),
+
+  supporting_span: z.string().optional(),
+
+  supports: z
+    .enum(['claim', 'definition', 'constraint', 'procedure', 'comparison'])
+    .default('claim'),
+
+  confidence: z.number().min(0).max(1).default(0.7),
+
+  url: z.string().optional(),
+});
+
+export type Citation = z.infer<typeof CitationSchema>;
+
+/* ────────────────────────────────────────────── */
+/* Artifacts (PDFs, archivos descargables, etc.)  */
+/* ────────────────────────────────────────────── */
+export const ArtifactSchema = z.object({
+  id: z.string(),
+
+  // pdf | table | future-proof
+  type: z.string(),
+
+  title: z.string(),
+  description: z.string().optional(),
+
+  fileUrl: z.string().optional(),
+  previewImageUrl: z.string().optional(),
+
+  // simulation | analysis | plan | diagnostic | etc.
+  source: z.string().optional(),
+
+  createdAt: z.string().optional(),
+  saved: z.boolean().optional(),
+
+  meta: z.record(z.string(), z.any()).optional(),
+});
+
+export type Artifact = z.infer<typeof ArtifactSchema>;
+
+/* ────────────────────────────────────────────── */
+/* UI Events                                     */
+/* ────────────────────────────────────────────── */
+export type UIEvent = SharedUIEvent;
+
+/* ────────────────────────────────────────────── */
+/* Tool Calls (canónico MCP ↔ Core)               */
+/* ────────────────────────────────────────────── */
+export const ToolCallSchema = z.object({
+  id: z.string().optional(),
+  tool: z.string(),
+  args: z.record(z.string(), z.any()).default({}),
+
+  status: z.enum(['pending', 'success', 'error']).default('pending'),
+
+  result: z.record(z.string(), z.any()).optional(),
+  error_message: z.string().optional(),
+
+  latency_ms: z.number().int().nonnegative().optional(),
+});
+
+export type ToolCall = z.infer<typeof ToolCallSchema>;
+
+/* ────────────────────────────────────────────── */
+/* ReAct Trace (auditoría / debugging)            */
+/* ────────────────────────────────────────────── */
+export const ReActStepSchema = z.object({
+  step: z.number().int().nonnegative(),
+  goal: z.string(),
+
+  tool_call_id: z.string().optional(),
+  tool: z.string().optional(),
+
+  observation: z.string().optional(),
+  decision: z.string().optional(),
+});
+
+export const ReActTraceSchema = z.object({
+  objective: z.string().optional(),
+  steps: z.array(ReActStepSchema).default([]),
+});
+
+export type ReActTrace = z.infer<typeof ReActTraceSchema>;
+
+/* ────────────────────────────────────────────── */
+/* Agent Blocks (contrato visual canónico)        */
+/* ────────────────────────────────────────────── */
+
+/**
+ * 📊 Chart Block
+ * Describe un gráfico renderizable por la UI del chat.
+ * NO contiene lógica ni implementación visual.
+ */
+export const ChartBlockSchema = z.object({
+  type: z.literal('chart'),
+
+  chart: z.object({
+    kind: z.enum(['line', 'bar', 'area']),
+    title: z.string(),
+    subtitle: z.string().optional(),
+
+    xKey: z.string(),          // ej: "month"
+    yKey: z.string(),          // ej: "balance"
+
+    data: z.array(z.record(z.string(), z.number())),
+
+    // hints opcionales para la UI
+    format: z.enum(['currency', 'percentage', 'number']).optional(),
+    currency: z.string().optional(), // ej: "CLP"
+  }),
+});
+
+export type ChartBlock = z.infer<typeof ChartBlockSchema>;
+
+/**
+ * 🧩 Union de bloques soportados por el agente.
+ * Se puede extender sin romper compatibilidad.
+ */
+export const AgentBlockSchema = z.union([
+  ChartBlockSchema,
+]);
+
+export type AgentBlock = z.infer<typeof AgentBlockSchema>;
+
+/* ────────────────────────────────────────────── */
+/* Chat Agent Response (OUTPUT canónico)          */
+/* ────────────────────────────────────────────── */
+export const ChatAgentResponseSchema = z.object({
+  message: z.string(),
+
+  mode: ReasoningModeSchema,
+
+  tool_calls: z.array(ToolCallSchema).default([]),
+
+  react: ReActTraceSchema.optional(),
+
+  // 🧱 Bloques semántico-visuales (chat pro)
+  agent_blocks: z.array(AgentBlockSchema).default([]),
+
+  // 📦 Artefactos descargables (PDFs, etc.)
+  artifacts: z.array(ArtifactSchema).default([]),
+
+  citations: z.array(CitationSchema).default([]),
+
+  compliance: ComplianceSchema,
+
+  state_updates: z.record(z.string(), z.any()).default({}),
+
+  meta: z.record(z.string(), z.any()).optional(),
+});
+
+export type ChatAgentResponse = z.infer<typeof ChatAgentResponseSchema>;
+
+/* ────────────────────────────────────────────── */
+/* Chat Agent Input (INPUT canónico)              */
+/* ────────────────────────────────────────────── */
+export const ChatAgentInputSchema = z.object({
+  user_id: z.string(),
+
+  user_name: z.string().optional(),
+  session_id: z.string().optional(),
+
+  user_message: z.string(),
+
+  history: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant', 'system']),
+        content: z.string(),
+        created_at: z.string().optional(),
+      })
+    )
+    .default([]),
+
+  context: z.record(z.string(), z.any()).optional(),
+  ui_state: z.record(z.string(), z.any()).optional(),
+  preferences: z.record(z.string(), z.any()).optional(),
+});
+
+export type ChatAgentInput = z.infer<typeof ChatAgentInputSchema>;
+
+----------------------------------------
+FILE: apps/api/src/agents/core.agent/system.prompts.ts
+----------------------------------------
+/* ================================================= */
+/* CORE CLASSIFIER — FINTECH SAFE · TOOL-FIRST       */
+/* ================================================= */
+
+export const CORE_CLASSIFIER_SYSTEM = `
+Eres un clasificador de intención de un agente conversacional de asistencia en finanzas personales en CHILE.
+Tienes acceso a herramientas externas (tools) y debes decidir CUÁNDO se deben usar.
+
+Tu salida controla el comportamiento operativo del agente.
+
+OBLIGATORIO:
+- Devuelve SIEMPRE un JSON válido
+- Todos los campos deben estar presentes
+- NO expliques nada fuera del JSON
+- NO devuelvas null
+- NO inventes nuevos modos
+
+MODOS PERMITIDOS (enum estricto):
+- education
+- information
+- comparison
+- simulation
+- budgeting
+- planification
+- decision_support
+- regulation
+- containment
+
+────────────────────────────────
+REGLAS GENERALES
+────────────────────────────────
+- requires_tools y requires_rag SIEMPRE deben estar presentes
+- confidence debe ser un número entre 0 y 1
+- El campo intent debe resumir claramente la intención del usuario en lenguaje natural
+
+────────────────────────────────
+REGLAS DE ACTIVACIÓN DE TOOLS (CRÍTICAS)
+────────────────────────────────
+requires_tools = true SI:
+- El usuario pide explícitamente:
+  “pdf”, “reporte”, “documento”, “archivo”, “descargar”, “gráfico”, “grafico”, “visualización”
+- La consulta menciona:
+  datos actuales, hoy, precio, tasa, valor de mercado, noticias, internet, buscar
+- La consulta requiere:
+  cálculos, simulaciones, comparaciones, proyecciones, escenarios
+- La consulta pide valores económicos de Chile:
+  USD/CLP, UF, UTM, TPM, inflación, tasas locales
+- El mensaje es corto o ambiguo pero accionable (“grafico”, “pdf”, “simula”, “link”)
+
+requires_tools = false SOLO SI:
+- Puede responderse únicamente con conocimiento general y estable
+- Es un saludo o interacción social
+
+────────────────────────────────
+REGLAS PARA RAG (CUÁNDO requires_rag = true)
+────────────────────────────────
+requires_rag = true SI:
+- La consulta es normativa o regulatoria
+- Requiere definiciones internas, glosarios, límites del sistema
+- Es comparación, planificación o apoyo a decisiones con ambigüedad conceptual
+
+────────────────────────────────
+REGLAS POR TIPO DE MENSAJE
+────────────────────────────────
+- Saludos o frases sociales (“hola”, “ok”, “gracias”):
+  mode = information
+  requires_tools = false
+  requires_rag = false
+  confidence = 0.9
+
+- Mensajes ambiguos pero accionables (“grafico”, “pdf”, “reporte”):
+  mode = simulation
+  requires_tools = true
+  requires_rag = false
+  confidence = 0.7
+
+- Explicaciones generales o educación financiera:
+  mode = education
+  requires_tools = false
+  requires_rag = false
+  confidence = 0.7 – 0.9
+
+- Comparación de productos financieros:
+  mode = comparison
+  requires_tools = true
+  requires_rag = true
+  confidence = 0.6 – 0.8
+
+- Simulaciones financieras o cálculos:
+  mode = simulation
+  requires_tools = true
+  requires_rag = false
+  confidence = 0.7 – 0.9
+
+- Presupuestos y orden financiero:
+  mode = budgeting
+  requires_tools = true si hay números / false si es guía general
+  requires_rag = true
+  confidence = 0.6 – 0.8
+
+- Planificación financiera:
+  mode = planification
+  requires_tools = true
+  requires_rag = true
+  confidence = 0.6 – 0.8
+
+- Apoyo a decisiones:
+  mode = decision_support
+  requires_tools = true
+  requires_rag = true
+  confidence = 0.6 – 0.8
+
+- Temas legales o normativos:
+  mode = regulation
+  requires_tools = false
+  requires_rag = true
+  confidence = 0.7 – 0.9
+
+- Contención emocional o gestión de riesgo:
+  mode = containment
+  requires_tools = false
+  requires_rag = false
+  confidence = 0.7 – 0.9
+
+────────────────────────────────
+FORMATO DE SALIDA (OBLIGATORIO)
+────────────────────────────────
+Devuelve SOLO JSON:
+{
+  "mode": "education|information|comparison|simulation|budgeting|planification|decision_support|regulation|containment",
+  "intent": "string",
+  "requires_tools": boolean,
+  "requires_rag": boolean,
+  "confidence": number
+}
+`;
+export const CORE_PLANNER_SYSTEM = `
+Eres el planificador operativo del agente.
+
+Tu responsabilidad es decidir:
+- QUÉ herramientas usar
+- EN QUÉ orden
+- SOLO cuando agregan valor real al usuario
+
+Debes ser preciso, conservador y evitar alucinaciones.
+
+────────────────────────────────
+TOOLS DISPONIBLES (USA SOLO ESTOS)
+────────────────────────────────
+
+CORE:
+- math.calc
+  args: { expression: string }
+
+- rag.lookup
+  args: { query: string }
+
+- web.scrape
+  args: { url: string }
+
+- web.extract
+  args: { url: string, pattern: string }
+
+- time.today
+
+MARKET · CHILE:
+- market.fx_usd_clp
+- market.uf_cl
+- market.utm_cl
+- market.tpm_cl
+
+SIMULACIONES:
+- finance.simulate
+  args: { initial?, monthly?, months?, annualRate? }
+
+- finance.simulate_montecarlo
+  args: { initial?, monthly?, months?, annualReturn?, annualVolatility?, paths? }
+
+- finance.project_portfolio
+  args: { initial?, monthly?, months?, annualRate? }
+
+- finance.scenario_projection
+  args: { initial?, monthly?, months?, annualRatePessimistic?, annualRateBase?, annualRateOptimistic? }
+
+- finance.risk_drawdown
+  args: { series? }
+
+DOCUMENTOS (PDF):
+- pdf.generate_simulation
+  args: {
+    principal: number,
+    annualRate: number,
+    months?: number,
+    monthlyContribution?: number,
+    title?: string
+  }
+
+────────────────────────────────
+REGLAS CRÍTICAS (OBLIGATORIAS)
+────────────────────────────────
+- NO inventes nombres de tools
+- NO uses nombres de archivos, variables o rutas
+- NO agregues campos fuera del schema
+- NO llames tools redundantes
+- Si una tool no está listada arriba, NO existe
+
+────────────────────────────────
+REGLAS DE DOCUMENTOS / PDF (CLAVE)
+────────────────────────────────
+Si el usuario menciona explícitamente:
+"pdf", "reporte", "documento", "archivo", "descargar", "informe":
+
+→ USA **pdf.generate_simulation**
+
+Si el usuario NO entrega datos numéricos:
+- NO preguntes primero
+- NO bloquees la ejecución
+- Usa valores de ejemplo razonables
+
+Valores por defecto permitidos:
+- principal: 1000000
+- annualRate: 0.05
+- months: 12
+- monthlyContribution: 0
+
+────────────────────────────────
+REGLAS DE SIMULACIÓN
+────────────────────────────────
+- Monte Carlo, volatilidad, rangos → finance.simulate_montecarlo
+- Escenarios optimista/base/pesimista → finance.scenario_projection
+- Proyección simple → finance.project_portfolio o finance.simulate
+- Riesgo, drawdown, máxima caída → finance.risk_drawdown
+
+────────────────────────────────
+REGLAS DE DATOS ACTUALES
+────────────────────────────────
+- Indicadores económicos de Chile → market.*
+- Información online → web.scrape / web.extract
+
+────────────────────────────────
+REGLAS DE DEFINICIONES
+────────────────────────────────
+- Conocimiento interno, glosarios, límites del sistema → rag.lookup
+
+────────────────────────────────
+FORMATO DE SALIDA (OBLIGATORIO)
+────────────────────────────────
+Devuelve SOLO JSON:
+
+{
+  "objective": "string",
+  "steps": [
+    {
+      "goal": string,
+      "tool"?: string,
+      "args"?: any
+    }
+  ]
+}
+`;
+
+export const CORE_RESPONSE_SYSTEM = `
+Eres un agente financiero profesional, claro y confiable.
+Tu objetivo es entregar información financiera en formatos útiles, visuales y listos para usar.
+
+Cada respuesta debe sentirse como un entregable profesional,
+no como una explicación teórica ni una disculpa.
+
+────────────────────────────────
+TONO Y PRESENCIA
+────────────────────────────────
+- Cercano, humano y seguro
+- Profesional, sin rigidez técnica
+- Claro y directo
+- Nunca defensivo
+- Nunca minimices lo que el sistema sí generó
+
+────────────────────────────────
+JERARQUÍA DE EXPERIENCIA (CRÍTICA)
+────────────────────────────────
+El orden de prioridad SIEMPRE es:
+1. Artifacts visuales (gráficos, tablas)
+2. Documentos descargables (PDF)
+3. Texto explicativo breve
+
+Si existen artifacts:
+- Son el centro de la respuesta
+- El texto SOLO acompaña y contextualiza
+- NO reemplaces lo visual con texto largo
+
+────────────────────────────────
+REGLAS UX POR TIPO DE ARTIFACT (OBLIGATORIAS)
+────────────────────────────────
+
+PDF
+- Menciona explícitamente que se generó un documento descargable
+- Indica qué contiene (en 1–2 líneas)
+- Preséntalo como un entregable listo para usar
+- Incluye SIEMPRE una acción suave
+
+Frases válidas:
+- “Preparé un PDF descargable con…”
+- “El documento resume…”
+- “Puedes descargarlo o guardarlo para revisarlo después”
+
+ GRÁFICO
+- Menciona explícitamente que se generó un gráfico
+- Explica qué compara o muestra
+- Destaca 1 insight clave
+- No describas ejes ni valores uno por uno
+
+Frases válidas:
+- “El gráfico muestra…”
+- “Visualmente se observa que…”
+- “Esto permite comparar rápidamente…”
+
+TABLA
+- Preséntala como evidencia estructurada
+- Destaca patrones o diferencias
+- Evita repetir filas completas en texto
+
+Frases válidas:
+- “La tabla resume…”
+- “Se observa una diferencia clara en…”
+- “Esto facilita comparar…”
+
+────────────────────────────────
+CALL TO ACTION SUAVE (OBLIGATORIO SI HAY ARTIFACTS)
+────────────────────────────────
+Si existen artifacts:
+- Incluye una acción sugerida, SIN pedir confirmación explícita
+
+Ejemplos válidos:
+- “Puedes guardarlo como referencia”
+- “Sirve para revisarlo con más calma”
+- “Si quieres, lo podemos usar como base para otro escenario”
+
+Ejemplos NO válidos:
+- “¿Quieres que…?”
+- “Dime si deseas…”
+- “Avísame si…”
+
+────────────────────────────────
+SIMULACIONES Y RESULTADOS
+────────────────────────────────
+- Resume resultados en 3 a 6 líneas máximo
+- Enfócate en conclusiones claras
+- No expliques el proceso ni las fórmulas
+- No repitas lo que ya está en el gráfico o documento
+
+────────────────────────────────
+FUENTES
+────────────────────────────────
+Si se entregan "sources":
+- Menciona explícitamente al menos una fuente
+- Integra la fuente de forma natural:
+  “Según información publicada en [name]…”
+  “De acuerdo a datos de [name]…”
+- NO inventes fuentes
+- NO cites si no existen
+
+────────────────────────────────
+INTERACCIÓN
+────────────────────────────────
+- No menciones herramientas, APIs ni sistemas internos
+- No prometas resultados ni rendimientos
+- No des órdenes
+- Si falta información y hay una pregunta estructurada:
+  - Solicita SOLO esos datos
+  - Sin explicaciones adicionales
+
+────────────────────────────────
+OBJETIVO FINAL
+────────────────────────────────
+- Que el usuario perciba valor inmediato
+- Que los documentos y gráficos se sientan profesionales
+- Que la experiencia invite naturalmente a descargar, guardar o continuar
+- Que el agente se perciba competente y resolutivo
+
+Redacta siempre con claridad financiera y foco en utilidad real.
+`;
+
+----------------------------------------
+FILE: apps/api/src/agents/diagnostic/diagnostic.agent.ts
+----------------------------------------
+// apps/api/src/agents/diagnostic/diagnostic.agent.ts
+
+import { z } from 'zod';
+
+import {
+  FinancialDiagnosticProfile,
+  InterviewBlockEvidence,
+} from '../../schemas/profile.schema';
+
+import { InterviewBlockId } from '../../orchestrator/interview.flow';
+
+import { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+
+import { complete } from '../../services/llm.service';
+
+/* ────────────────────────────── */
+/* Input del agente diagnóstico   */
+/* ────────────────────────────── */
+
+export interface DiagnosticAgentInput {
+  intake: IntakeQuestionnaire;
+
+  blocks: Partial<
+    Record<InterviewBlockId, InterviewBlockEvidence>
+  >;
+}
+
+/* ────────────────────────────── */
+/* Schema de salida (Zod)         */
+/* ────────────────────────────── */
+
+const DiagnosticLLMResponseSchema = z.object({
+  diagnosticNarrative: z.string().min(10),
+
+  profile: z.object({
+    financialClarity: z.enum(['low', 'medium', 'high']),
+    decisionStyle: z.enum([
+      'reactive',
+      'analytical',
+      'avoidant',
+      'delegated',
+      'mixed',
+    ]),
+    timeHorizon: z.enum(['short_term', 'mixed', 'long_term']),
+    financialPressure: z.enum(['low', 'moderate', 'high']),
+    emotionalPattern: z.enum([
+      'neutral',
+      'anxious',
+      'avoidant',
+      'controlling',
+      'conflicted',
+    ]),
+    coherenceScore: z.number().min(0).max(1),
+  }),
+
+  tensions: z.array(z.string()),
+  hypotheses: z.array(z.string()),
+  openQuestions: z.array(z.string()),
+});
+
+type DiagnosticLLMResponse = z.infer<
+  typeof DiagnosticLLMResponseSchema
+>;
+
+/* ────────────────────────────── */
+/* Agente Diagnóstico             */
+/* ────────────────────────────── */
+
+export async function runDiagnosticAgent(
+  input: DiagnosticAgentInput
+): Promise<FinancialDiagnosticProfile> {
+  const { intake, blocks } = input;
+
+  const prompt = buildDiagnosticPrompt(intake, blocks);
+
+  const raw = await complete(prompt, {
+    systemPrompt: SYSTEM_PROMPT,
+    temperature: 0.2,
+  });
+
+  let parsed: DiagnosticLLMResponse;
+
+  try {
+    parsed = DiagnosticLLMResponseSchema.parse(
+      JSON.parse(raw)
+    );
+  } catch (err) {
+    console.error(
+      '[DiagnosticAgent] Invalid LLM response',
+      raw
+    );
+    throw new Error(
+      'Respuesta inválida del agente diagnóstico'
+    );
+  }
+
+  return {
+    version: 'v2',
+
+    meta: {
+      completeness: estimateCompleteness(blocks),
+      blocksExplored: Object.keys(blocks) as InterviewBlockId[],
+      blocksSkipped: [],
+      completedAt: new Date().toISOString(),
+    },
+
+    blocks,
+
+    diagnosticNarrative: parsed.diagnosticNarrative,
+
+    profile: parsed.profile,
+
+    tensions: parsed.tensions,
+
+    hypotheses: parsed.hypotheses,
+
+    openQuestions: parsed.openQuestions,
+  };
+}
+
+/* ────────────────────────────── */
+/* Prompt del sistema             */
+/* ────────────────────────────── */
+
+const SYSTEM_PROMPT = `
+Eres un agente diagnóstico financiero de nivel experto.
+
+Tu función NO es:
+- recomendar productos
+- sugerir acciones
+- optimizar resultados
+- dar consejos financieros
+
+Tu función SÍ es:
+- integrar información validada por el usuario
+- detectar patrones financieros y emocionales
+- formular hipótesis interpretativas
+- construir un perfil financiero descriptivo
+
+Hablas con tono:
+- clínico
+- sobrio
+- no moralizante
+- no prescriptivo
+
+Nunca usas imperativos.
+Nunca sugieres qué debería hacer el usuario.
+Nunca juzgas decisiones.
+
+Todo lo que produces es descriptivo e interpretativo.
+`.trim();
+
+/* ────────────────────────────── */
+/* Prompt principal               */
+/* ────────────────────────────── */
+
+function buildDiagnosticPrompt(
+  intake: IntakeQuestionnaire,
+  blocks: Partial<Record<InterviewBlockId, InterviewBlockEvidence>>
+): string {
+  return `
+A continuación se presenta información estructurada de un usuario.
+
+### 1. Intake inicial
+${JSON.stringify(intake, null, 2)}
+
+### 2. Evidencia validada por bloques
+${JSON.stringify(blocks, null, 2)}
+
+---
+
+Con base EXCLUSIVA en esta información:
+
+1. Redacta una **narrativa diagnóstica integrada**
+   - Máx 2–3 párrafos
+   - Lenguaje descriptivo
+   - Enfocada en cómo el usuario vive y estructura su situación financiera
+
+2. Construye un **perfil financiero inferido** con los siguientes campos:
+   - financialClarity: low | medium | high
+   - decisionStyle: reactive | analytical | avoidant | delegated | mixed
+   - timeHorizon: short_term | mixed | long_term
+   - financialPressure: low | moderate | high
+   - emotionalPattern: neutral | anxious | avoidant | controlling | conflicted
+   - coherenceScore: número entre 0 y 1
+
+3. Identifica **tensiones internas** entre bloques
+   (ej: estabilidad operativa vs ansiedad emocional)
+
+4. Formula **hipótesis interpretativas**
+   - NO recomendaciones
+   - NO consejos
+   - NO acciones
+
+5. Lista **preguntas abiertas relevantes**
+   - Ambigüedades
+   - Vacíos
+   - Información insuficiente
+
+---
+
+Responde EXCLUSIVAMENTE en JSON con la forma:
+
+{
+  "diagnosticNarrative": string,
+  "profile": {
+    "financialClarity": "low | medium | high",
+    "decisionStyle": "reactive | analytical | avoidant | delegated | mixed",
+    "timeHorizon": "short_term | mixed | long_term",
+    "financialPressure": "low | moderate | high",
+    "emotionalPattern": "neutral | anxious | avoidant | controlling | conflicted",
+    "coherenceScore": number
+  },
+  "tensions": string[],
+  "hypotheses": string[],
+  "openQuestions": string[]
+}
+`.trim();
+}
+
+/* ────────────────────────────── */
+/* Utilidades                     */
+/* ────────────────────────────── */
+
+function estimateCompleteness(
+  blocks: Partial<Record<InterviewBlockId, InterviewBlockEvidence>>
+): number {
+  const total = Object.keys(blocks).length;
+  const validated = Object.values(blocks).filter(
+    (b) => b?.userValidated
+  ).length;
+
+  if (total === 0) return 0;
+  return Math.min(1, validated / total);
+}
+
+----------------------------------------
+FILE: apps/api/src/agents/followup.agent.ts
+----------------------------------------
+
+----------------------------------------
+FILE: apps/api/src/agents/intake/intake-analyzer.ts
+----------------------------------------
+// apps/api/src/agents/intake/intake-analyzer.ts
+
+import { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+
+export interface IntakeSignals {
+  hasIncomeInstability: boolean;
+  hasCashflowStress: boolean;
+  lacksEmergencyFund: boolean;
+  hasDebtBurden: boolean;
+  lowFinancialKnowledge: boolean;
+  highMoneyStress: boolean;
+  avoidsRisk: boolean;
+}
+
+export function analyzeIntake(
+  intake: IntakeQuestionnaire
+): IntakeSignals {
+  return {
+    hasIncomeInstability:
+      intake.employmentStatus === 'freelance' ||
+      intake.employmentStatus === 'unemployed',
+
+    hasCashflowStress:
+      intake.expensesCoverage === 'sometimes' ||
+      intake.expensesCoverage === 'no',
+
+    lacksEmergencyFund:
+      !intake.hasSavingsOrInvestments ||
+      intake.savingsBand === 'none',
+
+    hasDebtBurden:
+      intake.hasDebt,
+
+    lowFinancialKnowledge:
+      Object.values(intake.financialKnowledge).filter(Boolean).length <= 5,
+
+    highMoneyStress:
+      intake.moneyStressLevel >= 6,
+
+    avoidsRisk:
+      intake.riskReaction === 'never_invest',
+  };
+}
+
+----------------------------------------
+FILE: apps/api/src/agents/intake/intake-llm.ts
+----------------------------------------
+import { completeStructured } from '../../services/llm.service';
+import { InterviewBlockId, buildInterviewPlan } from '../../orchestrator/interview.flow';
+import type { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+
+/**
+ * Resultado del análisis LLM del intake
+ */
+export interface IntakeLLMAnalysis {
+  summary: string;
+  suggested_blocks: InterviewBlockId[];
+  highlights: string[];
+}
+
+const SYSTEM_PROMPT = `
+Eres un analista financiero que resume un cuestionario (intake) para preparar una entrevista.
+
+Tu salida debe ser UN JSON válido con el siguiente formato:
+{
+  "summary": string, // una síntesis breve (1-3 frases)
+  "suggested_blocks": ["warmup" | "cashflow" | "resilience" | "debt" | "products" | "goals" | "knowledge" | "risk" | "emotional"],
+  "highlights": [string] // 3-6 puntos clave detectados
+}
+
+Criterios:
+- Resume sólo lo que aparece en el intake.
+- Prioriza problemas operativos y señales que justifiquen preguntas en entrevista.
+- "suggested_blocks" debe ser un SUBCONJUNTO de los bloques que tiene sentido explorar (no inventes bloques).
+- No incluyas texto fuera del JSON.
+`;
+
+export async function analyzeIntakeWithLLM(
+  intake: IntakeQuestionnaire
+): Promise<IntakeLLMAnalysis> {
+  const plan = buildInterviewPlan(intake);
+
+  const user = `json\nIntake: ${JSON.stringify(intake, null, 2)}\n\nPlan de entrevistas sugerido por reglas locales: ${JSON.stringify(
+    plan.blocksToExplore
+  )}`;
+
+  const parsed = await completeStructured<IntakeLLMAnalysis>({
+    system: SYSTEM_PROMPT,
+    user,
+    temperature: 0.2,
+  });
+
+  // Asegura formato mínimo
+  return {
+    summary: parsed.summary ?? '',
+    suggested_blocks: Array.isArray(parsed.suggested_blocks)
+      ? parsed.suggested_blocks
+      : plan.blocksToExplore,
+    highlights: Array.isArray(parsed.highlights) ? parsed.highlights : [],
+  };
+}
+
+----------------------------------------
+FILE: apps/api/src/agents/interviewer.agent.ts
+----------------------------------------
+import {
+  InterviewBlockId,
+  INTERVIEW_CONTRACT,
+} from '../orchestrator/interview.flow';
+import { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+import { complete } from '../services/llm.service';
+
+
+
+import { User } from '../schemas/user.schema';
+
+type NextQuestionInput = {
+  blockId: InterviewBlockId;
+  intake: IntakeQuestionnaire;
+  answersInCurrentBlock: string[];
+  user: User;
+};
+
+export class InterviewerAgent {
+  /**
+   * Devuelve la siguiente pregunta o null si corresponde cerrar el bloque
+   */
+  public async generateNextQuestion(
+    input: NextQuestionInput
+  ): Promise<string | null> {
+    const { blockId, intake, answersInCurrentBlock, user } = input;
+
+    const block = INTERVIEW_CONTRACT[blockId];
+    if (!block) return null;
+
+    const name = user.name;
+
+    /**
+     * ✅ ÚNICA CONDICIÓN DE SALUDO
+     * Solo en warmup + primera pregunta
+     */
+    const isWarmupGreeting =
+      blockId === 'warmup' && answersInCurrentBlock.length === 0;
+
+    if (
+      answersInCurrentBlock.length >= 1 &&
+      answersInCurrentBlock.join(' ').length > 200
+    ) {
+      return null;
+    }
+    /**
+     * 🔒 Regla dura de cierre por cantidad
+     */
+    const MAX_QUESTIONS_PER_BLOCK = 2;
+    if (answersInCurrentBlock.length >= MAX_QUESTIONS_PER_BLOCK) {
+      return null;
+    }
+
+    /**
+     * 🧹 Defensa contra respuestas triviales
+     */
+    const normalizedAnswers = answersInCurrentBlock
+      .map((a) => a.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (
+      normalizedAnswers.length > 0 &&
+      normalizedAnswers.every(
+        (a) => a === 'no' || a === 'nada' || a === 'ninguno'
+      )
+    ) {
+      return null;
+    }
+
+
+    /**
+     * ─────────────────────────────────────────────
+     * PROMPT A: WARMUP (SALUDO + ACTIVACIÓN)
+     * ─────────────────────────────────────────────
+     */
+    const warmupPrompt = `
+Eres un entrevistador financiero experto, humano y elegante.
+
+Tu tarea es:
+1. Saludar a ${name} de forma profesional y cercana.
+2. Hacer una observación personalizada muy breve pero que sea como un insight o dato que el talvez no sabia,  no preguntar sobre cosas que preguntaremos en la entrevista, que la pregunta sea ¿sabias? no como lleva su vida(maximo 30 palabras) (nombre, etapa de vida o contexto).
+
+
+
+📋 CONTEXTO DEL USUARIO
+${JSON.stringify(intake, null, 2)}
+
+────────────────────────
+REGLAS ESTRICTAS:
+- El saludo debe sentirse natural, no exagerado.
+- El dato curioso debe ser simple y humano, no académico.
+- No expliques lo que estás haciendo.
+- Termina siempre con UN ¿sabias?.
+`.trim();
+
+    /**
+     * ─────────────────────────────────────────────
+     * PROMPT B: ENTREVISTA NORMAL (SIN SALUDO)
+     * ─────────────────────────────────────────────
+     */
+    const questionPrompt = `
+Eres un entrevistador financiero experto, humano y perceptivo.
+
+No saludas.
+No te presentas.
+No usas el nombre del usuario.
+No haces introducciones.
+
+Tu tarea es formular UNA sola pregunta para este bloque.
+
+────────────────────────
+🧩 BLOQUE
+ID: ${blockId}
+Objetivo: ${block.objective}
+
+🔍 SEÑALES A EXPLORAR
+${block.signals.map((s) => `- ${s}`).join('\n')}
+
+📋 CONTEXTO (INTAKE)
+${JSON.stringify(intake, null, 2)}
+
+🗣 RESPUESTAS PREVIAS:
+${
+  answersInCurrentBlock.length === 0
+    ? '(sin respuestas aún)'
+    : answersInCurrentBlock.map((a, i) => `${i + 1}. ${a}`).join('\n')
+}
+
+────────────────────────
+REGLAS:
+
+1. Haz UNA sola pregunta.
+2. NO saludes.
+3. NO uses el nombre del usuario.
+4. NO hagas cumplidos ni datos curiosos.
+5. Si la respuesta previa fue corta o poco clara:
+   - dilo con respeto
+   - explica brevemente por qué necesitas más contexto
+   - cambia completamente el enfoque.
+6. Las preguntas deben ser MUY distintas entre sí
+   (emocional, narrativa, hipotética, práctica, contraste).
+7. No recomiendes acciones.
+8. No expliques tu proceso.
+9. Si ya es suficiente, responde EXACTAMENTE: CLOSE
+`.trim();
+
+    const prompt = isWarmupGreeting ? warmupPrompt : questionPrompt;
+
+    const out = await complete(prompt, {
+      systemPrompt:
+        'Eres un entrevistador financiero empático, humano y muy observador.',
+      temperature: 0.55,
+    });
+
+    const cleaned = (out ?? '').trim();
+    if (!cleaned) return null;
+    if (cleaned.toUpperCase() === 'CLOSE') return null;
+
+    return cleaned;
+  }
+
+  /**
+   * Resume el bloque una vez cerrado
+   */
+  public async summarizeBlock(
+    blockId: InterviewBlockId,
+    answers: string[],
+    user: User
+  ): Promise<string> {
+    const block = INTERVIEW_CONTRACT[blockId];
+    if (!block) return '';
+
+    const name = user.name;
+
+    const prompt = `
+Estás cerrando un bloque de una entrevista financiera personal.
+
+Persona: ${name}
+Bloque: ${blockId}
+Objetivo del bloque:
+${block.objective}
+
+Respuestas clave:
+${answers.map((a, i) => `${i + 1}. ${a}`).join('\n')}
+
+────────────────────────
+Resume en 2–3 frases MUY cortas, hablándole directamente a ${name}.
+
+Reglas estrictas:
+- NO digas “el usuario”.
+- NO seas técnico.
+- NO recomiendes acciones.
+- NO diagnostiques.
+- Lenguaje cercano y simple.
+- Máx. 40 palabras en total.
+- Comienza con una de estas opciones:
+  “Ya mira ${name},”
+  “Okey ${name},”
+  “Súper ${name},”
+- Solo refleja comprensión general, nada más.
+`.trim();
+
+return complete(prompt, {
+  systemPrompt:
+    'Eres un entrevistador financiero empático que habla poco y claro.',
+  temperature: 0.4,
+});
+
+  }
+}
+
+----------------------------------------
+FILE: apps/api/src/mcp/README.md
+----------------------------------------
+# MCP (Model Context + Tools)
+
+This folder contains:
+- knowledge/contracts/guides/examples: stable context sources for RAG + citations
+- tools/: executable tools callable by the Core Agent via a strict contract
+
+Design goals:
+- Deterministic tool contracts
+- Auditable tool calls (inputs, outputs, latency, errors)
+- No auto-execution of external "actions" beyond safe reads/scrapes/simulations
+
+----------------------------------------
+FILE: apps/api/src/mcp/bootstrap.ts
+----------------------------------------
+/**
+ * MCP Bootstrap
+ * ──────────────────────────────────────────────
+ * Registra TODAS las tools reales del sistema.
+ * Este archivo es la ÚNICA puerta de entrada a MCP.
+ *
+ * Regla de oro:
+ * - Si el planner puede invocar una tool → DEBE estar registrada aquí.
+ */
+
+import { registerTool, isBootstrapped, markBootstrapped } from './tools/registry';
+
+/* ────────────────────────────── */
+/* WEB / SCRAPING                 */
+/* ────────────────────────────── */
+import { webExtractTool } from './tools/web/webExtract.tool';
+import { scrapeDoTool } from './tools/scrape/scrapeDo.tool';
+
+/* ────────────────────────────── */
+/* TIME                           */
+/* ────────────────────────────── */
+import { todayTool } from './tools/time/today.tool';
+
+/* ────────────────────────────── */
+/* MARKET — Chile                 */
+/* ────────────────────────────── */
+import { dollarCLTool } from './tools/market/dollarCL.tool';
+import { ufCLTool } from './tools/market/ufCL.tool';
+import { utmCLTool } from './tools/market/utmCL.tool';
+import { tpmCLTool } from './tools/market/tpmCL.tool';
+
+/* ────────────────────────────── */
+/* CORE / MATH                    */
+/* ────────────────────────────── */
+import { calculatorTool } from './tools/calc/calculator.tool';
+
+/* ────────────────────────────── */
+/* SIMULATIONS — Básica           */
+/* ────────────────────────────── */
+import { simulatorTool } from './tools/simulate/simulator.tool';
+
+/* ────────────────────────────── */
+/* SIMULATIONS — Pro (SIMPRO)     */
+/* ────────────────────────────── */
+import { monteCarloTool } from './tools/simpro/montecarlo.tool';
+import { portfolioProjectionTool } from './tools/simpro/portfolioProjection.tool';
+import { scenarioProjectionTool } from './tools/simpro/scenarioProjection.tool';
+import { riskDrawdownTool } from './tools/simpro/riskDrawdown.tool';
+import { generateSimulationPdfTool } from './tools/pdf/generateSimulationPdf.tool';
+
+/* ────────────────────────────── */
+/* RAG                            */
+/* ────────────────────────────── */
+import { ragLookupTool } from './tools/rag/ragLookup.tool';
+
+/* ────────────────────────────── */
+/* Bootstrap                      */
+/* ────────────────────────────── */
+export function bootstrapMCP() {
+  if (isBootstrapped()) return;
+
+  /* WEB */
+  registerTool(webExtractTool);
+  registerTool(scrapeDoTool);
+
+  /* TIME */
+  registerTool(todayTool);
+
+  /* MARKET (Chile) */
+  registerTool(dollarCLTool);
+  registerTool(ufCLTool);
+  registerTool(utmCLTool);
+  registerTool(tpmCLTool);
+
+  /* CORE */
+  registerTool(calculatorTool);
+
+  /* SIMULATIONS */
+  registerTool(simulatorTool);
+  
+
+  /* SIMULATIONS — PRO */
+  registerTool(monteCarloTool);
+  registerTool(portfolioProjectionTool);
+  registerTool(scenarioProjectionTool);
+  registerTool(riskDrawdownTool);
+  registerTool(generateSimulationPdfTool);
+
+  /* RAG */
+  registerTool(ragLookupTool);
+
+  markBootstrapped();
+}
+
+----------------------------------------
+FILE: apps/api/src/mcp/guides/system_limits.md
+----------------------------------------
+El sistema entrega orientación y análisis, no ejecución automática.
+- No realiza transacciones.
+- No sustituye asesoría financiera personalizada.
+- Preferir fuentes oficiales y citar evidencia cuando aplique.
+
+----------------------------------------
+FILE: apps/api/src/mcp/knowledge/financial_definitions.json
+----------------------------------------
+{
+  "definitions": [
+    { "term": "CAE", "definition": "Carga Anual Equivalente: medida estandarizada del costo total anual de un crédito." },
+    { "term": "Liquidez", "definition": "Facilidad y costo de convertir un activo en efectivo sin perder valor." },
+    { "term": "Riesgo", "definition": "Variabilidad potencial de resultados; incluye probabilidad de pérdida y magnitud." }
+  ]
+}
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/calc/calculator.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+
+function safeEval(expr: string): number {
+  const cleaned = expr.replace(/,/g, '.').trim();
+
+  if (!/^[0-9+\-*/().\s]+$/.test(cleaned)) {
+    throw new Error('Invalid expression (only numbers and + - * / ( ) . allowed)');
+  }
+
+  // eslint-disable-next-line no-new-func
+  const fn = new Function(`return (${cleaned});`);
+  const out = fn();
+
+  if (typeof out !== 'number' || !isFinite(out)) {
+    throw new Error('Expression did not evaluate to a finite number');
+  }
+
+  return out;
+}
+
+export const calculatorTool: MCPTool = {
+  name: 'math.calc',
+  description: 'Evaluates a simple arithmetic expression safely (no variables).',
+  argsSchema: z.object({
+    expression: z.string().min(1),
+  }),
+  schema: {
+    type: 'object',
+    properties: {
+      expression: { type: 'string' },
+    },
+    required: ['expression'],
+  },
+  run: async (args) => {
+    const expression = String(args.expression);
+    const value = safeEval(expression);
+
+    return {
+      tool_call: {
+        tool: 'math.calc',
+        args,
+        status: 'success',
+        result: { value },
+      },
+      data: { value },
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/market/dollarCL.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+import { fetchIndicador } from './mindicadorClient';
+
+export const dollarCLTool: MCPTool = {
+  name: 'market.fx_usd_clp',
+  description: 'Gets USD/CLP value for Chile (latest) with source citation.',
+  argsSchema: z.object({}),
+  schema: { type: 'object', properties: {}, required: [] },
+  run: async () => {
+    const out = await fetchIndicador('dolar');
+
+    return {
+      tool_call: {
+        tool: 'market.fx_usd_clp',
+        args: {},
+        status: 'success',
+        result: {
+          value: out.valor,
+          unit: out.unidad,
+          date: out.fecha,
+        },
+      },
+      data: {
+        value: out.valor,
+        unit: out.unidad,
+        date: out.fecha,
+      },
+      citations: [
+        {
+          doc_id: out.url,
+          doc_title: 'mindicador.cl',
+          supporting_span: out.valor ? `USD/CLP: ${out.valor}` : 'No value parsed',
+          supports: 'claim',
+          confidence: out.valor ? 0.85 : 0.5,
+          url: out.url,
+        },
+      ],
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/market/mindicadorClient.ts
+----------------------------------------
+import { fetchWithScrapeDo } from '../web/scrapeDoClient';
+
+export async function fetchIndicador(ind: 'dolar' | 'uf' | 'utm' | 'tpm'): Promise<{
+  valor: number | null;
+  unidad: string | null;
+  fecha: string | null;
+  raw: any;
+  url: string;
+}> {
+  // Public endpoint used widely; returns JSON with series array.
+  const url = `https://mindicador.cl/api/${ind}`;
+
+  const fetched = await fetchWithScrapeDo({
+    url,
+    render: false,
+    output: 'raw',
+    blockResources: true,
+    returnJSON: false,
+  });
+
+  let raw: any = null;
+  try { raw = JSON.parse(fetched.text); } catch { raw = null; }
+
+  const series = raw?.serie;
+  const first = Array.isArray(series) ? series[0] : null;
+
+  const valor = typeof first?.valor === 'number' ? first.valor : null;
+  const fecha = typeof first?.fecha === 'string' ? first.fecha : null;
+  const unidad = typeof raw?.unidad_medida === 'string' ? raw.unidad_medida : null;
+
+  return { valor, unidad, fecha, raw, url };
+}
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/market/tpmCL.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+import { fetchIndicador } from './mindicadorClient';
+
+export const tpmCLTool: MCPTool = {
+  name: 'market.tpm_cl',
+  description: 'Gets TPM (Chile monetary policy rate) latest value with citation.',
+  argsSchema: z.object({}),
+  schema: { type: 'object', properties: {}, required: [] },
+  run: async () => {
+    const out = await fetchIndicador('tpm');
+
+    return {
+      tool_call: {
+        tool: 'market.tpm_cl',
+        args: {},
+        status: 'success',
+        result: {
+          value: out.valor,
+          unit: out.unidad,
+          date: out.fecha,
+        },
+      },
+      data: {
+        value: out.valor,
+        unit: out.unidad,
+        date: out.fecha,
+      },
+      citations: [
+        {
+          doc_id: out.url,
+          doc_title: 'mindicador.cl',
+          supporting_span: out.valor ? `TPM: ${out.valor}` : 'No value parsed',
+          supports: 'claim',
+          confidence: out.valor ? 0.85 : 0.5,
+          url: out.url,
+        },
+      ],
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/market/ufCL.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+import { fetchIndicador } from './mindicadorClient';
+
+export const ufCLTool: MCPTool = {
+  name: 'market.uf_cl',
+  description: 'Gets UF (Chile) latest value with citation.',
+  argsSchema: z.object({}),
+  schema: { type: 'object', properties: {}, required: [] },
+  run: async () => {
+    const out = await fetchIndicador('uf');
+
+    return {
+      tool_call: {
+        tool: 'market.uf_cl',
+        args: {},
+        status: 'success',
+        result: {
+          value: out.valor,
+          unit: out.unidad,
+          date: out.fecha,
+        },
+      },
+      data: {
+        value: out.valor,
+        unit: out.unidad,
+        date: out.fecha,
+      },
+      citations: [
+        {
+          doc_id: out.url,
+          doc_title: 'mindicador.cl',
+          supporting_span: out.valor ? `UF: ${out.valor}` : 'No value parsed',
+          supports: 'claim',
+          confidence: out.valor ? 0.85 : 0.5,
+          url: out.url,
+        },
+      ],
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/market/utmCL.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+import { fetchIndicador } from './mindicadorClient';
+
+export const utmCLTool: MCPTool = {
+  name: 'market.utm_cl',
+  description: 'Gets UTM (Chile) latest value with citation.',
+  argsSchema: z.object({}),
+  schema: { type: 'object', properties: {}, required: [] },
+  run: async () => {
+    const out = await fetchIndicador('utm');
+
+    return {
+      tool_call: {
+        tool: 'market.utm_cl',
+        args: {},
+        status: 'success',
+        result: {
+          value: out.valor,
+          unit: out.unidad,
+          date: out.fecha,
+        },
+      },
+      data: {
+        value: out.valor,
+        unit: out.unidad,
+        date: out.fecha,
+      },
+      citations: [
+        {
+          doc_id: out.url,
+          doc_title: 'mindicador.cl',
+          supporting_span: out.valor ? `UTM: ${out.valor}` : 'No value parsed',
+          supports: 'claim',
+          confidence: out.valor ? 0.85 : 0.5,
+          url: out.url,
+        },
+      ],
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/pdf/generateSimulationPdf.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+import { generateSimulationPdf } from '../../../services/simulations/simulation.service';
+
+export const generateSimulationPdfTool: MCPTool = {
+  name: 'pdf.generate_simulation',
+  description: 'Genera un PDF de simulación financiera con gráfico',
+
+  argsSchema: z.object({
+    principal: z.number(),
+    annualRate: z.number(),
+    months: z.number().optional(),
+    monthlyContribution: z.number().optional(),
+    title: z.string().optional(),
+  }),
+
+  schema: {
+    type: 'object',
+    properties: {
+      principal: { type: 'number' },
+      annualRate: { type: 'number' },
+      months: { type: 'number' },
+      monthlyContribution: { type: 'number' },
+      title: { type: 'string' },
+    },
+    required: ['principal', 'annualRate'],
+  },
+
+  run: async (args) => {
+    const artifact = await generateSimulationPdf({
+      principal: args.principal,
+      annualRate: args.annualRate,
+      months: args.months ?? 12,
+      monthlyContribution: args.monthlyContribution ?? 0,
+      title: args.title,
+    });
+
+    return {
+      tool_call: {
+        tool: 'pdf.generate_simulation',
+        args,
+        status: 'success',
+        result: { artifact_id: artifact.id },
+      },
+      data: artifact,
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/rag/ragLookup.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import fs from 'fs';
+import path from 'path';
+import type { MCPTool } from '../types';
+
+function collectFiles(root: string): string[] {
+  if (!fs.existsSync(root)) return [];
+  const out: string[] = [];
+  for (const entry of fs.readdirSync(root)) {
+    const p = path.join(root, entry);
+    const stat = fs.statSync(p);
+    if (stat.isDirectory()) out.push(...collectFiles(p));
+    else if (/\.(md|json|txt)$/i.test(entry)) out.push(p);
+  }
+  return out;
+}
+
+function readSafe(p: string): string {
+  try { return fs.readFileSync(p, 'utf-8'); } catch { return ''; }
+}
+
+export const ragLookupTool: MCPTool = {
+  name: 'rag.lookup',
+  description:
+    'Local RAG over apps/api/src/mcp/{knowledge,guides,contracts,examples}. Returns citations with snippets.',
+  argsSchema: z.object({
+    query: z.string().min(1),
+    limit: z.number().optional(),
+  }),
+  schema: {
+    type: 'object',
+    properties: {
+      query: { type: 'string' },
+      limit: { type: 'number' },
+    },
+    required: ['query'],
+  },
+  run: async (args) => {
+    const query = String(args.query).toLowerCase();
+    const limit = Math.max(1, Math.min(8, Math.floor(Number(args.limit ?? 5))));
+
+    const base = path.join(process.cwd(), 'apps', 'api', 'src', 'mcp');
+    const files = [
+      ...collectFiles(path.join(base, 'knowledge')),
+      ...collectFiles(path.join(base, 'guides')),
+      ...collectFiles(path.join(base, 'contracts')),
+      ...collectFiles(path.join(base, 'examples')),
+    ];
+
+    const hits: Array<{ file: string; idx: number; snippet: string }> = [];
+
+    for (const f of files) {
+      const txt = readSafe(f);
+      if (!txt) continue;
+
+      const low = txt.toLowerCase();
+      const idx = low.indexOf(query);
+      if (idx === -1) continue;
+
+      const start = Math.max(0, idx - 160);
+      const end = Math.min(txt.length, idx + 240);
+      const snippet = txt.slice(start, end).replace(/\s+/g, ' ').trim();
+
+      hits.push({ file: f, idx, snippet });
+    }
+
+    hits.sort((a, b) => a.idx - b.idx);
+    const top = hits.slice(0, limit);
+
+    const citations = top.map((h, i) => ({
+      doc_id: h.file,
+      doc_title: path.basename(h.file),
+      chunk_id: `local_${i}`,
+      supporting_span: h.snippet,
+      supports: 'claim' as const,
+      confidence: 0.75,
+      url: undefined,
+    }));
+
+    return {
+      tool_call: { tool: 'rag.lookup', args, status: 'success', result: { found: citations.length } },
+      data: { found: citations.length, citations },
+      citations,
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/registry.ts
+----------------------------------------
+import type { MCPTool } from './types';
+
+const TOOLS: Record<string, MCPTool> = {};
+let bootstrapped = false;
+
+export function registerTool(tool: MCPTool) {
+  TOOLS[tool.name] = tool;
+}
+
+export function getTool(name: string): MCPTool | null {
+  return TOOLS[name] ?? null;
+}
+
+export function listTools(): MCPTool[] {
+  return Object.values(TOOLS);
+}
+
+export function isBootstrapped() {
+  return bootstrapped;
+}
+
+export function markBootstrapped() {
+  bootstrapped = true;
+}
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/runMCPTool.ts
+----------------------------------------
+import type { ToolResult, ToolContext } from './types';
+import type { ToolCall } from './toolcall.types';
+import { getTool, listTools } from './registry';
+import { bootstrapMCP } from '../bootstrap';
+
+export async function runMCPTool(input: {
+  tool: string;
+  args: any;
+  turn_id: string;
+  user_id: string;
+  ctx?: ToolContext;
+}): Promise<ToolResult> {
+  const startedAt = Date.now();
+
+  // Lazy bootstrap
+  bootstrapMCP();
+
+  const toolName = String(input.tool || '');
+  const baseCall: ToolCall = {
+    id: `${input.turn_id}:${toolName}`,
+    tool: toolName,
+    args: (input.args ?? {}) as any,
+    status: 'pending',
+  };
+
+  const tool = getTool(toolName);
+
+  if (!tool) {
+    return {
+      tool_call: {
+        ...baseCall,
+        status: 'error',
+        error_message: `Tool not found: ${toolName}`,
+        latency_ms: Date.now() - startedAt,
+      },
+      data: { ok: false, error: 'tool_not_found', tool: toolName },
+    };
+  }
+
+  // ──────────────────────────────
+  // Validación de argumentos
+  // ──────────────────────────────
+  if (tool.argsSchema) {
+    const parsed = tool.argsSchema.safeParse(input.args ?? {});
+    if (!parsed.success) {
+      return {
+        tool_call: {
+          ...baseCall,
+          status: 'error',
+          error_message: 'Invalid tool args',
+          latency_ms: Date.now() - startedAt,
+        },
+        data: { ok: false, error: 'invalid_args', issues: parsed.error.issues },
+      };
+    }
+
+    try {
+      const out = await tool.run(parsed.data, {
+        ...(input.ctx ?? {}),
+        user_id: input.user_id,
+        turn_id: input.turn_id,
+      });
+
+      out.tool_call = {
+        ...baseCall,
+        ...out.tool_call,
+        id: out.tool_call?.id ?? baseCall.id,
+        latency_ms: Date.now() - startedAt,
+        status: out.tool_call?.status ?? 'success',
+      };
+
+      return out;
+    } catch (e: unknown) {
+      return {
+        tool_call: {
+          ...baseCall,
+          status: 'error',
+          error_message: e ? String(e) : 'Tool execution failed',
+          latency_ms: Date.now() - startedAt,
+        },
+        data: { ok: false, error: 'execution_failed' },
+      };
+    }
+  }
+
+  // ──────────────────────────────
+  // Best effort (no recomendado)
+  // ──────────────────────────────
+  try {
+    const out = await tool.run(input.args ?? {}, {
+      ...(input.ctx ?? {}),
+      user_id: input.user_id,
+      turn_id: input.turn_id,
+    });
+
+    out.tool_call = {
+      ...baseCall,
+      ...out.tool_call,
+      id: out.tool_call?.id ?? baseCall.id,
+      latency_ms: Date.now() - startedAt,
+      status: out.tool_call?.status ?? 'success',
+    };
+
+    return out;
+  } catch (e: unknown) {
+    return {
+      tool_call: {
+        ...baseCall,
+        status: 'error',
+        error_message: e ? String(e) : 'Tool execution failed',
+        latency_ms: Date.now() - startedAt,
+      },
+      data: { ok: false, error: 'execution_failed' },
+    };
+  }
+}
+
+export function debugListTools() {
+  bootstrapMCP();
+  return listTools().map((t) => t.name);
+}
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/scrape/scrapeDo.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+
+function requireToken(): string {
+  const token = process.env.SCRAPE_DO_API_KEY;
+  if (!token) throw new Error('SCRAPE_DO_API_KEY not set');
+  return token;
+}
+
+export const scrapeDoTool: MCPTool = {
+  name: 'web.scrape',
+  description:
+    'Fetches public web pages via Scrape.do (handles anti-bot). Returns raw text or markdown.',
+  argsSchema: z.object({
+    url: z.string().min(1),
+    render: z.boolean().optional(),
+    device: z.enum(['desktop', 'mobile', 'tablet']).optional(),
+    geoCode: z.string().optional(),
+    timeout: z.number().optional(),
+    output: z.enum(['raw', 'markdown']).optional(),
+    blockResources: z.boolean().optional(),
+    returnJSON: z.boolean().optional(),
+  }),
+  schema: {
+    type: 'object',
+    properties: {
+      url: { type: 'string' },
+      render: { type: 'boolean' },
+      device: { type: 'string', enum: ['desktop', 'mobile', 'tablet'] },
+      geoCode: { type: 'string' },
+      timeout: { type: 'number' },
+      output: { type: 'string', enum: ['raw', 'markdown'] },
+      blockResources: { type: 'boolean' },
+      returnJSON: { type: 'boolean' },
+    },
+    required: ['url'],
+  },
+  run: async (args) => {
+    const token = requireToken();
+    const url = String(args.url);
+
+    const params = new URLSearchParams();
+    params.set('token', token);
+    params.set('url', url);
+
+    if (typeof args.render === 'boolean') params.set('render', String(args.render));
+    if (args.device) params.set('device', args.device);
+    if (args.geoCode) params.set('geoCode', args.geoCode);
+    if (typeof args.timeout === 'number') params.set('timeout', String(args.timeout));
+    if (args.output) params.set('output', args.output);
+    if (typeof args.blockResources === 'boolean') params.set('blockResources', String(args.blockResources));
+    if (typeof args.returnJSON === 'boolean') params.set('returnJSON', String(args.returnJSON));
+
+    const endpoint = `https://api.scrape.do/?${params.toString()}`;
+
+    const res = await fetch(endpoint);
+    const contentType = res.headers.get('content-type') ?? '';
+    const text = await res.text();
+
+    if (!res.ok) {
+      throw new Error(`Scrape.do error ${res.status}: ${text.slice(0, 300)}`);
+    }
+
+    let data: any = text;
+    if (contentType.includes('application/json')) {
+      try {
+        data = JSON.parse(text);
+      } catch {}
+    }
+
+    return {
+      tool_call: {
+        tool: 'web.scrape',
+        args,
+        status: 'success',
+        result: { status: res.status, contentType },
+      },
+      data,
+      citations: [
+        {
+          doc_id: url,
+          doc_title: 'Web source',
+          supporting_span: 'Fetched via Scrape.do',
+          supports: 'claim',
+          confidence: 0.7,
+          url,
+        },
+      ],
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/simpro/montecarlo.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+
+function randomNormal(): number {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+function normRate(x: number) {
+  return x > 1 ? x / 100 : x;
+}
+
+export const monteCarloTool: MCPTool = {
+  name: 'finance.simulate_montecarlo',
+  description: 'Runs a Monte Carlo simulation for an investment portfolio.',
+  argsSchema: z.object({
+    initial: z.number().optional(),
+    monthly: z.number().optional(),
+    months: z.number().int().optional(),
+    annualReturn: z.number().optional(),
+    annualVolatility: z.number().optional(),
+    paths: z.number().int().min(200).max(20000).optional(),
+  }),
+  run: async (args) => {
+    const missing: string[] = [];
+    if (typeof args.initial !== 'number') missing.push('initial');
+    if (typeof args.monthly !== 'number') missing.push('monthly');
+    if (typeof args.months !== 'number') missing.push('months');
+    if (typeof args.annualReturn !== 'number') missing.push('annualReturn');
+    if (typeof args.annualVolatility !== 'number') missing.push('annualVolatility');
+
+    if (missing.length) {
+      return {
+        tool_call: {
+          tool: 'finance.simulate_montecarlo',
+          args,
+          status: 'success',
+          result: { requested: missing },
+        },
+        data: { requested: missing },
+      };
+    }
+
+    const initial = Number(args.initial);
+    const monthly = Number(args.monthly);
+    const months = Math.max(1, Math.floor(Number(args.months)));
+    const paths = typeof args.paths === 'number' ? args.paths : 5000;
+
+    const mu = normRate(Number(args.annualReturn)) / 12;
+    const sigma = normRate(Number(args.annualVolatility)) / Math.sqrt(12);
+
+    const perMonth: number[][] = Array.from({ length: months }, () => []);
+
+    for (let i = 0; i < paths; i++) {
+      let value = initial;
+      for (let m = 0; m < months; m++) {
+        const r = clamp(mu + sigma * randomNormal(), -0.95, 3.0);
+        value = value * (1 + r) + monthly;
+        perMonth[m].push(value);
+      }
+    }
+
+    const pct = (arr: number[], p: number) => {
+      const a = arr.slice().sort((x, y) => x - y);
+      return Number(a[Math.floor((p / 100) * (a.length - 1))].toFixed(2));
+    };
+
+    const series = perMonth.map((arr, i) => ({
+      month: i + 1,
+      p10: pct(arr, 10),
+      p50: pct(arr, 50),
+      p90: pct(arr, 90),
+    }));
+
+    const last = series[series.length - 1];
+    if (!last) throw new Error('Monte Carlo simulation produced no results');
+
+    const summary = {
+      paths,
+      p10_final: last.p10,
+      p50_final: last.p50,
+      p90_final: last.p90,
+    };
+
+    return {
+      tool_call: {
+        tool: 'finance.simulate_montecarlo',
+        args,
+        status: 'success',
+        result: summary,
+      },
+      data: { summary, series },
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/simpro/portfolioProjection.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+
+function normRate(x: number) {
+  return x > 1 ? x / 100 : x;
+}
+
+export const portfolioProjectionTool: MCPTool = {
+  name: 'finance.project_portfolio',
+  description: 'Projects portfolio value over time with fixed contributions.',
+  argsSchema: z.object({
+    initial: z.number().optional(),
+    monthly: z.number().optional(),
+    months: z.number().int().optional(),
+    annualRate: z.number().optional(),
+  }),
+  run: async (args) => {
+    const missing: string[] = [];
+    if (typeof args.initial !== 'number') missing.push('initial');
+    if (typeof args.monthly !== 'number') missing.push('monthly');
+    if (typeof args.months !== 'number') missing.push('months');
+    if (typeof args.annualRate !== 'number') missing.push('annualRate');
+
+    if (missing.length) {
+      return {
+        tool_call: {
+          tool: 'finance.project_portfolio',
+          args,
+          status: 'success',
+          result: { requested: missing },
+        },
+        data: { requested: missing },
+      };
+    }
+
+    const initial = Number(args.initial);
+    const monthly = Number(args.monthly);
+    const months = Math.max(1, Math.floor(Number(args.months)));
+    const r = normRate(Number(args.annualRate)) / 12;
+
+    let balance = initial;
+    let contributed = initial;
+
+    const series = [];
+    for (let m = 1; m <= months; m++) {
+      balance = balance * (1 + r) + monthly;
+      contributed += monthly;
+      series.push({
+        month: m,
+        balance: Number(balance.toFixed(2)),
+        contributed: Number(contributed.toFixed(2)),
+      });
+    }
+
+    const last = series[series.length - 1];
+    if (!last) throw new Error('Portfolio projection produced no results');
+
+    const summary = {
+      final_balance: last.balance,
+      total_contributed: last.contributed,
+      total_growth: Number((last.balance - last.contributed).toFixed(2)),
+    };
+
+    return {
+      tool_call: {
+        tool: 'finance.project_portfolio',
+        args,
+        status: 'success',
+        result: summary,
+      },
+      data: { summary, series },
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/simpro/riskDrawdown.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+
+function maxDrawdown(values: number[]) {
+  let peak = values[0] ?? 0;
+  let maxDD = 0;
+  let peakIdx = 0;
+  let troughIdx = 0;
+
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (v > peak) {
+      peak = v;
+      peakIdx = i;
+    }
+    const dd = peak > 0 ? (peak - v) / peak : 0;
+    if (dd > maxDD) {
+      maxDD = dd;
+      troughIdx = i;
+    }
+  }
+
+  return {
+    max_drawdown: Number(maxDD.toFixed(6)),
+    peak_month: peakIdx + 1,
+    trough_month: troughIdx + 1,
+  };
+}
+
+export const riskDrawdownTool: MCPTool = {
+  name: 'finance.risk_drawdown',
+  description: "Computes maximum drawdown for a portfolio series.",
+  argsSchema: z.object({
+    series: z.array(z.object({ month: z.number().int().min(1), balance: z.number() })).optional(),
+  }),
+  run: async (args) => {
+    if (!Array.isArray(args.series) || args.series.length < 2) {
+      return {
+        tool_call: { tool: 'finance.risk_drawdown', args, status: 'success', result: { requested: ['series'] } },
+        data: { requested: ['series'] },
+      };
+    }
+
+    const balances = args.series.map((p: any) => Number(p.balance));
+    const dd = maxDrawdown(balances);    return {
+      tool_call: { tool: 'finance.risk_drawdown', args, status: 'success', result: dd },
+      data: { drawdown: dd },
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/simpro/scenarioProjection.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+
+function normRate(x: number) {
+  return x > 1 ? x / 100 : x;
+}
+
+function project(initial: number, monthly: number, months: number, annualRate: number) {
+  const r = annualRate / 12;
+  let balance = initial;
+  const out: Array<{ month: number; balance: number }> = [];
+  for (let m = 1; m <= months; m++) {
+    balance = balance * (1 + r) + monthly;
+    out.push({ month: m, balance: Number(balance.toFixed(2)) });
+  }
+  return out;
+}
+
+export const scenarioProjectionTool: MCPTool = {
+  name: 'finance.scenario_projection',
+  description: "Projects portfolio outcomes under multiple rate scenarios.",
+  argsSchema: z.object({
+    initial: z.number().optional(),
+    monthly: z.number().optional(),
+    months: z.number().int().optional(),
+    annualRatePessimistic: z.number().optional(),
+    annualRateBase: z.number().optional(),
+    annualRateOptimistic: z.number().optional(),
+  }),
+  run: async (args) => {
+    const missing: string[] = [];
+    if (typeof args.initial !== 'number') missing.push('initial (capital inicial)');
+    if (typeof args.monthly !== 'number') missing.push('monthly (aporte mensual)');
+    if (typeof args.months !== 'number') missing.push('months (horizonte en meses)');
+    if (typeof args.annualRatePessimistic !== 'number') missing.push('annualRatePessimistic (tasa pesimista)');
+    if (typeof args.annualRateBase !== 'number') missing.push('annualRateBase (tasa base)');
+    if (typeof args.annualRateOptimistic !== 'number') missing.push('annualRateOptimistic (tasa optimista)');
+
+    if (missing.length) {
+      return {
+        tool_call: { tool: 'finance.scenario_projection', args, status: 'success', result: { requested: missing } },
+        data: { requested: missing },
+      };
+    }
+
+    const initial = Number(args.initial);
+    const monthly = Number(args.monthly);
+    const months = Math.max(1, Math.floor(Number(args.months)));
+
+    const pess = normRate(Number(args.annualRatePessimistic));
+    const base = normRate(Number(args.annualRateBase));
+    const opt  = normRate(Number(args.annualRateOptimistic));
+
+    const sP = project(initial, monthly, months, pess).map((p) => ({ ...p, scenario: 'Pesimista' }));
+    const sB = project(initial, monthly, months, base).map((p) => ({ ...p, scenario: 'Base' }));
+    const sO = project(initial, monthly, months, opt ).map((p) => ({ ...p, scenario: 'Optimista' }));
+
+    const series = [...sP, ...sB, ...sO];
+
+    const lastP = sP[sP.length - 1];
+const lastB = sB[sB.length - 1];
+const lastO = sO[sO.length - 1];
+
+if (!lastP || !lastB || !lastO) {
+  throw new Error('Scenario projection produced no results');
+}
+
+const summary = {
+  pess_final: lastP.balance,
+  base_final: lastB.balance,
+  opt_final:  lastO.balance,
+};    return {
+      tool_call: { tool: 'finance.scenario_projection', args, status: 'success', result: summary },
+      data: { summary, series },
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/simulate/simulator.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+
+function normRate(x: number) {
+  return x > 1 ? x / 100 : x;
+}
+
+export const simulatorTool: MCPTool = {
+  name: 'finance.simulate',
+  description: "Simulates portfolio value over time with fixed contributions.",
+  argsSchema: z.object({
+    initial: z.number().optional(),
+    monthly: z.number().optional(),
+    months: z.number().int().optional(),
+    annualRate: z.number().optional(), // e.g. 0.07 or 7
+  }),
+  run: async (args) => {
+    const missing: string[] = [];
+    if (typeof args.initial !== 'number') missing.push('initial (capital inicial)');
+    if (typeof args.monthly !== 'number') missing.push('monthly (aporte mensual)');
+    if (typeof args.months !== 'number') missing.push('months (horizonte en meses)');
+    if (typeof args.annualRate !== 'number') missing.push('annualRate (tasa anual)');
+
+    if (missing.length) {
+      return {
+        tool_call: { tool: 'finance.simulate', args, status: 'success', result: { requested: missing } },
+        data: { requested: missing },
+      };
+    }
+
+    const initial = Number(args.initial);
+    const monthly = Number(args.monthly);
+    const months = Math.max(1, Math.floor(Number(args.months)));
+    const annualRate = normRate(Number(args.annualRate));
+    const r = annualRate / 12;
+
+    let balance = initial;
+    const series: Array<{ month: number; balance: number; contributed: number }> = [];
+    let contributed = initial;
+
+    for (let m = 1; m <= months; m++) {
+      balance = balance * (1 + r) + monthly;
+      contributed += monthly;
+      series.push({
+        month: m,
+        balance: Number(balance.toFixed(2)),
+        contributed: Number(contributed.toFixed(2)),
+      });
+    }
+
+const last = series[series.length - 1];
+
+if (!last) {
+  throw new Error('Simulation produced no results');
+}
+
+const summary = {
+  final_balance: last.balance,
+  total_contributed: last.contributed,
+  total_growth: Number(
+    (last.balance - last.contributed).toFixed(2)
+  ),
+};    return {
+      tool_call: { tool: 'finance.simulate', args, status: 'success', result: summary },
+      data: { summary, series },
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/time/today.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+
+export const todayTool: MCPTool = {
+  name: 'time.today',
+  description: 'Returns today date in ISO (YYYY-MM-DD) and timezone offset.',
+  argsSchema: z.object({
+    tzOffsetMinutes: z.number().optional(), // if provided, compute date in that offset
+  }),
+  schema: {
+    type: 'object',
+    properties: { tzOffsetMinutes: { type: 'number' } },
+    required: [],
+  },
+  run: async (args) => {
+    const offsetMin =
+      typeof args.tzOffsetMinutes === 'number'
+        ? Math.trunc(args.tzOffsetMinutes)
+        : null;
+
+    const now = new Date();
+    const ms = offsetMin === null
+      ? now.getTime()
+      : now.getTime() + (offsetMin * 60_000) - (now.getTimezoneOffset() * 60_000);
+
+    const d = new Date(ms);
+    const iso = d.toISOString().slice(0, 10);
+
+    return {
+      tool_call: { tool: 'time.today', args, status: 'success', result: { date: iso } },
+      data: { date: iso, tzOffsetMinutes: offsetMin ?? -now.getTimezoneOffset() },
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/toolcall.types.ts
+----------------------------------------
+export type { ToolCall, Citation } from '../../agents/core.agent/chat.types';
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/types.ts
+----------------------------------------
+import type { z } from 'zod';
+import type { ToolCall, Citation } from './toolcall.types';
+
+export type ToolContext = {
+  user_id?: string;
+  session_id?: string;
+  turn_id?: string;
+  mode?: string;
+  intent?: string;
+};
+
+export type ToolResult = {
+  tool_call: ToolCall;
+  citations?: Citation[];
+  data?: any;
+};
+
+export type MCPTool = {
+  name: string;
+  description: string;
+  argsSchema?: z.ZodTypeAny;
+  schema?: Record<string, any>;
+  run: (args: any, ctx?: ToolContext) => Promise<ToolResult>;
+};
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/web/extractors.ts
+----------------------------------------
+/** Normalize "1.234,56" or "1,234.56" -> number */
+export function parseNumberLoose(input: string): number | null {
+  const raw = input.trim();
+  if (!raw) return null;
+
+  // Keep digits, separators, minus
+  const cleaned = raw.replace(/[^\d.,-]/g, '');
+  if (!cleaned) return null;
+
+  // Heuristic:
+  // If has both "." and "," assume "." thousands and "," decimals (common CL)
+  // Else if only "," assume "," decimals
+  // Else "." decimals
+  let normalized = cleaned;
+
+  const hasDot = normalized.includes('.');
+  const hasComma = normalized.includes(',');
+
+  if (hasDot && hasComma) {
+    normalized = normalized.replace(/\./g, '').replace(/,/g, '.');
+  } else if (hasComma && !hasDot) {
+    normalized = normalized.replace(/,/g, '.');
+  } // else keep dot decimals
+
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function extractFirstMatch(text: string, re: RegExp): string | null {
+  const m = text.match(re);
+  if (!m) return null;
+  // Prefer first capture group if exists
+  return (m[1] ?? m[0] ?? '').toString().trim() || null;
+}
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/web/scrapeDoClient.ts
+----------------------------------------
+export type ScrapeDoArgs = {
+  url: string;
+  render?: boolean;
+  device?: 'desktop' | 'mobile' | 'tablet';
+  geoCode?: string;
+  timeout?: number;
+  output?: 'raw' | 'markdown';
+  blockResources?: boolean;
+  returnJSON?: boolean;
+};
+
+/**
+ * Fetch through Scrape.do (API mode).
+ * Uses env SCRAPE_DO_API_KEY (matches your .env).
+ */
+export async function fetchWithScrapeDo(args: ScrapeDoArgs): Promise<{
+  status: number;
+  contentType: string;
+  text: string;
+  json?: any;
+}> {
+  const token = process.env.SCRAPE_DO_API_KEY;
+  if (!token) throw new Error('SCRAPE_DO_API_KEY not set');
+
+  const params = new URLSearchParams();
+  params.set('token', token);
+  params.set('url', String(args.url));
+
+  if (typeof args.render === 'boolean') params.set('render', String(args.render));
+  if (args.device) params.set('device', String(args.device));
+  if (args.geoCode) params.set('geoCode', String(args.geoCode));
+  if (typeof args.timeout === 'number') params.set('timeout', String(args.timeout));
+  if (args.output) params.set('output', String(args.output));
+  if (typeof args.blockResources === 'boolean') params.set('blockResources', String(args.blockResources));
+  if (typeof args.returnJSON === 'boolean') params.set('returnJSON', String(args.returnJSON));
+
+  const endpoint = `https://api.scrape.do/?${params.toString()}`;
+
+  const res = await fetch(endpoint, { method: 'GET' });
+  const contentType = res.headers.get('content-type') ?? '';
+  const text = await res.text();
+
+  if (!res.ok) {
+    throw new Error(`Scrape.do error ${res.status}: ${text.slice(0, 300)}`);
+  }
+
+  let json: any | undefined;
+  if (contentType.includes('application/json')) {
+    try { json = JSON.parse(text); } catch { /* ignore */ }
+  }
+
+  return { status: res.status, contentType, text, json };
+}
+
+----------------------------------------
+FILE: apps/api/src/mcp/tools/web/webExtract.tool.ts
+----------------------------------------
+import { z } from 'zod';
+import type { MCPTool } from '../types';
+import { fetchWithScrapeDo } from './scrapeDoClient';
+import { extractFirstMatch } from './extractors';
+
+export const webExtractTool: MCPTool = {
+  name: 'web.extract',
+  description: 'Fetches a URL and extracts a value using a regex.',
+  argsSchema: z.object({
+    url: z.string().min(1),
+    pattern: z.string().min(1),
+    flags: z.string().optional().default('i'),
+    render: z.boolean().optional(),
+    output: z.enum(['raw', 'markdown']).optional(),
+  }),
+  schema: {
+    type: 'object',
+    properties: {
+      url: { type: 'string' },
+      pattern: { type: 'string' },
+      flags: { type: 'string' },
+      render: { type: 'boolean' },
+      output: { type: 'string', enum: ['raw', 'markdown'] },
+    },
+    required: ['url', 'pattern'],
+  },
+  run: async (args) => {
+    const url = String(args.url);
+    const re = new RegExp(String(args.pattern), String(args.flags ?? 'i'));
+
+    const fetched = await fetchWithScrapeDo({
+      url,
+      render: Boolean(args.render),
+      output: args.output ?? 'raw',
+      blockResources: true,
+      returnJSON: false,
+    });
+
+    const hit = extractFirstMatch(fetched.text, re);
+
+    return {
+      tool_call: {
+        tool: 'web.extract',
+        args,
+        status: 'success',
+        result: { found: Boolean(hit), status: fetched.status },
+      },
+      data: {
+        found: Boolean(hit),
+        value: hit,
+        status: fetched.status,
+        contentType: fetched.contentType,
+      },
+      citations: [
+        {
+          doc_id: url,
+          doc_title: new URL(url).hostname,
+          supporting_span: hit ? `Extracted: ${hit}` : 'No match found',
+          supports: 'claim',
+          confidence: hit ? 0.75 : 0.4,
+          url,
+        },
+      ],
+    };
+  },
+};
+
+----------------------------------------
+FILE: apps/api/src/orchestrator/agentRouter.ts
+----------------------------------------
+
+----------------------------------------
+FILE: apps/api/src/orchestrator/interview.flow.ts
+----------------------------------------
+// apps/api/src/orchestrator/conversationFlow.ts
+import { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+
+/**
+ * Identificadores canónicos de bloques de entrevista.
+ */
+export type InterviewBlockId =
+  | 'warmup' 
+  | 'cashflow'
+  | 'resilience'
+  | 'debt'
+  | 'products'
+  | 'goals'
+  | 'knowledge'
+  | 'risk'
+  | 'emotional';
+
+/**
+ * Estados finitos posibles de la entrevista.
+ */
+export type InterviewPhase =
+  | 'intake_complete'
+  | 'block_in_progress'
+  | 'block_summary_validation'
+  | 'interview_complete';
+
+/**
+ * Definición clínica de un bloque de entrevista.
+ */
+export interface InterviewBlockDefinition {
+  id: InterviewBlockId;
+  objective: string;
+  signals: string[];
+  closingCriteria: string[];
+  requiresBlockSummaryValidation: boolean;
+}
+
+/**
+ * Contrato global de bloques disponibles.
+ */
+export const INTERVIEW_CONTRACT: Record<
+  InterviewBlockId,
+  InterviewBlockDefinition
+> = {
+  warmup: {
+    id: 'warmup',
+    objective:
+      'Romper fricción inicial y detectar predisposición cognitiva frente al dinero.',
+    signals: [
+      'relato espontáneo sobre dinero',
+      'tono emocional inicial (ansiedad, indiferencia, interés)',
+      'nivel de reflexión vs respuestas automáticas',
+    ],
+    closingCriteria: [
+      'dice si o no, o cualquier cosa',
+    ],
+    requiresBlockSummaryValidation: false,
+  },
+
+  cashflow: {
+    id: 'cashflow',
+    objective:
+      'Identificar estructura real del flujo mensual y puntos de fricción operativa.',
+    signals: [
+      'desfase entre ingresos y gastos',
+      'ausencia de presupuesto explícito',
+      'dependencia del crédito para cerrar el mes',
+      'gastos rígidos vs flexibles',
+    ],
+    closingCriteria: [
+      'describe fuentes de ingreso y principales categorías de gasto',
+      'se infiere grado de previsibilidad mensual',
+      'usuario valida el resumen',
+    ],
+    requiresBlockSummaryValidation: true,
+  },
+
+  resilience: {
+    id: 'resilience',
+    objective:
+      'Medir capacidad de absorción ante shocks financieros de corto plazo.',
+    signals: [
+      'existencia y tamaño del fondo de emergencia',
+      'tiempo de cobertura ante pérdida de ingresos',
+      'uso de deuda como colchón',
+    ],
+    closingCriteria: [
+      'explica cómo financiaría un imprevisto concreto',
+      'usuario valida el resumen',
+    ],
+    requiresBlockSummaryValidation: true,
+  },
+
+  debt: {
+    id: 'debt',
+    objective:
+      'Evaluar carga financiera, costo efectivo y presión psicológica de la deuda.',
+    signals: [
+      'proporción de ingresos destinada a deuda',
+      'uso recurrente de pago mínimo',
+      'sensación de ahogo o normalización de la deuda',
+    ],
+    closingCriteria: [
+      'identifica tipos de deuda y su prioridad percibida',
+      'usuario valida el resumen',
+    ],
+    requiresBlockSummaryValidation: true,
+  },
+
+  products: {
+    id: 'products',
+    objective:
+      'Detectar desalineación entre productos financieros y necesidades reales.',
+    signals: [
+      'productos duplicados o subutilizados',
+      'desconocimiento de comisiones y tasas',
+      'contratación por conveniencia o marketing',
+    ],
+    closingCriteria: [
+      'enumera productos clave y su uso principal',
+      'usuario valida el resumen',
+    ],
+    requiresBlockSummaryValidation: true,
+  },
+
+  goals: {
+    id: 'goals',
+    objective:
+      'Clarificar metas financieras accionables y sus trade-offs temporales.',
+    signals: [
+      'metas abstractas sin horizonte',
+      'conflicto entre disfrute presente y seguridad futura',
+      'prioridades implícitas no declaradas',
+    ],
+    closingCriteria: [
+      'define al menos una meta concreta con plazo aproximado',
+      'usuario valida el resumen',
+    ],
+    requiresBlockSummaryValidation: true,
+  },
+
+  knowledge: {
+    id: 'knowledge',
+    objective:
+      'Inferir alfabetización financiera funcional para la toma de decisiones.',
+    signals: [
+      'confusión entre conceptos básicos (tasa, riesgo, liquidez)',
+      'dependencia de recomendaciones externas',
+      'exceso o déficit de confianza',
+    ],
+    closingCriteria: [
+      'se estima nivel práctico de comprensión financiera',
+      'usuario valida el resumen',
+    ],
+    requiresBlockSummaryValidation: true,
+  },
+
+  risk: {
+    id: 'risk',
+    objective:
+      'Identificar tolerancia al riesgo basada en comportamiento, no discurso.',
+    signals: [
+      'reacción ante pérdidas pasadas',
+      'asimetría entre miedo y ambición',
+      'inconsistencia entre discurso y acción',
+    ],
+    closingCriteria: [
+      'describe una experiencia real frente a incertidumbre',
+      'usuario valida el resumen',
+    ],
+    requiresBlockSummaryValidation: true,
+  },
+
+  emotional: {
+    id: 'emotional',
+    objective:
+      'Revelar patrones emocionales y narrativas internas asociadas al dinero.',
+    signals: [
+      'evitación activa del tema financiero',
+      'culpa, vergüenza o hipercontrol',
+      'creencias heredadas o narrativas familiares',
+    ],
+    closingCriteria: [
+      'reconoce emociones o patrones dominantes',
+      'usuario valida el resumen',
+    ],
+    requiresBlockSummaryValidation: true,
+  },
+};
+
+
+/**
+ * Decisión de inclusión u omisión de un bloque.
+ */
+export interface BlockDecision {
+  blockId: InterviewBlockId;
+  include: boolean;
+  reason: string;
+}
+
+/**
+ * Resultado del análisis inicial del cuestionario.
+ */
+export interface InterviewPlan {
+  blocksToExplore: InterviewBlockId[];
+  blocksSkipped: BlockDecision[];
+}
+
+/**
+ * Orden canónico base de la entrevista.
+ * 🔑 warmup SIEMPRE va primero.
+ */
+export const BLOCK_ORDER: InterviewBlockId[] = [
+  'warmup',
+  'cashflow',
+  'resilience',
+  'debt',
+  'products',
+  'goals',
+  'knowledge',
+  'risk',
+  'emotional',
+];
+
+/**
+ * PASO 2: decidir qué bloques entrevistar.
+ */
+export function buildInterviewPlan(
+  intake: IntakeQuestionnaire
+): InterviewPlan {
+  const decisions: BlockDecision[] = [];
+
+  // 🟣 Warmup siempre incluido
+  decisions.push({
+    blockId: 'warmup',
+    include: true,
+    reason: 'Bloque inicial de activación y confianza.',
+  });
+
+  decisions.push({
+    blockId: 'cashflow',
+    include: true,
+    reason: 'Flujo mensual es crítico.',
+  });
+
+  decisions.push({
+    blockId: 'resilience',
+    include: true,
+    reason: intake.hasSavingsOrInvestments
+      ? 'Usuario declara ahorro.'
+      : 'Usuario no tiene ahorro.',
+  });
+
+  decisions.push({
+    blockId: 'debt',
+    include: intake.hasDebt,
+    reason: intake.hasDebt
+      ? 'Usuario declara deudas.'
+      : 'Usuario declara no tener deudas.',
+  });
+
+  decisions.push({
+    blockId: 'products',
+    include: intake.financialProducts.length > 0,
+    reason:
+      intake.financialProducts.length > 0
+        ? 'Tiene productos financieros.'
+        : 'No tiene productos financieros.',
+  });
+
+  decisions.push({
+    blockId: 'goals',
+    include: true,
+    reason: 'Metas siempre relevantes.',
+  });
+
+  decisions.push({
+    blockId: 'knowledge',
+    include: true,
+    reason: 'Evaluar comprensión financiera.',
+  });
+
+  decisions.push({
+    blockId: 'risk',
+    include: true,
+    reason: 'Explorar tolerancia al riesgo.',
+  });
+
+  decisions.push({
+    blockId: 'emotional',
+    include: true,
+    reason: 'Explorar dimensión emocional.',
+  });
+
+  return {
+    blocksToExplore: BLOCK_ORDER.filter(
+      (b) => decisions.find((d) => d.blockId === b)?.include
+    ),
+    blocksSkipped: decisions.filter((d) => !d.include),
+  };
+}
+
+/**
+ * PASO 3: obtener el siguiente bloque no completado.
+ */
+export function getNextBlockId(
+  plan: InterviewPlan,
+  completedBlocks: Partial<Record<InterviewBlockId, unknown>>
+): InterviewBlockId | null {
+  return (
+    plan.blocksToExplore.find(
+      (blockId) => !completedBlocks[blockId]
+    ) ?? null
+  );
+}
+
+----------------------------------------
+FILE: apps/api/src/routes/agent.ts
+----------------------------------------
+import { Router } from 'express';
+import { runCoreAgent } from '../agents/core.agent/core.agent';
+import { ChatAgentInputSchema } from '../agents/core.agent/chat.types';
+
+import { loadUserById, attachProfileToUser, removeInjectedProfileFromUser, attachIntakeToUser, removeInjectedIntakeFromUser } from '../services/user.service';
+
+const router = Router();
+
+// Permite inyectar un perfil diagnóstico en el usuario autenticado
+router.post('/inject-profile', (req, res) => {
+  const sessionId = req.cookies?.session;
+  if (!sessionId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { profile } = req.body ?? {};
+  if (!profile) {
+    return res.status(400).json({ error: 'Missing profile in body' });
+  }
+
+  const user = loadUserById(sessionId);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid session' });
+  }
+
+  const ok = attachProfileToUser(user.id, profile);
+  if (!ok) {
+    return res.status(500).json({ error: 'Failed to attach profile' });
+  }
+
+  return res.json({ ok: true });
+});
+
+// Permite inyectar el intake (raw + llmSummary) en el usuario autenticado
+router.post('/inject-intake', (req, res) => {
+  const sessionId = req.cookies?.session;
+  if (!sessionId) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { intake, llmSummary } = req.body ?? {};
+  if (!intake) return res.status(400).json({ error: 'Missing intake in body' });
+
+  const user = loadUserById(sessionId);
+  if (!user) return res.status(401).json({ error: 'Invalid session' });
+
+  const ok = attachIntakeToUser(user.id, { intake, llmSummary });
+  if (!ok) return res.status(500).json({ error: 'Failed to attach intake' });
+
+  return res.json({ ok: true });
+});
+
+// Remove injected intake
+router.post('/remove-injected-intake', (req, res) => {
+  const sessionId = req.cookies?.session;
+  if (!sessionId) return res.status(401).json({ error: 'Not authenticated' });
+
+  const user = loadUserById(sessionId);
+  if (!user) return res.status(401).json({ error: 'Invalid session' });
+
+  const ok = removeInjectedIntakeFromUser(user.id);
+  if (!ok) return res.status(500).json({ error: 'Failed to remove injected intake' });
+
+  return res.json({ ok: true });
+});
+
+// Elimina el perfil inyectado
+router.post('/remove-injected-profile', (req, res) => {
+  const sessionId = req.cookies?.session;
+  if (!sessionId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const user = loadUserById(sessionId);
+  if (!user) return res.status(401).json({ error: 'Invalid session' });
+
+  const ok = removeInjectedProfileFromUser(user.id);
+  if (!ok) return res.status(500).json({ error: 'Failed to remove injected profile' });
+
+  return res.json({ ok: true });
+});
+
+// Devuelve información de sesión (usuario y perfil inyectado) para la UI
+router.get('/session', (req, res) => {
+  const sessionId = req.cookies?.session;
+  if (!sessionId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const user = loadUserById(sessionId);
+  if (!user) return res.status(401).json({ error: 'Invalid session' });
+
+  // Omitir passwordHash
+  const { passwordHash, ...rest } = user as any;
+
+  return res.json(rest);
+});
+
+router.post('/agent', async (req, res) => {
+  try {
+    /* ────────────────────────────── */
+    /* Debug controlado (dev only)    */
+    /* ────────────────────────────── */
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        console.debug(
+          '[API /agent] received body:',
+          JSON.stringify(req.body, null, 2)
+        );
+      } catch {
+        console.debug('[API /agent] received body (non-serializable)');
+      }
+    }
+
+    /* ────────────────────────────── */
+    /* Normalización de input         */
+    /* ────────────────────────────── */
+    const normalizedInput = {
+      user_id: req.body.user_id,
+      user_name: req.body.user_name, // opcional, contexto silencioso
+      session_id: req.body.session_id,
+
+      user_message: req.body.user_message ?? req.body.message,
+
+      history: req.body.history ?? [],
+      context: req.body.context,
+      ui_state: req.body.ui_state,
+      preferences: req.body.preferences,
+    };
+
+    // Si existe un usuario autenticado con profile o intake inyectados, los añadimos al contexto
+    try {
+      const sessionId = req.cookies?.session;
+      if (sessionId) {
+        const user = loadUserById(sessionId);
+        if (user && (user as any).injectedProfile) {
+          normalizedInput.context = {
+            ...(normalizedInput.context ?? {}),
+            injected_profile: (user as any).injectedProfile,
+          };
+        }
+        if (user && (user as any).injectedIntake) {
+          normalizedInput.context = {
+            ...(normalizedInput.context ?? {}),
+            injected_intake: (user as any).injectedIntake,
+            intake_context: (user as any).injectedIntake?.intakeContext,
+          };
+        }
+
+      }
+    } catch (err) {
+      // no romper si falla
+      console.warn('Error reading injected context', err);
+    }
+
+    /* ────────────────────────────── */
+    /* Validación defensiva (Zod)     */
+    /* ────────────────────────────── */
+    const input = ChatAgentInputSchema.parse(normalizedInput);
+
+    /* ────────────────────────────── */
+    /* Ejecución core agent           */
+    /* ────────────────────────────── */
+    const response = await runCoreAgent(input);
+
+    return res.json(response);
+  } catch (err: any) {
+    console.error('[AGENT ERROR]', err);
+
+    return res.status(400).json({
+      error: 'Invalid agent request',
+      details: err?.errors ?? err?.message ?? String(err),
+    });
+  }
+});
+
+export default router;
+
+----------------------------------------
+FILE: apps/api/src/routes/auth.ts
+----------------------------------------
+import { Router } from 'express';
+import bcrypt from 'bcryptjs';
+import { z } from 'zod';
+import { createUser, findUserByEmail } from '../services/user.service';
+
+export const authRouter = Router();
+
+const RegisterSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+authRouter.post('/register', async (req, res) => {
+    console.log('BODY RECIBIDO', req.body);
+  
+    const parsed = RegisterSchema.safeParse(req.body);
+  
+    if (!parsed.success) {
+      console.error('ZOD ERROR', parsed.error.flatten());
+      return res.status(400).json({
+        error: 'Datos inválidos',
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+  
+    const data = parsed.data;
+  
+    const existing = findUserByEmail(data.email);
+    if (existing) {
+      return res.status(400).json({ error: 'Usuario ya existe' });
+    }
+  
+    const passwordHash = await bcrypt.hash(data.password, 10);
+  
+    const user = createUser({
+      name: data.name,
+      email: data.email,
+      passwordHash,
+    });
+  
+    res.cookie('session', user.id, {
+      httpOnly: true,
+      sameSite: 'lax',
+    });
+  
+    return res.json({ ok: true });
+  });
+  
+----------------------------------------
+FILE: apps/api/src/routes/conversation.ts
+----------------------------------------
+// apps/api/src/routes/conversation.ts
+
+import type { Request, Response } from 'express';
+
+import { InterviewerAgent } from '../agents/interviewer.agent';
+import { runDiagnosticAgent } from '../agents/diagnostic/diagnostic.agent';
+
+import {
+  buildInterviewPlan,
+  InterviewBlockId,
+} from '../orchestrator/interview.flow';
+
+import { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+
+import {
+  InterviewBlockEvidence,
+} from '../schemas/profile.schema';
+
+import { saveProfile } from '../services/storage.service';
+import { loadUserById } from '../services/user.service';
+
+const agent = new InterviewerAgent();
+
+/* ───────────────────────────────────────────── */
+/* Tipos                                         */
+/* ───────────────────────────────────────────── */
+
+export type ConversationNextBody = {
+  intake: IntakeQuestionnaire;
+  answersInCurrentBlock?: string[];
+  completedBlocks?: Partial<
+    Record<InterviewBlockId, InterviewBlockEvidence>
+  >;
+  summaryValidation?: {
+    accepted: boolean;
+    comment?: string;
+  };
+  blockId?: InterviewBlockId;
+};
+
+type HttpRequest<T> = {
+  body: T;
+  cookies?: Record<string, string>;
+};
+
+type HttpResponse = {
+  status: (code: number) => HttpResponse;
+  json: (data: unknown) => void;
+};
+
+/* ───────────────────────────────────────────── */
+/* Core lógico                                   */
+/* ───────────────────────────────────────────── */
+
+export async function conversationNextCore(
+  req: HttpRequest<ConversationNextBody>,
+  res: HttpResponse
+) {
+  const {
+    intake,
+    answersInCurrentBlock = [],
+    completedBlocks = {},
+    summaryValidation,
+    blockId: explicitBlockId,
+  } = req.body;
+
+  // 🔐 Auth
+  const sessionId = req.cookies?.session;
+  const user = sessionId ? loadUserById(sessionId) : null;
+
+  if (!user) {
+    return res.status(401).json({ error: 'No authenticated user' });
+  }
+
+  if (!intake) {
+    return res.status(400).json({ error: 'Missing intake' });
+  }
+
+  // 🧭 Plan
+  const plan = buildInterviewPlan(intake);
+  const completedBlockIds = Object.keys(
+    completedBlocks
+  ) as InterviewBlockId[];
+
+  const currentBlockId =
+    explicitBlockId ??
+    plan.blocksToExplore.find(
+      (b) => !completedBlockIds.includes(b)
+    ) ??
+    null;
+
+  /* ───────────── FIN ENTREVISTA ───────────── */
+  if (!currentBlockId) {
+    // 🧠 Ejecutar agente diagnóstico REAL
+    const diagnosticProfile = await runDiagnosticAgent({
+      intake,
+      blocks: completedBlocks,
+    });
+
+    // 💾 Persistir
+    saveProfile(diagnosticProfile);
+
+    return res.json({
+      type: 'interview_complete',
+      profile: diagnosticProfile,
+    });
+  }
+
+  /* ───────────── WARMUP ───────────── */
+  if (currentBlockId === 'warmup') {
+    if (answersInCurrentBlock.length >= 1) {
+      return res.json({
+        type: 'block_completed',
+        blockId: 'warmup',
+        completedBlocks: {
+          ...completedBlocks,
+          warmup: {
+            blockId: 'warmup',
+            summary: 'Warmup completado',
+            signalsDetected: [],
+            confidence: 'high',
+            userValidated: true,
+          },
+        },
+      });
+    }
+  }
+
+  /* ───────────── VALIDACIÓN ───────────── */
+  if (summaryValidation && currentBlockId !== 'warmup') {
+    if (!summaryValidation.accepted) {
+      return res.json({
+        type: 'block_revision',
+        blockId: currentBlockId,
+        userComment: summaryValidation.comment ?? '',
+      });
+    }
+
+    const prev = completedBlocks[currentBlockId];
+
+    return res.json({
+      type: 'block_completed',
+      blockId: currentBlockId,
+      completedBlocks: {
+        ...completedBlocks,
+        [currentBlockId]: {
+          blockId: currentBlockId,
+          summary: prev?.summary ?? '',
+          signalsDetected: prev?.signalsDetected ?? [],
+          confidence: prev?.confidence ?? 'medium',
+          userValidated: true,
+        },
+      },
+    });
+  }
+
+  /* ───────────── SIGUIENTE PREGUNTA ───────────── */
+  const nextQuestion = await agent.generateNextQuestion({
+    blockId: currentBlockId,
+    intake,
+    answersInCurrentBlock,
+    user,
+  });
+
+  if (nextQuestion) {
+    return res.json({
+      type: 'question',
+      blockId: currentBlockId,
+      question: nextQuestion,
+      questionIndex: answersInCurrentBlock.length,
+    });
+  }
+
+  /* ───────────── RESUMEN DE BLOQUE ───────────── */
+  const summary = await agent.summarizeBlock(
+    currentBlockId,
+    answersInCurrentBlock,
+    user
+  );
+
+  return res.json({
+    type: 'block_summary',
+    blockId: currentBlockId,
+    summary,
+    requiresValidation: true,
+  });
+}
+
+/* ───────────────────────────────────────────── */
+/* Express handler                               */
+/* ───────────────────────────────────────────── */
+
+export default async function conversationNext(
+  req: Request,
+  res: Response
+) {
+  try {
+    await conversationNextCore(
+      { body: req.body, cookies: req.cookies as any },
+      {
+        status: (code) => {
+          res.status(code);
+          return res as any;
+        },
+        json: (data) => res.json(data),
+      }
+    );
+  } catch (err) {
+    console.error('Error en /conversation/next', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+----------------------------------------
+FILE: apps/api/src/routes/diagnosis.ts
+----------------------------------------
+import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
+
+const router = Router();
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+
+router.get('/diagnosis/latest', (_req, res) => {
+  try {
+    const files = fs
+      .readdirSync(DATA_DIR)
+      .filter((f) => f.startsWith('financial_profile_'))
+      .sort()
+      .reverse();
+
+    if (files.length === 0) {
+      return res.status(404).json({ error: 'No diagnosis found' });
+    }
+
+    const latestPath = path.join(DATA_DIR, files[0]);
+    const raw = fs.readFileSync(latestPath, 'utf-8');
+
+    const parsed = JSON.parse(raw); // 👈 CLAVE
+
+    return res.json(parsed); // 👈 SOLO UNA RESPUESTA
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      error: 'Failed to load diagnosis',
+    });
+  }
+});
+
+export default router;
+
+----------------------------------------
+FILE: apps/api/src/routes/http.types.ts
+----------------------------------------
+// apps/api/src/routes/http.types.ts
+
+export type HttpRequest<TBody = any> = {
+  body: TBody;
+  cookies?: Record<string, string | undefined>;
+  headers?: Record<string, string | undefined>;
+};
+
+export type HttpResponse = {
+  status: (code: number) => HttpResponse;
+  json: (data: unknown) => unknown;
+};
+
+----------------------------------------
+FILE: apps/api/src/routes/intake.ts
+----------------------------------------
+import { Request, Response } from 'express';
+import { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+import { analyzeIntake } from '../agents/intake/intake-analyzer';
+import { buildIntakeContext } from '../services/intake-context.service';
+
+export async function submitIntake(req: Request, res: Response) {
+  const intake = req.body as IntakeQuestionnaire;
+
+  // 1️⃣ Validación mínima
+  if (!intake) {
+    return res.status(400).json({
+      error: 'Missing intake in request body',
+    });
+  }
+
+  // 2️⃣ Validación básica de forma
+  if (!intake.employmentStatus || !intake.incomeBand) {
+    return res.status(400).json({
+      error: 'Invalid intake payload',
+    });
+  }
+
+  // 3️⃣ Análisis determinista
+  const signals = analyzeIntake(intake);
+
+  // 3.1️⃣ Contexto derivado (nuevo)
+  const intakeContext = buildIntakeContext(intake);
+
+  // 3.2️⃣ Análisis LLM (opcional)
+  let llmSummary = null;
+  try {
+    const { analyzeIntakeWithLLM } = await import(
+      '../agents/intake/intake-llm'
+    );
+
+    llmSummary = await analyzeIntakeWithLLM(intake);
+  } catch (err) {
+    console.error('LLM intake analysis failed:', err);
+    llmSummary = null;
+  }
+
+  // 4️⃣ Respuesta clara
+  return res.json({
+    intake,
+    signals,
+    intakeContext,
+    readyForInterview: true,
+    llmSummary,
+  });
+}
+
+----------------------------------------
+FILE: apps/api/src/routes/simulations.routes.ts
+----------------------------------------
+import { Router } from 'express';
+import { readIndex, markSaved } from '../services/simulations/simulation.library';
+
+export const simulationsRouter = Router();
+
+simulationsRouter.get('/', (_req, res) => {
+  const idx = readIndex();
+  res.json(idx);
+});
+
+simulationsRouter.post('/:id/save', (req, res) => {
+  const { id } = req.params;
+  const saved = Boolean(req.body?.saved ?? true);
+  const updated = markSaved(id, saved);
+  res.json({ ok: true, artifact: updated });
+});
+
+----------------------------------------
+FILE: apps/api/src/schemas/plan.schema.ts
+----------------------------------------
+
+----------------------------------------
+FILE: apps/api/src/schemas/product.schema.ts
+----------------------------------------
+
+----------------------------------------
+FILE: apps/api/src/schemas/profile.schema.ts
+----------------------------------------
+// apps/api/src/schemas/profile.schema.ts
+
+import { InterviewBlockId } from '../orchestrator/interview.flow';
+
+/* ────────────────────────────── */
+/* Evidencia por bloque           */
+/* ────────────────────────────── */
+
+export type EvidenceConfidence = 'low' | 'medium' | 'high';
+
+export interface InterviewBlockEvidence {
+  blockId: InterviewBlockId;
+
+  /**
+   * Síntesis narrativa validada explícitamente por el usuario.
+   */
+  summary: string;
+
+  /**
+   * Señales efectivamente detectadas (desde el contrato del bloque).
+   */
+  signalsDetected: string[];
+
+  /**
+   * Nivel de confianza del sistema sobre esta evidencia.
+   */
+  confidence: EvidenceConfidence;
+
+  /**
+   * Confirmación explícita del usuario.
+   */
+  userValidated: boolean;
+}
+
+/* ────────────────────────────── */
+/* Metadatos de la entrevista     */
+/* ────────────────────────────── */
+
+export interface InterviewMeta {
+  /**
+   * Proporción estimada de información relevante obtenida (0–1).
+   */
+  completeness: number;
+
+  /**
+   * Bloques efectivamente explorados.
+   */
+  blocksExplored: InterviewBlockId[];
+
+  /**
+   * Bloques omitidos y razón explícita.
+   */
+  blocksSkipped: {
+    blockId: InterviewBlockId;
+    reason: string;
+  }[];
+
+  /**
+   * Timestamp de cierre de entrevista.
+   */
+  completedAt: string; // ISO
+}
+
+/* ────────────────────────────── */
+/* Perfil financiero inferido     */
+/* ────────────────────────────── */
+
+export interface FinancialProfileTraits {
+  /**
+   * Capacidad del usuario para comprender y estructurar su situación financiera.
+   */
+  financialClarity: 'low' | 'medium' | 'high';
+
+  /**
+   * Forma predominante de tomar decisiones financieras.
+   */
+  decisionStyle:
+    | 'reactive'
+    | 'analytical'
+    | 'avoidant'
+    | 'delegated'
+    | 'mixed';
+
+  /**
+   * Horizonte temporal dominante en sus decisiones.
+   */
+  timeHorizon:
+    | 'short_term'
+    | 'mixed'
+    | 'long_term';
+
+  /**
+   * Nivel percibido de presión financiera.
+   */
+  financialPressure:
+    | 'low'
+    | 'moderate'
+    | 'high';
+
+  /**
+   * Relación emocional predominante con el dinero.
+   */
+  emotionalPattern:
+    | 'neutral'
+    | 'anxious'
+    | 'avoidant'
+    | 'controlling'
+    | 'conflicted';
+
+  /**
+   * Coherencia global entre discurso, decisiones y estructura financiera (0–1).
+   */
+  coherenceScore: number;
+}
+
+/* ────────────────────────────── */
+/* Diagnóstico financiero final   */
+/* ────────────────────────────── */
+
+export interface FinancialDiagnosticProfile {
+  /**
+   * Versión del esquema diagnóstico.
+   */
+  version: 'v2';
+
+  /**
+   * Metadatos de trazabilidad y calidad.
+   */
+  meta: InterviewMeta;
+
+  /**
+   * Evidencia validada por bloque.
+   */
+  blocks: Partial<
+    Record<InterviewBlockId, InterviewBlockEvidence>
+  >;
+
+  /**
+   * Narrativa diagnóstica principal.
+   * Lectura humana del estado financiero actual.
+   */
+  diagnosticNarrative: string;
+
+  /**
+   * Perfil financiero inferido.
+   * NO contiene recomendaciones ni acciones.
+   */
+  profile: FinancialProfileTraits;
+
+  /**
+   * Tensiones internas detectadas entre bloques.
+   * Ej: estabilidad operativa vs ansiedad emocional.
+   */
+  tensions: string[];
+
+  /**
+   * Hipótesis interpretativas del sistema.
+   * Sujetos a revisión por agentes posteriores.
+   */
+  hypotheses: string[];
+
+  /**
+   * Vacíos relevantes o ambigüedades detectadas.
+   * Input directo para agentes de seguimiento.
+   */
+  openQuestions: string[];
+}
+
+----------------------------------------
+FILE: apps/api/src/schemas/user.schema.ts
+----------------------------------------
+import { z } from 'zod';
+import type { FinancialDiagnosticProfile } from './profile.schema';
+
+export const UserSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().email(),
+  passwordHash: z.string(),
+  injectedProfile: z.any().optional(),
+  injectedIntake: z.any().optional(),
+});
+
+export type User = z.infer<typeof UserSchema> & {
+  injectedProfile?: FinancialDiagnosticProfile;
+  injectedIntake?: {
+    intake: any;
+    llmSummary?: any;
+  };
+};
+
+----------------------------------------
+FILE: apps/api/src/server.ts
+----------------------------------------
+// apps/api/src/server.ts
+import express from 'express';
+import * as dotenv from 'dotenv';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import { simulationsRouter } from './routes/simulations.routes';
+
+import diagnosisRouter from './routes/diagnosis';
+import conversationNext from './routes/conversation';
+import { submitIntake } from './routes/intake';
+import { authRouter } from './routes/auth';
+import agentRouter from './routes/agent'; // 👈 NUEVO
+
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(
+  cors({
+    origin: process.env.WEB_ORIGIN ?? 'http://localhost:3001',
+    credentials: true,
+  })
+);
+
+app.use(express.json());
+app.use(cookieParser());
+
+// AUTH
+app.use('/auth', authRouter);
+
+// INTAKE
+app.post('/intake/submit', submitIntake);
+
+// AGENT CORE 👇
+app.use('/api', agentRouter);
+
+// HEALTH
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
+// CONVERSATION (legacy / flujo anterior)
+app.post('/conversation/next', conversationNext);
+
+// DIAGNOSIS
+app.use('/', diagnosisRouter);
+
+app.use('/simulations', simulationsRouter);
+app.listen(PORT, () => {
+  console.log(`API escuchando en http://localhost:${PORT}`);
+});
+
+/* MCP bootstrap */
+import { bootstrapMCP } from './mcp/bootstrap';
+bootstrapMCP();
+
+----------------------------------------
+FILE: apps/api/src/services/intake-context.service.ts
+----------------------------------------
+import { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+
+export interface IntakeContext {
+  incomeStability: 'low' | 'medium' | 'high';
+  savingsAdequacy: 'none' | 'weak' | 'adequate';
+  debtPressure: 'low' | 'medium' | 'high';
+  financialLiteracy: 'low' | 'medium' | 'high';
+  emotionalLoad: 'low' | 'moderate' | 'high';
+  perceivedVsActualGap: number;
+}
+
+export function buildIntakeContext(
+  intake: IntakeQuestionnaire
+): IntakeContext {
+  const knowledgeScore =
+    Object.values(intake.financialKnowledge).filter(Boolean).length;
+
+  return {
+    incomeStability:
+      intake.employmentStatus === 'employed'
+        ? 'high'
+        : intake.employmentStatus === 'freelance'
+        ? 'medium'
+        : 'low',
+
+    savingsAdequacy:
+      !intake.hasSavingsOrInvestments
+        ? 'none'
+        : intake.savingsBand === 'none'
+        ? 'none'
+        : intake.savingsBand === '<300k'
+        ? 'weak'
+        : 'adequate',
+
+    debtPressure:
+      intake.hasDebt && intake.moneyStressLevel >= 6
+        ? 'high'
+        : intake.hasDebt
+        ? 'medium'
+        : 'low',
+
+    financialLiteracy:
+      knowledgeScore >= 10
+        ? 'high'
+        : knowledgeScore >= 6
+        ? 'medium'
+        : 'low',
+
+    emotionalLoad:
+      intake.moneyStressLevel >= 7
+        ? 'high'
+        : intake.moneyStressLevel >= 4
+        ? 'moderate'
+        : 'low',
+
+    perceivedVsActualGap:
+      intake.selfRatedUnderstanding / 10 -
+      knowledgeScore / 15,
+  };
+}
+
+----------------------------------------
+FILE: apps/api/src/services/llm.service.ts
+----------------------------------------
+// apps/api/src/services/llm.service.ts
+import OpenAI from 'openai';
+
+export type LLMMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+};
+
+let client: OpenAI | null = null;
+
+function getClient(): OpenAI {
+  if (client) return client;
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY no está definido');
+
+  client = new OpenAI({ apiKey });
+  return client;
+}
+
+type CompleteOptions = {
+  systemPrompt?: string;
+  temperature?: number;
+};
+
+// ✅ Overloads (esto suele matar el error de VSCode altiro)
+export async function complete(input: string, options?: CompleteOptions): Promise<string>;
+export async function complete(input: LLMMessage[], options?: CompleteOptions): Promise<string>;
+export async function complete(
+  input: string | LLMMessage[],
+  options?: CompleteOptions
+): Promise<string> {
+  const openai = getClient();
+
+  const messages: LLMMessage[] =
+    typeof input === 'string'
+      ? [
+          {
+            role: 'system',
+            content: options?.systemPrompt ?? 'Eres un asistente profesional.',
+          },
+          { role: 'user', content: input },
+        ]
+      : input;
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4.1-mini',
+    messages,
+    temperature: options?.temperature ?? 0.6,
+  });
+
+  return response.choices[0].message.content?.trim() ?? '';
+}
+
+export async function completeStructured<T>(params: {
+  system: string;
+  user: string;
+  temperature?: number;
+}): Promise<T> {
+  const openai = getClient();
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4.1',
+    messages: [
+      { role: 'system', content: `${params.system}\n\nRespond ONLY with valid json.` },
+      { role: 'user', content: `${params.user}\n\njson` },
+    ],
+    temperature: params.temperature ?? 0,
+    response_format: { type: 'json_object' },
+  });
+
+  const content = response.choices[0].message.content;
+  if (!content) throw new Error('LLM response vacío en completeStructured');
+
+  return JSON.parse(content) as T;
+}
+
+----------------------------------------
+FILE: apps/api/src/services/rag.service.ts
+----------------------------------------
+// apps/api/src/services/rag.service.ts
+
+import type { Citation } from '../agents/core.agent/chat.types';
+
+/**
+ * RAG Service (stub inicial)
+ *
+ * - No rompe el core agent
+ * - No depende de DB ni embeddings
+ * - Permite evolucionar sin refactor
+ */
+export async function retrieveRAGContext(
+  query: string,
+  meta: {
+    mode: string;
+    intent: string;
+  }
+): Promise<Citation[]> {
+  // RAG aún no implementado
+  // RECORDAR Cuando haya vector DB, tengo que reemplazaaquí
+
+  return [];
+}
+
+----------------------------------------
+FILE: apps/api/src/services/simulations/generateSimulationPdf.ts
+----------------------------------------
+import * as fs from 'fs/promises';
+import path from 'path';
+import crypto from 'crypto';
+
+export type SimulationPdfInput = {
+  title: string;
+  content: string;
+};
+
+export async function generateSimulationPdf(input: SimulationPdfInput) {
+  const id = crypto.randomUUID();
+
+  const outDir = path.join(
+    process.cwd(),
+    'apps/web/public/pdfs/simulaciones'
+  );
+
+  const outPath = path.join(outDir, `${id}.pdf`);
+
+  await fs.mkdir(outDir, { recursive: true });
+
+  const fakePdf = `
+SIMULACIÓN FINANCIERA
+
+Título: ${input.title}
+
+${input.content}
+`;
+
+  await fs.writeFile(outPath, fakePdf);
+
+  return {
+    id,
+    type: 'pdf' as const,
+    title: input.title,
+    fileUrl: `/pdfs/simulaciones/${id}.pdf`,
+    source: 'simulation',
+    createdAt: new Date().toISOString(),
+  };
+}
+
+----------------------------------------
+FILE: apps/api/src/services/simulations/simulation.library.ts
+----------------------------------------
+import fs from 'fs';
+import path from 'path';
+import type { SimulationArtifact } from './simulation.service';
+
+function findRepoRoot(start: string) {
+  let cur = start;
+  for (let i = 0; i < 10; i++) {
+    const candidate = path.join(cur, 'pnpm-workspace.yaml');
+    if (fs.existsSync(candidate)) return cur;
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  return start;
+}
+
+function ensureDir(p: string) {
+  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+}
+
+function indexPath() {
+  const root = findRepoRoot(process.cwd());
+  const dir = path.join(root, 'apps/web/public/pdfs/simulaciones');
+  ensureDir(dir);
+  return path.join(dir, 'index.json');
+}
+
+export function readIndex(): { artifacts: SimulationArtifact[] } {
+  const p = indexPath();
+  if (!fs.existsSync(p)) return { artifacts: [] };
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {
+    return { artifacts: [] };
+  }
+}
+
+export function upsertArtifact(a: SimulationArtifact) {
+  const idx = readIndex();
+  const next = idx.artifacts.filter(x => x.id !== a.id);
+  next.unshift(a);
+  fs.writeFileSync(indexPath(), JSON.stringify({ artifacts: next }, null, 2));
+}
+
+export function markSaved(id: string, saved: boolean) {
+  const idx = readIndex();
+  const next = idx.artifacts.map(a => (a.id === id ? { ...a, saved } : a));
+  fs.writeFileSync(indexPath(), JSON.stringify({ artifacts: next }, null, 2));
+  return next.find(a => a.id === id);
+}
+
+----------------------------------------
+FILE: apps/api/src/services/simulations/simulation.service.ts
+----------------------------------------
+import fs from 'fs';
+import path from 'path';
+import PDFDocument from 'pdfkit';
+import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
+import crypto from 'crypto';
+
+
+
+type SimulationInput = {
+  principal: number;
+  annualRate: number;      // e.g. 0.05
+  months: number;          // e.g. 12
+  monthlyContribution: number; // e.g. 0
+  title?: string;
+  subtitle?: string;
+};
+
+export type SimulationArtifact = {
+  id: string;
+  type: 'pdf';
+  title: string;
+  description?: string;
+  fileUrl: string;
+  previewImageUrl: string;
+  source: 'simulation';
+  createdAt: string;
+  saved?: boolean;
+  meta?: Record<string, any>;
+};
+
+function findRepoRoot(start: string) {
+  let cur = start;
+  for (let i = 0; i < 10; i++) {
+    const candidate = path.join(cur, 'pnpm-workspace.yaml');
+    if (fs.existsSync(candidate)) return cur;
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  return start;
+}
+
+function ensureDir(p: string) {
+  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+}
+
+function monthlySeries(input: SimulationInput) {
+  const r = input.annualRate / 12;
+  const values: number[] = [];
+  let balance = input.principal;
+
+  for (let m = 1; m <= input.months; m++) {
+    // aporte al inicio del mes
+    balance += input.monthlyContribution;
+    // interés mensual
+    balance *= (1 + r);
+    values.push(balance);
+  }
+  return values;
+}
+
+async function renderChartPng(labels: string[], data: number[]) {
+  const width = 1200;
+  const height = 700;
+  const chart = new ChartJSNodeCanvas({ width, height, backgroundColour: 'white' });
+
+  const cfg = {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Saldo proyectado',
+          data,
+          borderWidth: 3,
+          pointRadius: 0,
+          tension: 0.25,
+        },
+      ],
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+        title: { display: false },
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: {
+          ticks: {
+            callback: (v: any) => {
+              const n = Number(v);
+              if (Number.isFinite(n)) return n.toLocaleString('es-CL');
+              return v;
+            },
+          },
+        },
+      },
+    },
+  } as any;
+
+  return chart.renderToBuffer(cfg);
+}
+
+function formatCLP(n: number) {
+  // no es CLP necesariamente, pero el formato ejecutivo ayuda
+  return Math.round(n).toLocaleString('es-CL');
+}
+
+export async function generateSimulationPdf(input: SimulationInput): Promise<SimulationArtifact> {
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const id = `sim-${now.toISOString().slice(0,10)}-${crypto.randomUUID().slice(0,8)}`;
+
+
+  const repoRoot = findRepoRoot(process.cwd());
+  const outDir = path.join(repoRoot, 'apps/web/public/pdfs/simulaciones');
+  ensureDir(outDir);
+
+  const months = input.months ?? 12;
+  const labels = Array.from({ length: months }, (_, i) => `Mes ${i + 1}`);
+  const series = monthlySeries({ ...input, months });
+
+  const png = await renderChartPng(labels, series);
+  const pngName = `${id}.png`;
+  const pdfName = `${id}.pdf`;
+
+  fs.writeFileSync(path.join(outDir, pngName), png);
+
+  const title = input.title ?? 'Simulación ejecutiva';
+  const subtitle =
+    input.subtitle ??
+    `Horizonte ${months} meses · Tasa anual ${(input.annualRate * 100).toFixed(2)}% · Aporte mensual ${formatCLP(input.monthlyContribution)}`;
+
+  // PDF editorial simple pero pro (A4, márgenes, jerarquía)
+  const doc = new PDFDocument({ size: 'A4', margin: 54 });
+  const pdfPath = path.join(outDir, pdfName);
+  const stream = fs.createWriteStream(pdfPath);
+  doc.pipe(stream);
+
+  // Header
+  doc.font('Helvetica-Bold').fontSize(20).text(title, { align: 'left' });
+  doc.moveDown(0.3);
+  doc.font('Helvetica').fontSize(11).fillColor('#333333').text(subtitle);
+  doc.moveDown(1);
+
+  // KPI row
+  const start = input.principal;
+  const end = series[series.length - 1];
+  const gain = end - start;
+
+  doc.fillColor('#000000');
+  doc.font('Helvetica-Bold').fontSize(11).text(`Capital inicial: ${formatCLP(start)}`);
+  doc.font('Helvetica-Bold').fontSize(11).text(`Capital proyectado: ${formatCLP(end)}`);
+  doc.font('Helvetica').fontSize(11).fillColor('#333333').text(`Ganancia estimada: ${formatCLP(gain)}`);
+  doc.moveDown(1);
+
+  // Chart image (fit within page)
+  const imgPath = path.join(outDir, pngName);
+  doc.image(imgPath, { fit: [495, 280], align: 'center' });
+
+  doc.moveDown(1);
+  doc.fillColor('#444444');
+  doc.font('Helvetica').fontSize(9).text(
+    'Nota: proyección determinística con capitalización mensual. No considera inflación, impuestos, comisiones ni variaciones de tasa.',
+    { align: 'left' }
+  );
+
+  doc.end();
+
+  await new Promise<void>((resolve, reject) => {
+    stream.on('finish', () => resolve());
+    stream.on('error', reject);
+  });
+
+  return {
+    id,
+    type: 'pdf',
+    title: `${title}: ${months} meses`,
+    description: subtitle,
+    fileUrl: `/pdfs/simulaciones/${pdfName}`,
+    previewImageUrl: `/pdfs/simulaciones/${pngName}`,
+    source: 'simulation',
+    createdAt,
+    saved: false,
+    meta: {
+      principal: input.principal,
+      annualRate: input.annualRate,
+      monthlyContribution: input.monthlyContribution,
+      months,
+      projectedEnd: end,
+    },
+  };
+}
+
+----------------------------------------
+FILE: apps/api/src/services/storage.service.ts
+----------------------------------------
+// apps/api/src/services/storage.service.ts
+import fs from 'fs';
+import path from 'path';
+import { FinancialDiagnosticProfile } from '../schemas/profile.schema';
+
+/* ────────────────────────────── */
+/* Configuración base             */
+/* ────────────────────────────── */
+
+/**
+ * Directorio base donde se persistirán los perfiles financieros.
+ * Para MVP / tesis se utiliza filesystem local.
+ *
+ * En producción este servicio puede ser reemplazado
+ * por una implementación sobre DB o storage externo.
+ */
+const DATA_DIR = path.join(process.cwd(), 'data');
+
+/* ────────────────────────────── */
+/* Utilidades internas            */
+/* ────────────────────────────── */
+
+/**
+ * Asegura la existencia del directorio base.
+ */
+function ensureDataDir(): void {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+}
+
+/**
+ * Genera un identificador trazable y ordenable temporalmente.
+ * NOTA: deliberadamente no usa UUID para facilitar auditoría humana.
+ */
+function generateProfileId(): string {
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  return `financial_profile_${ts}`;
+}
+
+/**
+ * Construye la ruta absoluta de un perfil a partir de su ID.
+ */
+function resolveProfilePath(profileId: string): string {
+  return path.join(DATA_DIR, `${profileId}.json`);
+}
+
+/* ────────────────────────────── */
+/* API pública del servicio       */
+/* ────────────────────────────── */
+
+/**
+ * Persiste el perfil financiero final generado por el sistema.
+ * Este es el OUTPUT canónico del Agente Diagnóstico.
+ */
+export function saveProfile(
+  profile: FinancialDiagnosticProfile
+): {
+  profileId: string;
+  filePath: string;
+} {
+  ensureDataDir();
+
+  const profileId = generateProfileId();
+  const filePath = resolveProfilePath(profileId);
+
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify(profile, null, 2),
+    'utf-8'
+  );
+
+  return {
+    profileId,
+    filePath,
+  };
+}
+
+/**
+ * Recupera un perfil financiero previamente persistido.
+ * Retorna null si el perfil no existe.
+ */
+export function loadProfile(
+  profileId: string
+): FinancialDiagnosticProfile | null {
+  const filePath = resolveProfilePath(profileId);
+
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  const raw = fs.readFileSync(filePath, 'utf-8');
+
+  try {
+    return JSON.parse(raw) as FinancialDiagnosticProfile;
+  } catch (err) {
+    // Corrupción o formato inválido
+    console.error(
+      `[storage] Error parsing profile ${profileId}:`,
+      err
+    );
+    return null;
+  }
+}
+
+/**
+ * Lista los IDs de perfiles almacenados.
+ * Útil para testing, auditoría o herramientas administrativas.
+ */
+export function listProfiles(): string[] {
+  ensureDataDir();
+
+  return fs
+    .readdirSync(DATA_DIR)
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => file.replace('.json', ''));
+}
+
+/**
+ * Elimina un perfil almacenado.
+ * NO se usa en flujo normal, solo para testing o limpieza manual.
+ */
+export function deleteProfile(profileId: string): boolean {
+  const filePath = resolveProfilePath(profileId);
+
+  if (!fs.existsSync(filePath)) {
+    return false;
+  }
+
+  fs.unlinkSync(filePath);
+  return true;
+}
+
+----------------------------------------
+FILE: apps/api/src/services/user.service.ts
+----------------------------------------
+import fs from 'fs';
+import path from 'path';
+import { User } from '../schemas/user.schema';
+
+const USERS_DIR = path.join(process.cwd(), 'data', 'users');
+
+function ensureUsersDir() {
+  if (!fs.existsSync(USERS_DIR)) {
+    fs.mkdirSync(USERS_DIR, { recursive: true });
+  }
+}
+
+function generateUserId() {
+  return `user_${new Date().toISOString().replace(/[:.]/g, '-')}`;
+}
+
+export function createUser(data: {
+  name: string;
+  email: string;
+  passwordHash: string;
+}): User {
+  ensureUsersDir();
+
+  const id = generateUserId();
+  const user: User = { id, ...data };
+
+  fs.writeFileSync(
+    path.join(USERS_DIR, `${id}.json`),
+    JSON.stringify(user, null, 2),
+    'utf-8'
+  );
+
+  return user;
+}
+
+/**
+ * Adjunto de un perfil (diagnóstico) al usuario para uso posterior por el agente core.
+ */
+export function attachProfileToUser(
+  userId: string,
+  profile: any
+): boolean {
+  ensureUsersDir();
+
+  const filePath = path.join(USERS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+
+  const user = safeReadUserFile(filePath);
+  if (!user) return false;
+
+  (user as any).injectedProfile = profile;
+
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(user, null, 2), 'utf-8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function attachIntakeToUser(
+  userId: string,
+  intakePayload: { intake: any; llmSummary?: any }
+): boolean {
+  ensureUsersDir();
+
+  const filePath = path.join(USERS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+
+  const user = safeReadUserFile(filePath);
+  if (!user) return false;
+
+  (user as any).injectedIntake = intakePayload;
+
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(user, null, 2), 'utf-8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function removeInjectedIntakeFromUser(userId: string): boolean {
+  ensureUsersDir();
+
+  const filePath = path.join(USERS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+
+  const user = safeReadUserFile(filePath);
+  if (!user) return false;
+
+  if ((user as any).injectedIntake) {
+    delete (user as any).injectedIntake;
+  }
+
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(user, null, 2), 'utf-8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function removeInjectedProfileFromUser(userId: string): boolean {
+  ensureUsersDir();
+
+  const filePath = path.join(USERS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+
+  const user = safeReadUserFile(filePath);
+  if (!user) return false;
+
+  if ((user as any).injectedProfile) {
+    delete (user as any).injectedProfile;
+  }
+
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(user, null, 2), 'utf-8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function safeReadUserFile(filePath: string): User | null {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(raw) as User;
+  } catch {
+    return null;
+  }
+}
+
+export function findUserByEmail(email: string): User | null {
+  ensureUsersDir();
+
+  const files = fs.readdirSync(USERS_DIR);
+  for (const f of files) {
+    const user = safeReadUserFile(path.join(USERS_DIR, f));
+    if (user?.email === email) return user;
+  }
+
+  return null;
+}
+
+/**
+ * ✅ NUEVO: cargar usuario por id (para session cookie)
+ */
+export function loadUserById(userId: string): User | null {
+  ensureUsersDir();
+
+  const filePath = path.join(USERS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return null;
+
+  return safeReadUserFile(filePath);
+}
+
+----------------------------------------
+FILE: apps/api/src/types/artifacts.ts
+----------------------------------------
+export type SimulationArtifact = {
+  id: string;
+  type: 'pdf';
+  title: string;
+  fileUrl: string;
+  source: 'simulation';
+  createdAt: string;
+};
+
+----------------------------------------
+FILE: apps/api/tsconfig.json
+----------------------------------------
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "outDir": "dist"
+  },
+  "include": ["src/**/*", "../../packages/shared/src/ui-events.types.ts", "../../packages/shared/ui-events.ts"]
+}
