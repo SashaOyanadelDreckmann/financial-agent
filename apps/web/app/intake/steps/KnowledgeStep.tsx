@@ -89,7 +89,7 @@ export function KnowledgeStep({
   };
 
   return (
-    <div className="app-content animate-fade-in">
+    <div className="app-content animate-fade-in knowledge-step-compact">
       {/* HEADER */}
       <div className="app-section" style={{ gap: 8 }}>
         <p className="text-small text-muted">Paso final</p>
@@ -103,7 +103,7 @@ export function KnowledgeStep({
       </div>
 
       {/* GRUPOS */}
-      <div className="app-section" style={{ marginTop: 0, gap: 4 }}>
+      <div className="app-section knowledge-groups-section">
         {KNOWLEDGE_GROUPS.map((group) => (
           <div key={group.title} className="knowledge-group">
             <div>
@@ -132,60 +132,57 @@ export function KnowledgeStep({
         ))}
       </div>
 
-{/* ───────────────── Reflexión final ───────────────── */}
-<div className="app-section max-w-[520px] mt-20 gap-12">
-  <p className="text-small text-muted">
-    Antes de continuar, queremos entender cómo percibes tu situación
-    financiera actual. No hay respuestas correctas o incorrectas.
-  </p>
+      {/* ───────────────── Reflexión final ───────────────── */}
+      <div className="app-section knowledge-reflection">
+        <p className="text-small text-muted">
+          Antes de continuar, queremos entender cómo percibes tu situación
+          financiera actual.
+        </p>
 
-  {/* Comprensión financiera */}
-  <div className="flex flex-col gap-4">
-    <label className="form-label">
-      ¿Qué tan sólida sientes que es tu comprensión financiera?
-    </label>
+        <div className="knowledge-reflection-grid">
+          <div className="knowledge-slider-row">
+            <div className="knowledge-slider-head">
+              <label className="form-label">
+                ¿Qué tan sólida sientes que es tu comprensión financiera?
+              </label>
+              <span className="text-small text-muted">
+                {form.selfRatedUnderstanding}/10
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={10}
+              value={form.selfRatedUnderstanding}
+              onChange={(e) =>
+                update('selfRatedUnderstanding', Number(e.target.value))
+              }
+              className="range-editorial"
+            />
+          </div>
 
-    <input
-      type="range"
-      min={0}
-      max={10}
-      value={form.selfRatedUnderstanding}
-      onChange={(e) =>
-        update('selfRatedUnderstanding', Number(e.target.value))
-      }
-      className="range-editorial"
-    />
-
-    <span className="text-small text-muted">
-      Nivel seleccionado: {form.selfRatedUnderstanding} de 10
-    </span>
-  </div>
-
-  {/* Separador visual */}
-  <div className="h-px bg-white/10" />
-
-  {/* Estrés financiero */}
-  <div className="flex flex-col gap-4">
-    <label className="form-label">
-      ¿Cuánto estrés te genera hoy tu situación financiera?
-    </label>
-
-    <input
-      type="range"
-      min={0}
-      max={10}
-      value={form.moneyStressLevel}
-      onChange={(e) =>
-        update('moneyStressLevel', Number(e.target.value))
-      }
-      className="range-editorial"
-    />
-
-    <span className="text-small text-muted">
-      Nivel seleccionado: {form.moneyStressLevel} de 10
-    </span>
-  </div>
-</div>
+          <div className="knowledge-slider-row">
+            <div className="knowledge-slider-head">
+              <label className="form-label">
+                ¿Cuánto estrés te genera hoy tu situación financiera?
+              </label>
+              <span className="text-small text-muted">
+                {form.moneyStressLevel}/10
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={10}
+              value={form.moneyStressLevel}
+              onChange={(e) =>
+                update('moneyStressLevel', Number(e.target.value))
+              }
+              className="range-editorial"
+            />
+          </div>
+        </div>
+      </div>
 
 
 

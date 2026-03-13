@@ -76,7 +76,7 @@ export default function DiagnosisPage() {
 
   return (
     <div className="app-shell">
-      <div className="app-content diagnosis-report">
+      <div className="app-content diagnosis-report pro-report">
 
         {/* ───────────── Header ───────────── */}
         <section className="app-section animate-fade-in">

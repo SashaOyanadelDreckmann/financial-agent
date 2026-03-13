@@ -142,7 +142,7 @@ export default function IntakePage() {
   // Render
   // ──────────────────────────────
   return (
-    <div className="w-full min-h-screen flex justify-center pt-24">
+    <div className="intake-shell">
       {step === 0 && (
         <ContextStep
           form={form}

@@ -14,7 +14,9 @@ import { registerTool, isBootstrapped, markBootstrapped } from './tools/registry
 /* WEB / SCRAPING                 */
 /* ────────────────────────────── */
 import { webExtractTool } from './tools/web/webExtract.tool';
+import { webSearchTool } from './tools/web/webSearch.tool';
 import { scrapeDoTool } from './tools/scrape/scrapeDo.tool';
+import { chileRegulatoryLookupTool } from './tools/regulatory/chileRegulatoryLookup.tool';
 
 /* ────────────────────────────── */
 /* TIME                           */
@@ -47,6 +49,7 @@ import { portfolioProjectionTool } from './tools/simpro/portfolioProjection.tool
 import { scenarioProjectionTool } from './tools/simpro/scenarioProjection.tool';
 import { riskDrawdownTool } from './tools/simpro/riskDrawdown.tool';
 import { generateSimulationPdfTool } from './tools/pdf/generateSimulationPdf.tool';
+import { generateNarrativePdfTool } from './tools/pdf/generateNarrativePdf.tool';
 
 /* ────────────────────────────── */
 /* RAG                            */
@@ -60,8 +63,10 @@ export function bootstrapMCP() {
   if (isBootstrapped()) return;
 
   /* WEB */
+  registerTool(webSearchTool);
   registerTool(webExtractTool);
   registerTool(scrapeDoTool);
+  registerTool(chileRegulatoryLookupTool);
 
   /* TIME */
   registerTool(todayTool);
@@ -85,6 +90,7 @@ export function bootstrapMCP() {
   registerTool(scenarioProjectionTool);
   registerTool(riskDrawdownTool);
   registerTool(generateSimulationPdfTool);
+  registerTool(generateNarrativePdfTool);
 
   /* RAG */
   registerTool(ragLookupTool);

@@ -4,10 +4,21 @@ import React, { useMemo, useState } from 'react';
 import type { Artifact } from '@/lib/agent.response.types';
 import { downloadFile, savePdfArtifact } from '@/lib/artifacts';
 
-export function DocumentBubble({ artifact }: { artifact: Artifact }) {
+export function DocumentBubble({
+  artifact,
+  onSaved,
+}: {
+  artifact: Artifact;
+  onSaved?: (payload: {
+    artifact: Artifact;
+    publicUrl: string;
+    sourceRect?: DOMRect;
+  }) => void;
+}) {
   const [saving, setSaving] = useState(false);
   const [savedUrl, setSavedUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
 
   const openUrl = useMemo(() => {
     return savedUrl ?? artifact.fileUrl ?? '';
@@ -45,6 +56,11 @@ export function DocumentBubble({ artifact }: { artifact: Artifact }) {
 
       const out = await savePdfArtifact(artifact);
       setSavedUrl(out.publicUrl);
+      onSaved?.({
+        artifact,
+        publicUrl: out.publicUrl,
+        sourceRect: containerRef.current?.getBoundingClientRect(),
+      });
     } catch (e: any) {
       setError(e?.message ?? 'Error guardando el documento');
     } finally {
@@ -53,7 +69,7 @@ export function DocumentBubble({ artifact }: { artifact: Artifact }) {
   };
 
   return (
-    <div className="doc-bubble">
+    <div className="doc-bubble" ref={containerRef}>
       <div className="doc-top">
         <div className="doc-meta">
           <div className="doc-title">{artifact.title}</div>
@@ -75,7 +91,7 @@ export function DocumentBubble({ artifact }: { artifact: Artifact }) {
             disabled={saving || Boolean(savedUrl)}
             title={savedUrl ? 'Guardado' : 'Guardar en biblioteca'}
           >
-            {savedUrl ? 'Guardado ✓' : saving ? 'Guardando…' : 'Guardar'}
+            {savedUrl ? 'Guardado' : saving ? 'Guardando' : 'Guardar'}
           </button>
         </div>
       </div>

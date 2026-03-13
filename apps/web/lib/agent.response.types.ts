@@ -8,21 +8,10 @@ export type Artifact = {
   source?: 'simulation' | 'analysis';
   createdAt: string;
   saved?: boolean;
+  meta?: Record<string, unknown>;
 };
-export type AgentBlock =
-  | {
-      type: 'chart';
-      chart: {
-        kind: string;
-        data: any[];
-        xKey: string;
-        yKey: string;
-      };
-    }
-  | {
-      type: 'document';
-      artifact: Artifact;
-    };
+export type { AgentBlock } from './types/chat';
+import type { AgentBlock } from './types/chat';
 
 export type Citation = {
   id: string;
@@ -44,24 +33,36 @@ export type AgentResponse = {
 
   // compat: algunos backends pueden mandar mode directo
   mode?: string;
+
+  // bloques UI-rich (charts/documentos/etc.) usados por la pantalla /agent
+  agent_blocks?: AgentBlock[];
 };
 
 export type ChatItem =
-  | { type: 'agent_block'; role: 'assistant'; block: any }
-  | { type: 'message'; role: 'user' | 'assistant'; content: string; mode?: string; objective?: string }
+  | { type: 'message'; role: 'user'; content: string }
+  | { type: 'message'; role: 'assistant'; content: string; mode?: string; objective?: string; agent_blocks?: AgentBlock[] }
   | { type: 'artifact'; role: 'assistant'; artifact: Artifact }
   | { type: 'citation'; role: 'assistant'; citation: Citation };
 
 export function toChatItemsFromAgentResponse(res: AgentResponse): ChatItem[] {
   const items: ChatItem[] = [];
+  const hasArtifacts = Array.isArray(res?.artifacts) && res.artifacts.length > 0;
+  const hasBlocks = Array.isArray(res?.agent_blocks) && res.agent_blocks.length > 0;
+  const safeMessage =
+    typeof res?.message === 'string' && res.message.trim().length > 0
+      ? res.message
+      : hasArtifacts || hasBlocks
+      ? 'Entregable generado y anexado al chat. Puedes abrir, descargar o guardar el resultado.'
+      : '';
 
-  if (res?.message) {
+  if (safeMessage) {
     items.push({
       type: 'message',
       role: 'assistant',
-      content: res.message,
+      content: safeMessage,
       mode: res.mode ?? res.reasoning_mode,
       objective: res.react?.objective,
+      agent_blocks: res.agent_blocks,
     });
   }
 
