@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 
 import { getSessionId } from '@/lib/session';
 import { sendToAgent } from '@/lib/agent';
@@ -21,12 +21,7 @@ import { DocumentBubble } from '@/components/conversation/DocumentBubble';
 import { AgentBlocksRenderer } from '@/components/agent/AgentBlocksRenderer';
 import { CitationBubble } from '@/components/conversation/CitationBubble';
 
-type AgentMeta = {
-  objective?: string;
-  mode?: string;
-  ui_events?: any[];
-  citations?: any[];
-};
+const STORAGE_KEY = 'agent_chat_history';
 
 export default function AgentPage() {
   const router = useRouter();
@@ -38,29 +33,51 @@ export default function AgentPage() {
   const [loading, setLoading] = useState(false);
   const [micActive, setMicActive] = useState(false);
 
-  const agentMetaRef = useRef<AgentMeta>({});
-  const [, forceRender] = useState(0);
+  const [agentObjective, setAgentObjective] = useState<string | undefined>();
+  const [agentMode, setAgentMode] = useState<string | undefined>();
 
   const [sessionInfo, setSessionInfo] = useState<any>(null);
 
   const loadProfileIfNeeded = useProfileStore((s) => s.loadProfileIfNeeded);
   const profile = useProfileStore((s) => s.profile);
 
-  const lastAssistant = useMemo(() => {
-    return [...items]
-      .reverse()
-      .find(
-        (it) => it.type === 'message' && it.role === 'assistant'
-      ) as
-      | Extract<ChatItem, { type: 'message'; role: 'assistant' }>
-      | undefined;
-  }, [items]);
-
-  // 👇 CAST DEFENSIVO (solo lectura UI)
-  const lastAssistantBlocks =
-    (lastAssistant as any)?.agent_blocks ?? [];
-
   const actionPlans = ['/planes/plan1.pdf', '/planes/plan2.pdf'];
+
+  /* ================= PERSISTENCE ================= */
+
+  // Load chat from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as ChatItem[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setItems(parsed);
+
+          // Restore last known agent meta from history
+          const lastMsg = [...parsed]
+            .reverse()
+            .find((it) => it.type === 'message' && it.role === 'assistant') as
+            | Extract<ChatItem, { type: 'message'; role: 'assistant' }>
+            | undefined;
+
+          if (lastMsg) {
+            setAgentObjective(lastMsg.objective);
+            setAgentMode(lastMsg.mode);
+          }
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Save chat to localStorage whenever items change
+  useEffect(() => {
+    try {
+      if (items.length > 0) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      }
+    } catch {}
+  }, [items]);
 
   /* ================= SESSION ================= */
 
@@ -89,6 +106,15 @@ export default function AgentPage() {
 
   /* ================= CHAT ================= */
 
+  function clearChat() {
+    setItems([]);
+    setAgentObjective(undefined);
+    setAgentMode(undefined);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+  }
+
   async function onSend() {
     if (!input.trim() || loading) return;
 
@@ -99,8 +125,8 @@ export default function AgentPage() {
     const historySnapshot = items
       .filter((it) => it.type === 'message')
       .map((m) => ({
-        role: (m as any).role,
-        content: (m as any).content,
+        role: (m as any).role as 'user' | 'assistant',
+        content: (m as any).content as string,
       }))
       .slice(-12);
 
@@ -116,26 +142,23 @@ export default function AgentPage() {
         history: historySnapshot,
       })) as AgentResponse;
 
-      agentMetaRef.current.objective =
-        res?.react?.objective ?? agentMetaRef.current.objective;
-      agentMetaRef.current.mode =
-        res?.mode ?? agentMetaRef.current.mode;
-
-      forceRender((x) => x + 1);
+      if (res?.react?.objective) setAgentObjective(res.react.objective);
+      const resolvedMode = res?.mode ?? res?.reasoning_mode;
+      if (resolvedMode) setAgentMode(resolvedMode);
 
       const next = toChatItemsFromAgentResponse(res);
 
-      if (next.length === 0) {
+      if (next.length === 0 && (res as any)?.message) {
         setItems((prev) => [
           ...prev,
           {
             type: 'message',
             role: 'assistant',
-            content: (res as any)?.message ?? '—',
-            mode: res.mode ?? (res as any).reasoning_mode,
-            objective: (res as any)?.react?.objective,
-            agent_blocks: (res as any).agent_blocks,
-          } as any, // 👈 CAST DEFENSIVO (no rompe contrato global)
+            content: (res as any).message,
+            mode: resolvedMode,
+            objective: res.react?.objective,
+            agent_blocks: (res as any).agent_blocks ?? [],
+          } as ChatItem,
         ]);
       } else {
         setItems((prev) => [...prev, ...next]);
@@ -181,6 +204,11 @@ export default function AgentPage() {
                 return (
                   <div key={i} className={`agent-bubble ${it.role}`}>
                     {it.content}
+                    {it.role === 'assistant' &&
+                      Array.isArray(it.agent_blocks) &&
+                      it.agent_blocks.length > 0 && (
+                        <AgentBlocksRenderer blocks={it.agent_blocks} />
+                      )}
                   </div>
                 );
               }
@@ -203,13 +231,6 @@ export default function AgentPage() {
 
               return null;
             })}
-
-            {/* ✅ AGENT BLOCKS (charts, tablas, etc.) */}
-            {lastAssistantBlocks.length > 0 && (
-              <div className="agent-bubble assistant">
-                <AgentBlocksRenderer blocks={lastAssistantBlocks} />
-              </div>
-            )}
 
             {loading && (
               <div className="agent-bubble assistant muted">Pensando…</div>
@@ -237,6 +258,17 @@ export default function AgentPage() {
               >
                 {micActive ? '●' : 'hablar'}
               </button>
+
+              {items.length > 0 && (
+                <button
+                  type="button"
+                  className="continue-ghost"
+                  onClick={clearChat}
+                  title="Limpiar conversación"
+                >
+                  limpiar
+                </button>
+              )}
 
               <div style={{ flex: 1 }} />
 
@@ -295,13 +327,13 @@ export default function AgentPage() {
             bgScale={4.5}
             bgPosition="290955% 98%"
           >
-            {agentMetaRef.current.objective ?? 'Aún no definido'}
+            {agentObjective ?? 'Aún no definido'}
           </PanelCard>
 
           {/* MODO COGNITIVO */}
           <PanelCard
             label="Modo cognitivo"
-            value={agentMetaRef.current.mode ?? '—'}
+            value={agentMode ?? '—'}
             className="x3 y1"
             bgImage="/image3.png"
             overlayOpacity={0.25}
@@ -362,8 +394,8 @@ export default function AgentPage() {
             <div className="simulations-label">Planes de acción</div>
 
             <div className="pdf-stack">
-              {actionPlans.slice(0, 3).map((pdf, i) => (
-                <div key={i} className="pdf-sheet">
+              {actionPlans.slice(0, 3).map((pdf, idx) => (
+                <div key={idx} className="pdf-sheet">
                   <embed
                     src={`${pdf}#page=1&view=FitH&zoom=80`}
                     type="application/pdf"
@@ -392,8 +424,6 @@ export default function AgentPage() {
             </a>
           </PanelCard>
 
-        
-
           {/* SEGUIMIENTO PROACTIVO */}
           <PanelCard
             label="Seguimiento proactivo"
@@ -408,8 +438,6 @@ export default function AgentPage() {
               Estado, notificaciones y configuración del agente seguimiento
             </div>
           </PanelCard>
-
-      
 
           {/* SIMULACIONES */}
           <div
@@ -427,7 +455,7 @@ export default function AgentPage() {
             <div className="simulations-label">Simulaciones</div>
             <div className="simulations-meta">Biblioteca: /public/pdfs/simulaciones</div>
           </div>
-          </div>
+        </div>
       </aside>
     </main>
   );
