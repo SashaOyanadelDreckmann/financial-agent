@@ -9,6 +9,7 @@ export type Artifact = {
   createdAt: string;
   saved?: boolean;
 };
+
 export type AgentBlock =
   | {
       type: 'chart';
@@ -36,6 +37,7 @@ export type AgentResponse = {
 
   artifacts?: Artifact[];
   citations?: Citation[];
+  agent_blocks?: AgentBlock[];
 
   tool_calls?: any[];
   ui_events?: any[];
@@ -47,8 +49,14 @@ export type AgentResponse = {
 };
 
 export type ChatItem =
-  | { type: 'agent_block'; role: 'assistant'; block: any }
-  | { type: 'message'; role: 'user' | 'assistant'; content: string; mode?: string; objective?: string }
+  | {
+      type: 'message';
+      role: 'user' | 'assistant';
+      content: string;
+      mode?: string;
+      objective?: string;
+      agent_blocks?: AgentBlock[];
+    }
   | { type: 'artifact'; role: 'assistant'; artifact: Artifact }
   | { type: 'citation'; role: 'assistant'; citation: Citation };
 
@@ -62,6 +70,7 @@ export function toChatItemsFromAgentResponse(res: AgentResponse): ChatItem[] {
       content: res.message,
       mode: res.mode ?? res.reasoning_mode,
       objective: res.react?.objective,
+      agent_blocks: res.agent_blocks ?? [],
     });
   }
 
