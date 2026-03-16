@@ -678,6 +678,71 @@
     display: none;
   }
 }
+
+/* ================================================= */
+/* MOBILE (≤ 768px)                                  */
+/* ================================================= */
+
+@media (max-width: 768px) {
+  .agent-layout {
+    padding: 0;
+    height: 100dvh;
+  }
+
+  .agent-chat {
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    padding: 20px 16px 16px;
+    padding-right: 16px; /* cancela el 48% de escritorio */
+    background-size: cover;
+  }
+
+  .agent-chat-header h1 {
+    font-size: 22px;
+  }
+
+  .agent-chat-header p {
+    font-size: 13px;
+  }
+
+  .agent-chat-body {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .agent-thread {
+    height: auto;
+    flex: 1 1 auto;
+    max-height: none;
+    min-height: 0;
+  }
+
+  .agent-bubble {
+    font-size: 15px;
+    max-width: 88%;
+    padding: 10px 14px;
+  }
+
+  .agent-input textarea {
+    font-size: 16px; /* evita zoom automático en iOS */
+    max-height: 80px;
+  }
+
+  .controls .continue-button,
+  .controls .mic-button,
+  .controls .continue-ghost {
+    padding: 10px 16px;
+    font-size: 14px;
+    width: auto;
+    min-height: 44px;
+  }
+
+  .hint {
+    display: none;
+  }
+}
+
 /* ================================================= */
 /* SIMULACIONES — PDF STACK (NO CARD)                */
 /* ================================================= */
