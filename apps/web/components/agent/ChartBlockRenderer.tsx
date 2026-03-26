@@ -13,20 +13,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import type { AgentBlock } from '@/lib/types/chat';
 
-type ChartBlock = {
-  type: 'chart';
-  chart: {
-    kind: 'line' | 'bar' | 'area';
-    title: string;
-    subtitle?: string;
-    xKey: string;
-    yKey: string;
-    data: Record<string, number | string>[];
-    format?: 'currency' | 'percentage' | 'number';
-    currency?: string;
-  };
-};
+type ChartBlock = Extract<AgentBlock, { type: 'chart' }>;
 
 function formatValue(
   value: number,

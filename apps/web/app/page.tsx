@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import Link from 'next/link';
 import { TypewriterText } from '@/components/ui/TypewriterText';
 
@@ -46,16 +45,8 @@ const MACHINE_TEXT = `
 `;
 
 export default function HomePage() {
-  // Marca html con clase para que CSS oculte el overlay oscuro del animated-bg global
-  useEffect(() => {
-    document.documentElement.classList.add('home-active');
-    return () => document.documentElement.classList.remove('home-active');
-  }, []);
-
   return (
     <div className="home-shell">
-      {/* Background — same as agent core */}
-      <div className="home-bg" aria-hidden />
 
       <div className="home-layout">
         {/* Left — content */}

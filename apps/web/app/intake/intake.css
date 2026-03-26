@@ -15,21 +15,7 @@
   overflow-x: hidden;
 }
 
-/* Background image — same as agent core */
-.intake-shell::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  min-height: 100%;
-  background: url('/fondo4.jpg') center / cover no-repeat;
-  animation: bgDrift 240s ease-in-out infinite alternate;
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* No dark overlay — background always fully visible */
+/* Fondo viene del animated-bg global — no duplicar aqui */
 
 /* All children above the bg */
 .intake-shell > * {
@@ -169,7 +155,7 @@
   color: rgba(58,120,180,0.7);
 }
 
-/* Main area — glass blur so content reads over background */
+/* Main area — sin bloque, solo contenido sobre el fondo */
 .intake-main {
   width: 100%;
   max-width: 680px;
@@ -177,10 +163,8 @@
   position: relative;
   z-index: 1;
   flex: 1;
-  background: rgba(5, 8, 16, 0.35);
-  backdrop-filter: blur(20px) saturate(1.3);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  border-radius: 20px;
+  background: transparent;
+  border-radius: 0;
   margin-bottom: 24px;
 }
 

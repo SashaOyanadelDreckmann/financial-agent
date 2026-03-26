@@ -11,7 +11,13 @@ export type Artifact = {
   meta?: Record<string, unknown>;
 };
 export type { AgentBlock } from './types/chat';
-import type { AgentBlock } from './types/chat';
+import type { AgentBlock, UIEvent } from './types/chat';
+
+export type ToolCall = {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+};
 
 export type Citation = {
   id: string;
@@ -26,8 +32,8 @@ export type AgentResponse = {
   artifacts?: Artifact[];
   citations?: Citation[];
 
-  tool_calls?: any[];
-  ui_events?: any[];
+  tool_calls?: ToolCall[];
+  ui_events?: UIEvent[];
   react?: { objective?: string };
   reasoning_mode?: string;
 

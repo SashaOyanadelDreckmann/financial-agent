@@ -273,7 +273,7 @@ export default function AgentPage() {
   const items = activeThread?.items ?? [];
   const input = activeThread?.draft ?? '';
 
-  const PAGE_SIZE = 4;
+  const PAGE_SIZE = 2;
   const msgPages = useMemo(() => {
     const pages: ChatItem[][] = [];
     for (let i = 0; i < items.length; i += PAGE_SIZE) {
@@ -285,6 +285,71 @@ export default function AgentPage() {
 
   // Mark as mounted so portals can render (prevents hydration mismatch)
   useEffect(() => { setMounted(true); }, []);
+
+  // Bloquear TODO scroll/bounce/swipe/zoom en la pagina del agente
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+
+    // Estilos para bloquear scroll y bounce
+    html.style.overflow = 'hidden';
+    html.style.position = 'fixed';
+    html.style.inset = '0';
+    html.style.width = '100%';
+    html.style.height = '100%';
+    html.style.overscrollBehavior = 'none';
+    body.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.inset = '0';
+    body.style.width = '100%';
+    body.style.height = '100%';
+    body.style.overscrollBehavior = 'none';
+
+    // Prevenir touchmove en el document (el bounce de iOS)
+    // Solo permite scroll dentro de elementos que tienen overflow scroll
+    const preventBounce = (e: TouchEvent) => {
+      let target = e.target as HTMLElement | null;
+      while (target && target !== document.body) {
+        const style = window.getComputedStyle(target);
+        const overflowY = style.overflowY;
+        const overflowX = style.overflowX;
+        if (overflowY === 'auto' || overflowY === 'scroll' ||
+            overflowX === 'auto' || overflowX === 'scroll') {
+          // Permitir scroll dentro de este elemento
+          return;
+        }
+        target = target.parentElement;
+      }
+      e.preventDefault();
+    };
+
+    // Prevenir gesture zoom (pinch)
+    const preventGesture = (e: Event) => e.preventDefault();
+
+    document.addEventListener('touchmove', preventBounce, { passive: false });
+    document.addEventListener('gesturestart', preventGesture, { passive: false } as any);
+    document.addEventListener('gesturechange', preventGesture, { passive: false } as any);
+    document.addEventListener('gestureend', preventGesture, { passive: false } as any);
+
+    return () => {
+      html.style.overflow = '';
+      html.style.position = '';
+      html.style.inset = '';
+      html.style.width = '';
+      html.style.height = '';
+      html.style.overscrollBehavior = '';
+      body.style.overflow = '';
+      body.style.position = '';
+      body.style.inset = '';
+      body.style.width = '';
+      body.style.height = '';
+      body.style.overscrollBehavior = '';
+      document.removeEventListener('touchmove', preventBounce);
+      document.removeEventListener('gesturestart', preventGesture);
+      document.removeEventListener('gesturechange', preventGesture);
+      document.removeEventListener('gestureend', preventGesture);
+    };
+  }, []);
 
   // Fix teclado virtual iOS/Android: ajusta --visual-vh al viewport visible real
   useEffect(() => {
@@ -308,7 +373,7 @@ export default function AgentPage() {
     const panel = panelScrollRef.current;
     if (!handle || !panel) return;
 
-    const SNAP_CLOSED = 128;
+    const SNAP_CLOSED = 92;
     const SNAP_OPEN = Math.round(window.innerHeight * 0.52);
 
     const onTouchStart = (e: TouchEvent) => {
@@ -2042,43 +2107,93 @@ export default function AgentPage() {
           )}
           </div>
 
-          <div className="agent-input">
-            <textarea
-              placeholder="Escribe tu mensaje y moldea el campo a tu estilo..."
-              value={input}
-              onChange={(e) => setDraftForActive(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  onSend();
-                }
-              }}
-            />
+          <div className={`agent-input${isRealtimeOpen ? ' is-realtime' : ''}`}>
+            {isRealtimeOpen ? (
+              <>
+                {/* Modo voz inline — reemplaza el textarea */}
+                <div className="realtime-inline">
+                  <div className="realtime-inline-row">
+                    <div className={`voice-status-dot${realtimeListening ? ' is-listening' : realtimeSpeaking ? ' is-speaking' : ''}`} />
+                    <span className="realtime-inline-status">
+                      {realtimeListening ? 'Escuchando...' : realtimeSpeaking ? 'Respondiendo...' : 'Listo para hablar'}
+                    </span>
+                    <button
+                      type="button"
+                      className={`voice-mic-btn${realtimeListening ? ' is-active' : ''}`}
+                      onClick={startRealtimeListen}
+                      aria-label={realtimeListening ? 'Detener' : 'Hablar'}
+                    >
+                      <div className="voice-mic-ring" />
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        {realtimeListening ? (
+                          <rect x="6" y="6" width="12" height="12" rx="2" />
+                        ) : (
+                          <>
+                            <path d="M12 1a3 3 0 0 1 3 3v8a3 3 0 0 1-6 0V4a3 3 0 0 1 3-3z" />
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                            <line x1="12" y1="19" x2="12" y2="23" />
+                            <line x1="8" y1="23" x2="16" y2="23" />
+                          </>
+                        )}
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="realtime-inline-close"
+                      onClick={closeRealtimeMode}
+                      aria-label="Cerrar modo voz"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {/* Waveform */}
+                  <div className={`voice-waveform${realtimeListening ? ' is-listening' : ''}${realtimeSpeaking ? ' is-speaking' : ''}`} aria-hidden="true">
+                    {Array.from({ length: 10 }).map((_, i) => (
+                      <div key={i} className="voice-waveform-bar" />
+                    ))}
+                  </div>
+                  {/* Transcript en vivo */}
+                  {realtimeListening && realtimeTranscript && (
+                    <div className="realtime-inline-transcript">{realtimeTranscript}</div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <textarea
+                  placeholder="Escribe tu mensaje..."
+                  value={input}
+                  onChange={(e) => setDraftForActive(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      onSend();
+                    }
+                  }}
+                />
 
-            <div className="controls">
-              <button
-                type="button"
-                className="continue-button realtime-btn"
-                onClick={openRealtimeMode}
-                title="Abrir modo conversación en tiempo real"
-              >
-                Hablar en tiempo real
-              </button>
+                <div className="controls">
+                  <button
+                    type="button"
+                    className="continue-button realtime-btn"
+                    onClick={openRealtimeMode}
+                    title="Abrir modo conversación en tiempo real"
+                  >
+                    Hablar en tiempo real
+                  </button>
 
-              <div style={{ flex: 1 }} />
+                  <div style={{ flex: 1 }} />
 
-              <button
-                type="button"
-                className="continue-button"
-                onClick={onSend}
-              >
-                Enviar
-              </button>
-            </div>
-
-            <div className="hint">
-              Presiona <span>Enter</span> para enviar. {coachHint}
-            </div>
+                  <button
+                    type="button"
+                    className="continue-button"
+                    onClick={onSend}
+                  >
+                    Enviar
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -2764,77 +2879,7 @@ export default function AgentPage() {
         </div>
       )}
 
-      {/* Floating voice bubble — only renders when open */}
-      {mounted && isRealtimeOpen && createPortal(
-        <div
-          className={`voice-bubble is-open${realtimeListening ? ' is-listening' : ''}${realtimeSpeaking ? ' is-speaking' : ''}`}
-          role="dialog"
-          aria-label="Llamada en tiempo real"
-          style={{ left: bubblePos.x, top: bubblePos.y }}
-          onMouseDown={onBubbleMouseDown}
-        >
-          <div className="voice-bubble-inner">
-            {/* Drag handle area — subtle grip indicator */}
-            <div className="voice-bubble-drag-handle" />
-
-            {/* Close */}
-            <button className="voice-bubble-close" onClick={closeRealtimeMode} aria-label="Cerrar">✕</button>
-
-            {/* Status row */}
-            <div className="voice-bubble-status">
-              <div className={`voice-status-dot${realtimeListening ? ' is-listening' : realtimeSpeaking ? ' is-speaking' : ''}`} />
-              <span className="voice-status-text">
-                {realtimeListening ? 'Escuchando...' : realtimeSpeaking ? 'Respondiendo...' : 'Listo para hablar'}
-              </span>
-              {/* Mic button inline in status row */}
-              <button
-                type="button"
-                className={`voice-mic-btn${realtimeListening ? ' is-active' : ''}`}
-                onClick={startRealtimeListen}
-                aria-label={realtimeListening ? 'Detener' : 'Hablar'}
-              >
-                <div className="voice-mic-ring" />
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  {realtimeListening ? (
-                    <rect x="6" y="6" width="12" height="12" rx="2" />
-                  ) : (
-                    <>
-                      <path d="M12 1a3 3 0 0 1 3 3v8a3 3 0 0 1-6 0V4a3 3 0 0 1 3-3z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                      <line x1="12" y1="19" x2="12" y2="23" />
-                      <line x1="8" y1="23" x2="16" y2="23" />
-                    </>
-                  )}
-                </svg>
-              </button>
-            </div>
-
-            {/* Waveform visual — siempre presente, visible cuando escucha/habla */}
-            <div className="voice-waveform" aria-hidden="true">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="voice-waveform-bar" />
-              ))}
-            </div>
-
-            {/* Live transcript */}
-            {(realtimeHistory.length > 0 || realtimeListening) && (
-              <div className="voice-bubble-transcript">
-                {realtimeHistory.slice(-4).map((h, idx) => (
-                  <div key={idx} className={`voice-transcript-line voice-transcript-${h.role}`}>
-                    {h.text}
-                  </div>
-                ))}
-                {realtimeListening && realtimeTranscript && (
-                  <div className="voice-transcript-line voice-transcript-user is-interim">
-                    {realtimeTranscript}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
+      {/* Voice bubble eliminada — ahora el modo voz es inline en el agent-input */}
 
       {/* Mobile preview overlay — desktop only, portaled to body to escape overflow:hidden */}
       {isMobilePreview && mounted && createPortal(
