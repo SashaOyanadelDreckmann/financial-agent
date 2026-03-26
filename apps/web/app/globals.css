@@ -637,7 +637,7 @@ button {
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: #050810;
+  background: #050810; /* fallback before image loads */
 }
 
 /* Background — fondo4.jpg, absolute so it fills home-shell without iOS fixed bugs */
@@ -652,12 +652,7 @@ button {
   animation: bgDrift 240s ease-in-out infinite alternate;
 }
 
-.home-bg::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.52);
-}
+/* No dark overlay — background always fully visible */
 
 /* Two-column layout */
 .home-layout {
@@ -688,8 +683,9 @@ button {
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(255, 255, 255, 0.65);
   margin-bottom: 28px;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.5);
 }
 
 .home-hero {
@@ -699,6 +695,7 @@ button {
   line-height: 0.95;
   color: #ffffff;
   margin-bottom: 28px;
+  text-shadow: 0 2px 24px rgba(0,0,0,0.55), 0 1px 4px rgba(0,0,0,0.4);
 }
 
 .home-tagline {
@@ -706,16 +703,18 @@ button {
   font-weight: 300;
   letter-spacing: -0.02em;
   line-height: 1.35;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(255, 255, 255, 0.9);
   margin-bottom: 20px;
+  text-shadow: 0 1px 12px rgba(0,0,0,0.5);
 }
 
 .home-body {
   font-size: 15px;
   line-height: 1.7;
-  color: rgba(255, 255, 255, 0.42);
+  color: rgba(255, 255, 255, 0.72);
   max-width: 480px;
   margin-bottom: 44px;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.45);
 }
 
 .home-ctas {
@@ -876,7 +875,7 @@ button {
   justify-content: center;
   padding: 24px 20px;
   overflow: hidden;
-  background: #050810;
+  background: #050810; /* fallback before image loads */
 }
 
 /* Background image for auth pages — absolute like intake, no iOS fixed bugs */
@@ -890,14 +889,7 @@ button {
   pointer-events: none;
 }
 
-.auth-shell::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.52);
-  z-index: 0;
-  pointer-events: none;
-}
+/* No dark overlay on auth — background always visible */
 
 .auth-shell > * {
   position: relative;
@@ -907,13 +899,13 @@ button {
 .auth-card {
   width: 100%;
   max-width: 400px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 12, 28, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 24px;
   padding: 40px 36px;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .auth-eyebrow {
