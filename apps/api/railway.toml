@@ -1,8 +1,8 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "cd ../.. && pnpm install"
+buildCommand = "pnpm install"
 
 [deploy]
-startCommand = "cd ../.. && pnpm --filter api start"
+startCommand = "pnpm --filter api start"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
