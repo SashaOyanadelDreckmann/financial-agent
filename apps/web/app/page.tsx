@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { TypewriterText } from '@/components/ui/TypewriterText';
 
@@ -45,6 +46,21 @@ const MACHINE_TEXT = `
 `;
 
 export default function HomePage() {
+  // Extiende el fondo al body para que las safe areas (iOS) no queden negras
+  useEffect(() => {
+    const b = document.body;
+    b.style.backgroundImage = "url('/fondo4.jpg')";
+    b.style.backgroundSize = 'cover';
+    b.style.backgroundPosition = 'center';
+    b.style.backgroundAttachment = 'fixed';
+    return () => {
+      b.style.backgroundImage = '';
+      b.style.backgroundSize = '';
+      b.style.backgroundPosition = '';
+      b.style.backgroundAttachment = '';
+    };
+  }, []);
+
   return (
     <div className="home-shell">
       {/* Background — same as agent core */}

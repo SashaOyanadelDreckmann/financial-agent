@@ -637,7 +637,7 @@ button {
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: #050810; /* fallback before image loads */
+  background: transparent; /* body lleva el fondo para que las safe areas no queden negras */
 }
 
 /* Background — fondo4.jpg, absolute so it fills home-shell without iOS fixed bugs */
