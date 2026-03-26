@@ -32,10 +32,7 @@ export default function LoginPage() {
   };
 
   return (
-    <>
-      <div className="animated-bg" aria-hidden />
-
-      <main className="auth-shell">
+    <main className="auth-shell">
         <div className="auth-card">
           <div className="auth-eyebrow">FinancieraMente</div>
           <h1 className="auth-title">Bienvenido de vuelta</h1>
@@ -84,7 +81,6 @@ export default function LoginPage() {
             <Link href="/register" className="auth-footer-link">Crear cuenta</Link>
           </div>
         </div>
-      </main>
-    </>
+    </main>
   );
 }

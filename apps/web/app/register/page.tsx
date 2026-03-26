@@ -36,10 +36,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <>
-      <div className="animated-bg" aria-hidden />
-
-      <main className="auth-shell">
+    <main className="auth-shell">
         <div className="auth-card">
           <div className="auth-eyebrow">FinancieraMente</div>
           <h1 className="auth-title">Crear cuenta</h1>
@@ -101,7 +98,6 @@ export default function RegisterPage() {
 
           <p className="auth-fine-print">Toma menos de un minuto · Privado · Sin spam</p>
         </div>
-      </main>
-    </>
+    </main>
   );
 }
