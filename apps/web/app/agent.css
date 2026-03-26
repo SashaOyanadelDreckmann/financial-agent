@@ -315,15 +315,18 @@
   will-change: transform;
 }
 
-/* Page indicator dots */
+/* Page indicator dots — overlaid at bottom of the pager area */
 .chat-page-dots {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 6px;
-  padding: 5px 0 3px;
-  flex-shrink: 0;
   pointer-events: auto;
+  z-index: 2;
 }
 
 .chat-page-dot {
@@ -2602,6 +2605,27 @@
     white-space: nowrap;
   }
 
+  .mobile-rail-subtitle-badge {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(99, 152, 255, 0.15);
+    border: 1px solid rgba(99, 152, 255, 0.3);
+    border-radius: 4px;
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+
+  .mobile-rail-subtitle-memory {
+    font-size: 9px;
+    font-weight: 500;
+    color: #4ade80;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+
   .mobile-rail-subtitle-sep {
     font-size: 9px;
     color: var(--fg-tertiary);
@@ -2768,11 +2792,15 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 12px 5px;
-    border-bottom: 1px solid var(--border);
+    padding: 7px 14px 6px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
     flex-shrink: 0;
     gap: 8px;
-    background: var(--panel-bg);
+    background: rgba(255,255,255,0.04);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
   }
 
   /* Panel: compact 2-row grid at bottom */
@@ -2818,25 +2846,26 @@
   .mobile-panel-handle-title {
     font-size: 10px;
     font-weight: 600;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--fg-tertiary);
+    color: rgba(255,255,255,0.55);
     flex: 1;
   }
 
-  .mobile-panel-toggle {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--fg-secondary);
-    font-size: 12px;
-    border-radius: var(--radius-sm);
-    padding: 2px 8px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background var(--transition), color var(--transition);
+  .mobile-panel-chevron {
+    color: rgba(255,255,255,0.45);
+    transition: transform 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94), color 0.2s;
+    flex-shrink: 0;
   }
 
-  .mobile-panel-toggle:hover { background: var(--bg-tertiary); }
+  .mobile-panel-chevron.rotated {
+    transform: rotate(180deg);
+    color: rgba(255,255,255,0.75);
+  }
+
+  .mobile-panel-toggle {
+    display: none;
+  }
 
   /* ── Mobile panel: flex-row scroll with mob-col wrappers ── */
   .agent-panel .panel-grid {
@@ -3458,15 +3487,17 @@
   }
 
   .agent-input textarea {
-    font-size: 13px;
+    font-size: 14px;
     min-height: 20px;
-    max-height: 48px;
-    padding: 3px 8px;
-    line-height: 1.4;
-    background: var(--bg-secondary) !important;
-    border: 1px solid var(--border) !important;
-    color: var(--fg) !important;
-    border-radius: var(--radius-md) !important;
+    max-height: 52px;
+    padding: 6px 10px;
+    line-height: 1.45;
+    background: rgba(255,255,255,0.08) !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.15) !important;
+    color: #ffffff !important;
+    border-radius: 0 !important;
+    outline: none !important;
   }
 
   .agent-input textarea::placeholder {

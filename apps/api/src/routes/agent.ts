@@ -141,10 +141,40 @@ router.get('/welcome', async (req, res) => {
   const injectedIntake = (user as any).injectedIntake;
   const userName = user.name?.split(' ')[0] ?? 'amigo';
 
+  const SYSTEM_ONBOARDING = 'Eres el mejor asesor financiero personal de Chile. Cálido, directo, experto. Nunca usas emojis. Siempre en español chileno coloquial y profesional. Eres concreto y accionable — nunca genérico.';
+
+  const CAPABILITIES = `Puedo hacer 3 cosas contigo:
+1. SIMULAR — proyecciones de ahorro, Monte Carlo, escenarios optimista/base/pesimista con datos reales de Chile (UF, TPM, inflación)
+2. ANALIZAR — presupuesto, deudas, APV, metas financieras con números concretos
+3. GENERAR INFORMES — PDFs descargables con análisis personalizados que se guardan en tu panel`;
+
   if (!injectedIntake) {
-    return res.json({
-      message: `Hola ${userName}. Soy tu asesor financiero personal para Chile. Puedo ayudarte a entender tu situación, simular escenarios, comparar productos y tomar mejores decisiones de dinero. ¿Qué quieres explorar hoy?`,
-    });
+    try {
+      const prompt = `Genera un mensaje de bienvenida didáctico para ${userName}, un usuario nuevo en un asesor financiero personal para Chile.
+
+El mensaje debe:
+- Comenzar con su nombre de forma directa y cálida (1 oración)
+- Presentar de forma muy concreta estas 3 capacidades: ${CAPABILITIES}
+- Mencionar que hay un panel con herramientas que se desbloquean con la conversación
+- Terminar con UNA pregunta directa: cuál es su meta financiera principal
+- Máximo 5 oraciones, 100 palabras, tono de experto de confianza
+- Sin emojis, sin formalismo excesivo
+
+Devuelve SOLO el mensaje, sin comillas ni texto extra.`;
+
+      const message = await complete(
+        [{ role: 'system', content: SYSTEM_ONBOARDING }, { role: 'user', content: prompt }],
+        { temperature: 0.6 }
+      );
+      return res.json({
+        message: message?.trim() ||
+          `${userName}, soy tu asesor financiero personal para Chile. Puedo simular escenarios de ahorro e inversión, analizar tu presupuesto y deudas, y generar informes PDF con tu situación financiera. El panel lateral tiene herramientas que se desbloquean con la conversación. ¿Cuál es tu meta financiera principal ahora mismo?`,
+      });
+    } catch {
+      return res.json({
+        message: `${userName}, soy tu asesor financiero personal. Puedo simular proyecciones, analizar tu presupuesto y generar informes PDF. El panel tiene herramientas que se desbloquean conforme conversamos. ¿Cuál es tu meta financiera más importante ahora?`,
+      });
+    }
   }
 
   try {
@@ -158,40 +188,34 @@ router.get('/welcome', async (req, res) => {
     const stress = intake.moneyStressLevel ?? 5;
     const risk = intake.riskReaction ?? 'hold';
 
-    const prompt = `Genera un mensaje de bienvenida ultra-personalizado para ${userName}, un usuario chileno de ${age} años, ${intake.employmentStatus ?? 'empleado'}, ingresos en rango ${income}, ${hasSavings}, ${hasDebt}. Nivel financiero: ${literacy}. Estrés financiero: ${stress}/10. Reacción al riesgo: ${risk}.
+    const prompt = `Genera un mensaje de bienvenida ultra-personalizado y didáctico para ${userName}, un usuario chileno de ${age} años, ${intake.employmentStatus ?? 'empleado'}, ingresos en rango ${income}, ${hasSavings}, ${hasDebt}. Nivel financiero: ${literacy}. Estrés financiero: ${stress}/10. Reacción al riesgo: ${risk}.
 
 El mensaje debe:
-- Comenzar con su nombre (${userName}) de forma directa y cálida
-- Reconocer 1 aspecto concreto de su situación financiera (sin citar datos sensibles literalmente)
-- Proponer 2 acciones específicas para empezar (ej. simular un escenario, revisar su presupuesto, entender un producto)
-- Terminar con una pregunta directa que invite a actuar
-- Máximo 3 oraciones, 80 palabras, tono de asesor financiero de confianza en Chile
-- Sin saludos genéricos, sin emojis, sin formalismo
+- Comenzar con su nombre de forma directa y cálida
+- Reconocer 1 aspecto CONCRETO de su situación financiera (sin citar datos sensibles literalmente)
+- Mencionar brevemente estas capacidades: ${CAPABILITIES}
+- Mencionar que el panel lateral tiene herramientas que se desbloquean
+- Proponer 1 acción específica para empezar basada en su perfil
+- Terminar con UNA pregunta directa que invite a actuar
+- Máximo 5 oraciones, 110 palabras, tono de asesor de confianza en Chile
+- Sin emojis, sin formalismo
 
 Devuelve SOLO el mensaje, sin comillas ni texto extra.`;
 
     const message = await complete(
-      [
-        {
-          role: 'system',
-          content:
-            'Eres el mejor asesor financiero personal de Chile. Cálido, directo, experto. Nunca usas emojis. Siempre en español chileno coloquial y profesional.',
-        },
-        { role: 'user', content: prompt },
-      ],
+      [{ role: 'system', content: SYSTEM_ONBOARDING }, { role: 'user', content: prompt }],
       { temperature: 0.65 }
     );
 
     return res.json({
-      message:
-        message?.trim() ||
-        `${userName}, tu perfil está cargado. ¿Quieres empezar con una simulación de ahorro, revisar tus productos financieros o explorar cómo optimizar tu flujo mensual?`,
+      message: message?.trim() ||
+        `${userName}, tu perfil está cargado. Puedo simular escenarios de inversión, analizar tu presupuesto y generar informes PDF. El panel tiene herramientas que se desbloquean con la conversación. ¿Quieres que empecemos simulando tus ahorros actuales?`,
     });
   } catch (err) {
     console.error('Welcome message error:', err);
     const userName2 = user.name?.split(' ')[0] ?? 'amigo';
     return res.json({
-      message: `${userName2}, tu perfil financiero está listo. ¿Por dónde quieres empezar: simular tus ahorros, revisar tus deudas o explorar oportunidades de inversión en Chile?`,
+      message: `${userName2}, tu perfil financiero está listo. Puedo simular proyecciones, analizar tu presupuesto y generar informes PDF. El panel se desbloquea conforme avanzamos. ¿Por dónde empezamos?`,
     });
   }
 });

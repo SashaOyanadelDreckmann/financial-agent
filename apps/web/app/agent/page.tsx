@@ -1336,6 +1336,9 @@ export default function AgentPage() {
           const scrollTarget = panelEl.scrollTop + (cardRect.top - panelRect.top) - 16;
           panelEl.scrollTo({ top: scrollTarget, behavior: 'smooth' });
         }
+
+        // Auto-expand mobile panel so user sees the PDF land in recents
+        setMobilePanelExpanded(true);
       }, 920);
     }, 80);
   }
@@ -1424,8 +1427,9 @@ export default function AgentPage() {
     const message = action.message;
     if (!section && !message) return;
 
-    // 1 — Abre el panel si está colapsado
+    // 1 — Abre el panel si está colapsado (desktop + mobile)
     setPanelStage((prev) => (prev === 3 ? 2 : prev));
+    setMobilePanelExpanded(true);
 
     // 2 — Destaca la sección
     if (section) {
@@ -1944,9 +1948,7 @@ export default function AgentPage() {
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Page indicator dots */}
+          {/* Page indicator dots — inside pager outer for position:absolute anchor */}
           {msgPages.length > 1 && (
             <div className="chat-page-dots">
               {msgPages.map((_, i) => (
@@ -1960,6 +1962,7 @@ export default function AgentPage() {
               ))}
             </div>
           )}
+          </div>
 
           <div className="agent-input">
             <textarea
@@ -2110,24 +2113,33 @@ export default function AgentPage() {
 
         {/* Mobile subtitle — visible only on mobile via CSS */}
         <div className="mobile-rail-subtitle">
-          <span className="mobile-rail-subtitle-title">Financieramente</span>
-          <span className="mobile-rail-subtitle-sep">·</span>
-          <span className="mobile-rail-subtitle-desc">Proyecto de tesis</span>
+          <span className="mobile-rail-subtitle-title">
+            {sessionInfo?.name?.split(' ')[0] ?? 'Financieramente'}
+          </span>
+          <span className="mobile-rail-subtitle-badge">{knowledgeStage}</span>
+          {sessionInfo?.hasIntake && (
+            <span className="mobile-rail-subtitle-memory">● perfil activo</span>
+          )}
         </div>
       </aside>
 
       <aside className="agent-panel" ref={panelScrollRef as React.RefObject<HTMLElement>}>
         {/* Mobile: always-visible strip handle + expand toggle */}
-        <div className="mobile-panel-handle">
-          <span className="mobile-panel-handle-title">Panel</span>
-          <button
-            type="button"
-            className="mobile-panel-toggle"
-            onClick={() => setMobilePanelExpanded((v) => !v)}
-            aria-label={mobilePanelExpanded ? 'Minimizar panel' : 'Expandir panel'}
+        <div
+          className="mobile-panel-handle"
+          onClick={() => setMobilePanelExpanded((v) => !v)}
+          role="button"
+          tabIndex={0}
+          aria-label={mobilePanelExpanded ? 'Minimizar panel' : 'Expandir panel'}
+        >
+          <span className="mobile-panel-handle-title">⊞ Panel</span>
+          <svg
+            className={`mobile-panel-chevron${mobilePanelExpanded ? ' rotated' : ''}`}
+            width="16" height="16" viewBox="0 0 16 16" fill="none"
+            aria-hidden="true"
           >
-            {mobilePanelExpanded ? 'Minimizar' : 'Expandir'}
-          </button>
+            <path d="M4 10L8 6L12 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </div>
         {/* Desktop: close button (hidden on mobile) */}
         <div className="mobile-panel-close">
