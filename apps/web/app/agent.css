@@ -2604,13 +2604,13 @@
     z-index: 10;
   }
 
-  /* Subtitle — arriba del rail card (order -1) */
+  /* Subtitle — arriba del rail card (order -1) — compacto */
   .mobile-rail-subtitle {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 7px 16px 6px;
+    padding: 4px 16px 3px;
     border-bottom: 1px solid rgba(255,255,255,0.06);
     border-top: none;
     background: var(--bg-elevated) !important;
@@ -2618,7 +2618,7 @@
   }
 
   .mobile-rail-subtitle-title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.03em;
     color: #ffffff;
@@ -2663,10 +2663,10 @@
 
   .knowledge-rail-card {
     flex-direction: row !important;
-    flex: 0 0 40px;
+    flex: 0 0 26px;
     width: 100%;
-    height: 40px;
-    padding: 0 16px !important;
+    height: 26px;
+    padding: 0 12px !important;
     gap: 10px !important;
     border-radius: 0 !important;
     border: none !important;
@@ -2801,13 +2801,12 @@
     padding: 0 !important;
   }
 
-  /* Título Financieramente: blanco legible */
+  /* Título: oculto en mobile para ganar espacio */
   .agent-chat-header h1 {
-    color: #ffffff !important;
-    padding: 8px 14px 0 !important;
+    display: none !important;
   }
   .agent-chat-header p.muted {
-    padding: 0 14px !important;
+    display: none !important;
   }
 
   /* Panel handle — draggable */
@@ -2839,7 +2838,7 @@
   .agent-panel {
     display: flex !important;
     flex-direction: column;
-    flex: 0 0 var(--mobile-panel-h, 128px);
+    flex: 0 0 var(--mobile-panel-h, 92px);
     min-height: 0;
     background: var(--panel-bg);
     border-top: 1px solid var(--border);
@@ -3434,11 +3433,11 @@
   }
   .mobile-preview-toggle { display: none !important; }
 
-  /* Fila de controles (1,2,3 + B/N): mismo tono que las burbujas del agente */
+  /* Fila de controles (1,2,3 + B/N): compacta */
   .agent-chat-controls-row {
     background: var(--bg-elevated) !important;
     margin: 0 !important;
-    padding: 6px 14px !important;
+    padding: 3px 14px !important;
     width: 100% !important;
     box-sizing: border-box !important;
   }
@@ -3452,19 +3451,19 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Bubbles — minimum 14px per WCAG/Apple HIG */
+  /* Bubbles — anchas para aprovechar pantalla, 14px minimo */
   .agent-bubble.user {
-    max-width: 80% !important;
+    max-width: 78% !important;
     font-size: 14px !important;
     padding: 8px 12px !important;
     line-height: 1.45 !important;
     border-radius: 14px !important;
   }
 
-  .latex-doc { max-width: 90% !important; }
+  .latex-doc { max-width: 98% !important; }
 
   .agent-bubble.assistant {
-    max-width: 92% !important;
+    max-width: 98% !important;
     font-size: 14px !important;
     line-height: 1.55 !important;
   }
