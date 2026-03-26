@@ -286,27 +286,68 @@ export default function AgentPage() {
   // Mark as mounted so portals can render (prevents hydration mismatch)
   useEffect(() => { setMounted(true); }, []);
 
-  // Bloquear scroll/bounce/resize en el body cuando esta la pagina del agente
+  // Bloquear TODO scroll/bounce/swipe/zoom en la pagina del agente
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
+
+    // Estilos para bloquear scroll y bounce
     html.style.overflow = 'hidden';
     html.style.position = 'fixed';
     html.style.inset = '0';
+    html.style.width = '100%';
+    html.style.height = '100%';
     html.style.overscrollBehavior = 'none';
     body.style.overflow = 'hidden';
     body.style.position = 'fixed';
     body.style.inset = '0';
+    body.style.width = '100%';
+    body.style.height = '100%';
     body.style.overscrollBehavior = 'none';
+
+    // Prevenir touchmove en el document (el bounce de iOS)
+    // Solo permite scroll dentro de elementos que tienen overflow scroll
+    const preventBounce = (e: TouchEvent) => {
+      let target = e.target as HTMLElement | null;
+      while (target && target !== document.body) {
+        const style = window.getComputedStyle(target);
+        const overflowY = style.overflowY;
+        const overflowX = style.overflowX;
+        if (overflowY === 'auto' || overflowY === 'scroll' ||
+            overflowX === 'auto' || overflowX === 'scroll') {
+          // Permitir scroll dentro de este elemento
+          return;
+        }
+        target = target.parentElement;
+      }
+      e.preventDefault();
+    };
+
+    // Prevenir gesture zoom (pinch)
+    const preventGesture = (e: Event) => e.preventDefault();
+
+    document.addEventListener('touchmove', preventBounce, { passive: false });
+    document.addEventListener('gesturestart', preventGesture, { passive: false } as any);
+    document.addEventListener('gesturechange', preventGesture, { passive: false } as any);
+    document.addEventListener('gestureend', preventGesture, { passive: false } as any);
+
     return () => {
       html.style.overflow = '';
       html.style.position = '';
       html.style.inset = '';
+      html.style.width = '';
+      html.style.height = '';
       html.style.overscrollBehavior = '';
       body.style.overflow = '';
       body.style.position = '';
       body.style.inset = '';
+      body.style.width = '';
+      body.style.height = '';
       body.style.overscrollBehavior = '';
+      document.removeEventListener('touchmove', preventBounce);
+      document.removeEventListener('gesturestart', preventGesture);
+      document.removeEventListener('gesturechange', preventGesture);
+      document.removeEventListener('gestureend', preventGesture);
     };
   }, []);
 

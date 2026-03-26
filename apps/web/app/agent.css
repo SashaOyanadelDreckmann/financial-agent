@@ -28,10 +28,10 @@
   max-height: 100vh;
   padding: 12px 12px 12px 16px;
   background: transparent;
-  /* Bloquear swipe/bounce/resize en la pagina del agente */
+  /* Bloquear swipe/bounce/resize/zoom en la pagina del agente */
   overflow: hidden;
   overscroll-behavior: none;
-  touch-action: pan-x pan-y;
+  touch-action: manipulation; /* bloquea double-tap zoom, permite tap y scroll internos */
   overflow: hidden;
   transition: grid-template-columns 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
@@ -2560,6 +2560,8 @@
     height: var(--visual-vh, 100dvh);
     max-height: var(--visual-vh, 100dvh);
     overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: manipulation;
     background: transparent !important; /* fondo viene del animated-bg global */
   }
 
@@ -3519,7 +3521,7 @@
   }
 
   .agent-input textarea {
-    font-size: 14px;
+    font-size: 16px; /* 16px evita auto-zoom en iOS Safari al hacer focus */
     min-height: 20px;
     max-height: 52px;
     padding: 6px 10px;
