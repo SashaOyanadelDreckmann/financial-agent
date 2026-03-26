@@ -640,25 +640,34 @@ button {
   background: transparent;
 }
 
-/* Background — fixed to cover entire viewport including iOS safe areas */
+/* Background — div inside shell, covers the viewport */
 .home-bg {
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
-  /* expand past safe areas with negative margins + extra size */
-  margin: -50px;
-  width: calc(100vw + 100px);
-  height: calc(100vh + 100px);
   z-index: 0;
   background: url('/fondo4.jpg') center / cover no-repeat;
   animation: bgDrift 240s ease-in-out infinite alternate;
   pointer-events: none;
 }
 
-/* Cuando la home esta activa, ocultar los overlays oscuros del animated-bg global */
-.home-active .animated-bg::before,
-.home-active .animated-bg::after {
+/* ── Home activa: fondo limpio en TODA la pantalla sin excepciones ── */
+/* 1. html y body reciben el fondo para cubrir las safe areas de iOS */
+html.home-active {
+  background: url('/fondo4.jpg') center / cover no-repeat !important;
+  background-color: #0a1628 !important; /* fallback tono de la imagen */
+}
+html.home-active body {
+  background: transparent !important;
+}
+/* 2. animated-bg global: quitar overlays oscuros y expandir para cubrir safe areas */
+html.home-active .animated-bg {
+  top: -100px !important;
+  left: -100px !important;
+  width: calc(100% + 200px) !important;
+  height: calc(100% + 200px) !important;
+}
+html.home-active .animated-bg::before,
+html.home-active .animated-bg::after {
   display: none !important;
 }
 
