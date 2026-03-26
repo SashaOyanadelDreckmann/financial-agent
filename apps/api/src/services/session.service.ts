@@ -53,7 +53,7 @@ export function getSessionCookieOptions() {
 
   return {
     httpOnly: true as const,
-    sameSite: 'lax' as const,
+    sameSite: isProd ? ('none' as const) : ('lax' as const),
     secure: isProd,
     maxAge: ttlMs,
     path: '/',
