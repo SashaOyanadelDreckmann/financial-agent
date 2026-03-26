@@ -663,7 +663,7 @@ button {
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.65);
+  color: #ffffff;
   margin-bottom: 28px;
   text-shadow: 0 1px 8px rgba(0,0,0,0.5);
 }
@@ -683,7 +683,7 @@ button {
   font-weight: 300;
   letter-spacing: -0.02em;
   line-height: 1.35;
-  color: rgba(255, 255, 255, 0.9);
+  color: #ffffff;
   margin-bottom: 20px;
   text-shadow: 0 1px 12px rgba(0,0,0,0.5);
 }
@@ -691,7 +691,7 @@ button {
 .home-body {
   font-size: 15px;
   line-height: 1.7;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(255, 255, 255, 0.95);
   max-width: 480px;
   margin-bottom: 44px;
   text-shadow: 0 1px 8px rgba(0,0,0,0.45);
@@ -735,7 +735,7 @@ button {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.72);
+  color: #ffffff;
   font-size: 15px;
   font-weight: 400;
   letter-spacing: -0.01em;
@@ -753,13 +753,13 @@ button {
 .home-footnote {
   font-size: 11px;
   letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.24);
+  color: rgba(255, 255, 255, 0.65);
 }
 
 /* Right column — ASCII art */
 .home-art {
   align-self: center;
-  opacity: 0.55;
+  opacity: 0.85;
   overflow: hidden;
   max-height: 70vh;
   mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%);
@@ -771,7 +771,7 @@ button {
   font-size: 8px;
   line-height: 1.18;
   white-space: pre;
-  color: rgba(255, 255, 255, 0.9);
+  color: #ffffff;
 }
 
 /* Mobile — single column, art hidden */
@@ -800,7 +800,7 @@ button {
     width: 52%;
     height: 80%;
     max-height: none;
-    opacity: 0.14;
+    opacity: 0.35;
     overflow: hidden;
     pointer-events: none;
     z-index: 0;
