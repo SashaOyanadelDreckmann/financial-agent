@@ -253,6 +253,10 @@ export default function AgentPage() {
   const previousPanelStageRef = useRef(panelStage);
   const chatSwipeTouchStartRef = useRef<{ x: number; y: number } | null>(null);
   const chatBodyRef = useRef<HTMLElement | null>(null);
+  const [msgPage, setMsgPage] = useState(0);
+  const msgPageRef = useRef(0);
+  const totalMsgPagesRef = useRef(1);
+  const chatPagesTrackRef = useRef<HTMLDivElement | null>(null);
 
   const loadProfileIfNeeded = useProfileStore((s) => s.loadProfileIfNeeded);
   const profile = useProfileStore((s) => s.profile);
@@ -266,6 +270,16 @@ export default function AgentPage() {
 
   const items = activeThread?.items ?? [];
   const input = activeThread?.draft ?? '';
+
+  const PAGE_SIZE = 4;
+  const msgPages = useMemo(() => {
+    const pages: ChatItem[][] = [];
+    for (let i = 0; i < items.length; i += PAGE_SIZE) {
+      pages.push(items.slice(i, i + PAGE_SIZE));
+    }
+    if (pages.length === 0) pages.push([]);
+    return pages;
+  }, [items]);
 
   // Mark as mounted so portals can render (prevents hydration mismatch)
   useEffect(() => { setMounted(true); }, []);
@@ -812,31 +826,75 @@ export default function AgentPage() {
     }
   }, [panelStage]);
 
-  // Native touch listeners for chat horizontal swipe (passive:false to detect before scroll)
+  // Sync msgPage refs for event handler closures
+  useEffect(() => { msgPageRef.current = msgPage; }, [msgPage]);
+  useEffect(() => { totalMsgPagesRef.current = msgPages.length; }, [msgPages.length]);
+
+  // Auto-advance to last page when new messages arrive
+  useEffect(() => {
+    setMsgPage(Math.max(0, msgPages.length - 1));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [msgPages.length]);
+
+  // Reset to last page when switching chat threads
+  useEffect(() => {
+    setMsgPage(Math.max(0, msgPages.length - 1));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChatId]);
+
+  // Native touch listeners for horizontal swipe — navigates message pages
   useEffect(() => {
     const el = chatBodyRef.current;
     if (!el) return;
     let startX = 0;
     let startY = 0;
+    let isHorizontal = false;
     const onStart = (e: TouchEvent) => {
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
+      isHorizontal = false;
+      const track = chatPagesTrackRef.current;
+      if (track) track.style.transition = 'none';
+    };
+    const onMove = (e: TouchEvent) => {
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      if (!isHorizontal && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      if (!isHorizontal) {
+        isHorizontal = Math.abs(dx) > Math.abs(dy);
+      }
+      if (!isHorizontal) return;
+      const track = chatPagesTrackRef.current;
+      if (track) {
+        track.style.transform = `translateX(calc(-${msgPageRef.current * 100}% + ${dx}px))`;
+      }
     };
     const onEnd = (e: TouchEvent) => {
+      const track = chatPagesTrackRef.current;
+      if (track) track.style.transition = '';
+      if (!isHorizontal) return;
       const dx = e.changedTouches[0].clientX - startX;
       const dy = e.changedTouches[0].clientY - startY;
-      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-        switchChatBySwipe(dx < 0 ? 'left' : 'right');
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        setMsgPage((prev) => {
+          const total = totalMsgPagesRef.current;
+          if (dx < 0) return Math.min(prev + 1, total - 1);
+          return Math.max(prev - 1, 0);
+        });
+      } else {
+        if (track) track.style.transform = `translateX(-${msgPageRef.current * 100}%)`;
       }
     };
     el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: true });
     el.addEventListener('touchend', onEnd, { passive: true });
     return () => {
       el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
       el.removeEventListener('touchend', onEnd);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeChatId, chatThreads]);
+  }, []);
 
   useEffect(() => {
     try {
@@ -1666,6 +1724,77 @@ export default function AgentPage() {
     return estimatedWrappedLines > 2;
   }
 
+  function renderChatItem(it: ChatItem, i: number) {
+    if (it.type === 'message') {
+      if (it.role === 'assistant') {
+        const isScrollable = shouldEnableBubbleScroll(it.content);
+        return (
+          <div
+            key={i}
+            className={`agent-bubble assistant latex-doc ${isScrollable ? 'is-scrollable-bubble' : ''}`}
+          >
+            <div className="latex-doc-head">
+              <span className="latex-doc-title">Informe del agente</span>
+              <span className="latex-doc-mode">
+                {(it.mode ?? agentMetaRef.current.mode ?? 'analysis').toString().replaceAll('_', ' ')}
+              </span>
+            </div>
+            <div className={`latex-doc-body ${isScrollable ? 'is-scrollable-content' : ''}`}>
+              {renderLatexLikeMessage(it.content)}
+              {Array.isArray(it.agent_blocks) && it.agent_blocks.length > 0 && (
+                <div className="latex-inline-annex">
+                  <div className="latex-inline-annex-head">
+                    <span>Anexos tecnicos</span>
+                    <span>charts</span>
+                  </div>
+                  <AgentBlocksRenderer blocks={it.agent_blocks} />
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      const isScrollable = shouldEnableBubbleScroll(it.content);
+      return (
+        <div
+          key={i}
+          className={`agent-bubble ${it.role} ${isScrollable ? 'is-scrollable-bubble' : ''}`}
+        >
+          {it.content}
+        </div>
+      );
+    }
+    if (it.type === 'artifact') {
+      return (
+        <div key={i} className="agent-bubble assistant artifact">
+          <DocumentBubble
+            artifact={it.artifact}
+            onSaved={({ artifact, publicUrl, sourceRect }) => {
+              const reportId = `${artifact.id}-${Date.now()}`;
+              const report: SavedReport = {
+                id: reportId,
+                title: artifact.title,
+                group: classifyReportGroup(artifact.title, artifact.source),
+                fileUrl: publicUrl,
+                createdAt: new Date().toISOString(),
+              };
+              setSavedReports((prev) => [report, ...prev.filter((r) => r.fileUrl !== publicUrl)]);
+              launchDocToLibraryAnimation(artifact.title, sourceRect, artifact.previewImageUrl ?? publicUrl, reportId);
+            }}
+          />
+        </div>
+      );
+    }
+    if (it.type === 'citation') {
+      return (
+        <div key={i} className="agent-bubble assistant citation">
+          <CitationBubble citation={it.citation} />
+        </div>
+      );
+    }
+    return null;
+  }
+
   return (
     <main
       className={`agent-layout ${
@@ -1767,156 +1896,70 @@ export default function AgentPage() {
         </header>
 
         <div className="agent-chat-body">
-          <div className="agent-thread">
-            {items.map((it, i) => {
-              if (it.type === 'message') {
-                if (it.role === 'assistant') {
-                  const isScrollable = shouldEnableBubbleScroll(it.content);
-                  return (
-                    <div
-                      key={i}
-                      className={`agent-bubble assistant latex-doc ${
-                        isScrollable ? 'is-scrollable-bubble' : ''
-                      }`}
-                    >
-                      <div className="latex-doc-head">
-                        <span className="latex-doc-title">Informe del agente</span>
-                        <span className="latex-doc-mode">
-                          {(it.mode ?? agentMetaRef.current.mode ?? 'analysis')
-                            .toString()
-                            .replaceAll('_', ' ')}
-                        </span>
+          {/* Paginated message track — 4 items per page, swipe left/right to navigate */}
+          <div className="chat-pages-outer">
+            <div
+              ref={chatPagesTrackRef}
+              className="chat-pages-track"
+              style={{ transform: `translateX(-${msgPage * 100}%)` }}
+            >
+              {msgPages.map((pageItems, pageIdx) => (
+                <div key={`page-${pageIdx}`} className="agent-thread chat-page">
+                  {pageItems.map((it, localIdx) =>
+                    renderChatItem(it, pageIdx * PAGE_SIZE + localIdx)
+                  )}
+
+                  {/* Suggested replies + loading only on last page */}
+                  {pageIdx === msgPages.length - 1 && !loading && (() => {
+                    const lastAssistant = [...items].reverse().find(
+                      (it) => it.type === 'message' && it.role === 'assistant'
+                    ) as Extract<(typeof items)[number], { type: 'message'; role: 'assistant' }> | undefined;
+                    if (!lastAssistant?.suggested_replies?.length) return null;
+                    return (
+                      <div className="suggested-replies">
+                        {lastAssistant.suggested_replies.map((reply, idx) => (
+                          <button
+                            key={`${reply}-${idx}`}
+                            type="button"
+                            className="suggestion-chip"
+                            onClick={() => {
+                              setDraftForActive(reply);
+                              setTimeout(() => onSend(), 80);
+                            }}
+                          >
+                            {reply}
+                          </button>
+                        ))}
                       </div>
-                      <div
-                        className={`latex-doc-body ${
-                          isScrollable ? 'is-scrollable-content' : ''
-                        }`}
-                      >
-                        {renderLatexLikeMessage(it.content)}
-                        {Array.isArray(it.agent_blocks) && it.agent_blocks.length > 0 && (
-                          <div className="latex-inline-annex">
-                            <div className="latex-inline-annex-head">
-                              <span>Anexos tecnicos</span>
-                              <span>charts</span>
-                            </div>
-                            <AgentBlocksRenderer blocks={it.agent_blocks} />
-                          </div>
-                        )}
-                      </div>
+                    );
+                  })()}
+
+                  {pageIdx === msgPages.length - 1 && loading && (
+                    <div className="agent-bubble assistant thinking-bubble">
+                      <span className="thinking-dot" />
+                      <span className="thinking-dot" />
+                      <span className="thinking-dot" />
                     </div>
-                  );
-                }
-                const isScrollable = shouldEnableBubbleScroll(it.content);
-                return (
-                  <div
-                    key={i}
-                    className={`agent-bubble ${it.role} ${
-                      isScrollable ? 'is-scrollable-bubble' : ''
-                    }`}
-                  >
-                    {it.content}
-                  </div>
-                );
-              }
-
-              if (it.type === 'artifact') {
-                return (
-                  <div
-                    key={i}
-                    className="agent-bubble assistant artifact"
-                  >
-                    <DocumentBubble
-                      artifact={it.artifact}
-                      onSaved={({
-                        artifact,
-                        publicUrl,
-                        sourceRect,
-                      }) => {
-                        const reportId = `${artifact.id}-${Date.now()}`;
-                        const report: SavedReport = {
-                          id: reportId,
-                          title: artifact.title,
-                          group: classifyReportGroup(
-                            artifact.title,
-                            artifact.source
-                          ),
-                          fileUrl: publicUrl,
-                          createdAt: new Date().toISOString(),
-                        };
-                        setSavedReports((prev) => [
-                          report,
-                          ...prev.filter((r) => r.fileUrl !== publicUrl),
-                        ]);
-                        launchDocToLibraryAnimation(
-                          artifact.title,
-                          sourceRect,
-                          artifact.previewImageUrl ?? publicUrl,
-                          reportId
-                        );
-                      }}
-                    />
-                  </div>
-                );
-              }
-
-              if (it.type === 'citation') {
-                return (
-                  <div
-                    key={i}
-                    className="agent-bubble assistant citation"
-                  >
-                    <CitationBubble citation={it.citation} />
-                  </div>
-                );
-              }
-
-              return null;
-            })}
-
-            {/* Suggested reply chips — shown after last assistant message, when not loading */}
-            {!loading && (() => {
-              const lastAssistant = [...items].reverse().find(
-                (it) => it.type === 'message' && it.role === 'assistant'
-              ) as Extract<(typeof items)[number], { type: 'message'; role: 'assistant' }> | undefined;
-              if (!lastAssistant?.suggested_replies?.length) return null;
-              return (
-                <div className="suggested-replies">
-                  {lastAssistant.suggested_replies.map((reply, idx) => (
-                    <button
-                      key={`${reply}-${idx}`}
-                      type="button"
-                      className="suggestion-chip"
-                      onClick={() => {
-                        setDraftForActive(reply);
-                        // small delay to let user see the chip was pressed
-                        setTimeout(() => onSend(), 80);
-                      }}
-                    >
-                      {reply}
-                    </button>
-                  ))}
+                  )}
                 </div>
-              );
-            })()}
-
-            {loading && (
-              <div className="agent-bubble assistant thinking-bubble">
-                <span className="thinking-dot" />
-                <span className="thinking-dot" />
-                <span className="thinking-dot" />
-              </div>
-            )}
+              ))}
+            </div>
           </div>
 
-          {/* Swipe hint dots — mobile only */}
-          <div className="mobile-chat-swipe-dots">
-            {chatThreads.map((t) => (
-              <span
-                key={t.id}
-                className={`mobile-chat-swipe-dot${t.id === activeChatId ? ' is-active' : ''}`}
-              />
-            ))}
-          </div>
+          {/* Page indicator dots */}
+          {msgPages.length > 1 && (
+            <div className="chat-page-dots">
+              {msgPages.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  aria-label={`Página ${i + 1}`}
+                  className={`chat-page-dot${i === msgPage ? ' active' : ''}`}
+                  onClick={() => setMsgPage(i)}
+                />
+              ))}
+            </div>
+          )}
 
           <div className="agent-input">
             <textarea
