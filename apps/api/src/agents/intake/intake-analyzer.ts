@@ -15,10 +15,18 @@ export interface IntakeSignals {
 export function analyzeIntake(
   intake: IntakeQuestionnaire
 ): IntakeSignals {
+  const unstableEmploymentStatuses = new Set([
+    'freelance',
+    'freelance_student',
+    'employed_freelance',
+    'employed_freelance_student',
+    'unemployed',
+    'student',
+  ]);
+
   return {
     hasIncomeInstability:
-      intake.employmentStatus === 'freelance' ||
-      intake.employmentStatus === 'unemployed',
+      unstableEmploymentStatuses.has(intake.employmentStatus),
 
     hasCashflowStress:
       intake.expensesCoverage === 'sometimes' ||

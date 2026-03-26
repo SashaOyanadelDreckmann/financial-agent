@@ -23,16 +23,6 @@ export default function ProfileCard({
         .toUpperCase()
     : 'U';
 
-  const clarityLabel =
-    ({ low: 'Baja', medium: 'Media', high: 'Alta' } as any)[
-      profile?.profile?.financialClarity
-    ] ?? profile?.profile?.financialClarity;
-
-  const horizonLabel =
-    ({ short_term: 'Corto plazo', mixed: 'Mixto', long_term: 'Largo plazo' } as any)[
-      profile?.profile?.timeHorizon
-    ] ?? profile?.profile?.timeHorizon;
-
   const coherence = Math.round((profile?.profile?.coherenceScore ?? 0) * 100);
 
   return (
@@ -55,24 +45,6 @@ export default function ProfileCard({
             Perfil financiero
           </div>
         </div>
-      </div>
-
-      {/* META */}
-      <div className="profile-meta">
-        {profile?.profile ? (
-          <>
-            <span className="pill">
-              Claridad · {clarityLabel}
-            </span>
-            <span className="pill">
-              Horizonte · {horizonLabel}
-            </span>
-          </>
-        ) : (
-          <span className="text-small text-muted">
-            Perfil aún no disponible
-          </span>
-        )}
       </div>
 
       {/* COHERENCE */}

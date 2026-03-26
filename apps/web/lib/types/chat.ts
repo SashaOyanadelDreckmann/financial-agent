@@ -10,10 +10,23 @@ export type AgentBlock =
   | {
       type: 'chart';
       chart: {
-        kind: 'line' | 'bar';
+        kind: 'line' | 'bar' | 'area';
+        title: string;
+        subtitle?: string;
         xKey: string;
         yKey: string;
-        data: Array<Record<string, any>>;
+        data: Array<Record<string, number>>;
+        format?: 'currency' | 'percentage' | 'number';
+        currency?: string;
+      };
+    }
+  | {
+      type: 'table';
+      table: {
+        title: string;
+        headers: string[];
+        rows: string[][];
+        note?: string;
       };
     };
 

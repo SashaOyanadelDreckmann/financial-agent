@@ -12,6 +12,11 @@ export const generateSimulationPdfTool: MCPTool = {
     months: z.number().optional(),
     monthlyContribution: z.number().optional(),
     title: z.string().optional(),
+    subtitle: z.string().optional(),
+    executiveSummary: z.string().optional(),
+    keyFindings: z.array(z.string()).optional(),
+    assumptions: z.array(z.string()).optional(),
+    contextHighlights: z.array(z.string()).optional(),
   }),
 
   schema: {
@@ -22,6 +27,11 @@ export const generateSimulationPdfTool: MCPTool = {
       months: { type: 'number' },
       monthlyContribution: { type: 'number' },
       title: { type: 'string' },
+      subtitle: { type: 'string' },
+      executiveSummary: { type: 'string' },
+      keyFindings: { type: 'array', items: { type: 'string' } },
+      assumptions: { type: 'array', items: { type: 'string' } },
+      contextHighlights: { type: 'array', items: { type: 'string' } },
     },
     required: ['principal', 'annualRate'],
   },
@@ -33,6 +43,11 @@ export const generateSimulationPdfTool: MCPTool = {
       months: args.months ?? 12,
       monthlyContribution: args.monthlyContribution ?? 0,
       title: args.title,
+      subtitle: args.subtitle,
+      executiveSummary: args.executiveSummary,
+      keyFindings: args.keyFindings,
+      assumptions: args.assumptions,
+      contextHighlights: args.contextHighlights,
     });
 
     return {

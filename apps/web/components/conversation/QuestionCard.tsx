@@ -4,13 +4,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TypewriterText } from '@/components/ui/TypewriterText';
 
-declare global {
-  interface Window {
-    webkitSpeechRecognition?: any;
-    SpeechRecognition?: any;
-  }
-}
-
 export function QuestionCard({
   question,
   onSubmit,

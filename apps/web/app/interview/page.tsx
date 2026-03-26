@@ -76,8 +76,9 @@ export default function InterviewPage() {
     : [];
 
   return (
-    <div className="interview-shell">
-      <div className="interview-column">
+    <div className="interview-shell pro-interview-shell">
+      <div className="animated-bg interview-bg" aria-hidden />
+      <div className="interview-column pro-interview-column">
 
         {lastResponse.type === 'question' && blockId && (
           <QuestionCard

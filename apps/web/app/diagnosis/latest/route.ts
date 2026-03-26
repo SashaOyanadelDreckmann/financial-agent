@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
+import { getApiBaseUrl } from '@/lib/apiBase';
 
 export async function GET() {
   try {
     const res = await fetch(
-      'http://localhost:3000/diagnosis/latest',
+      `${getApiBaseUrl()}/diagnosis/latest`,
       {
         cache: 'no-store',
         credentials: 'include',

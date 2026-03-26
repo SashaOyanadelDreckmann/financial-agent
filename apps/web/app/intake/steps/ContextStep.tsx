@@ -1,5 +1,23 @@
+'use client';
+import { useState } from 'react';
 import type { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
-import { FormBlock } from '@/components/ui/FormBlock';
+
+const AGE_OPTIONS = [
+  { value: 18, label: 'Menos de 25', range: [0, 24] },
+  { value: 27, label: '25 – 34', range: [25, 34] },
+  { value: 37, label: '35 – 44', range: [35, 44] },
+  { value: 47, label: '45 – 55', range: [45, 55] },
+  { value: 60, label: 'Más de 55', range: [56, 100] },
+];
+
+const EMPLOYMENT_OPTIONS: { value: IntakeQuestionnaire['employmentStatus']; label: string; sub: string }[] = [
+  { value: 'employed', label: 'Dependiente', sub: 'Empleado con contrato' },
+  { value: 'freelance', label: 'Independiente', sub: 'Freelance o emprendedor' },
+  { value: 'employed_freelance', label: 'Ambos', sub: 'Dependiente + independiente' },
+  { value: 'student', label: 'Estudiante', sub: 'Sin ingresos laborales' },
+  { value: 'employed_student', label: 'Estudiante + trabajo', sub: 'Estudio y trabajo' },
+  { value: 'unemployed', label: 'Sin trabajo', sub: 'Cesante actualmente' },
+];
 
 export function ContextStep({
   form,
@@ -7,85 +25,100 @@ export function ContextStep({
   onNext,
 }: {
   form: IntakeQuestionnaire;
-  update: <K extends keyof IntakeQuestionnaire>(
-    key: K,
-    value: IntakeQuestionnaire[K]
-  ) => void;
+  update: <K extends keyof IntakeQuestionnaire>(key: K, value: IntakeQuestionnaire[K]) => void;
   onNext: () => void;
 }) {
+  const [showExact, setShowExact] = useState(false);
+
+  const selectedAge = AGE_OPTIONS.find(
+    (o) => form.age !== undefined && form.age >= o.range[0] && form.age <= o.range[1]
+  );
+
+  const ready = !!form.age && !!form.employmentStatus;
+
   return (
-    <div className="app-content animate-fade-in">
-      {/* Intro */}
-      <div className="app-section">
-        <p className="text-small text-muted">
-          Paso 1 · Contexto inicial
-        </p>
-
-        <h1>Contexto personal</h1>
-
-        <p className="text-muted max-w-xl">
-          Este cuestionario inicial nos permite entender tu situación actual
-          y adaptar el análisis financiero a tu realidad personal.
-          No tomará más de unos minutos.
+    <div className="intake-step animate-intake-in">
+      <div className="intake-step-header">
+        <span className="intake-step-tag">Contexto personal</span>
+        <h2 className="intake-step-title">Cuéntame sobre ti</h2>
+        <p className="intake-step-subtitle">
+          Necesito entender tu punto de partida para darte asesoría que realmente se ajuste a tu vida.
         </p>
       </div>
 
-      {/* Form */}
-      <div className="form-section">
-        <FormBlock
-          label="¿Cuál es tu edad?"
-          help="Nos ayuda a contextualizar tu etapa financiera."
-        >
-          <input
-            type="number"
-            value={form.age ?? ''}
-            onChange={(e) =>
-              update('age', Number(e.target.value))
-            }
-          />
-        </FormBlock>
-
-        <FormBlock
-          label="Situación laboral actual"
-          help="Determina estabilidad y tipo de ingresos."
-        >
-          <select
-            value={form.employmentStatus}
-            onChange={(e) =>
-              update('employmentStatus', e.target.value as any)
-            }
-          >
-            <option value="employed">Empleado</option>
-            <option value="freelance">Independiente</option>
-            <option value="unemployed">Sin trabajo</option>
-          </select>
-        </FormBlock>
-
-        <FormBlock
-          label="Profesión u ocupación principal"
-          help="Opcional. Solo si aplica a tu situación actual."
-        >
-          <input
-            placeholder="Ej: Ingeniero, Diseñador, Emprendedor"
-            value={form.profession}
-            onChange={(e) =>
-              update('profession', e.target.value)
-            }
-          />
-        </FormBlock>
-      </div>
-
-      {/* Footer */}
-      {form.age && (
-        <div className="form-footer">
+      <div className="intake-question-block">
+        <label className="intake-question-label">¿En qué rango de edad estás?</label>
+        <div className="intake-chips">
+          {AGE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`intake-chip${selectedAge?.value === opt.value ? ' is-selected' : ''}`}
+              onClick={() => {
+                update('age', opt.value);
+                setShowExact(false);
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
           <button
-            onClick={onNext}
-            className="continue-ghost"
+            type="button"
+            className={`intake-chip intake-chip-exact${showExact ? ' is-selected' : ''}`}
+            onClick={() => setShowExact(true)}
           >
-            Continuar
+            Exacta
           </button>
         </div>
-      )}
+        {showExact && (
+          <input
+            className="intake-input"
+            type="number"
+            min={14}
+            max={100}
+            placeholder="Tu edad exacta"
+            value={form.age ?? ''}
+            onChange={(e) => update('age', Number(e.target.value) || undefined as any)}
+            autoFocus
+          />
+        )}
+      </div>
+
+      <div className="intake-question-block">
+        <label className="intake-question-label">¿Cuál es tu situación laboral?</label>
+        <div className="intake-chips intake-chips-grid">
+          {EMPLOYMENT_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`intake-chip intake-chip-wide${form.employmentStatus === opt.value ? ' is-selected' : ''}`}
+              onClick={() => update('employmentStatus', opt.value)}
+            >
+              <span className="intake-chip-main">{opt.label}</span>
+              <span className="intake-chip-sub">{opt.sub}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="intake-question-block">
+        <label className="intake-question-label">¿A qué te dedicas? <span className="intake-optional">(opcional)</span></label>
+        <input
+          className="intake-input"
+          placeholder="Ej: Ingeniero comercial, estudiante de medicina, emprendedor"
+          value={form.profession ?? ''}
+          onChange={(e) => update('profession', e.target.value)}
+        />
+      </div>
+
+      <div className="intake-footer">
+        {ready && (
+          <button className="intake-next-btn" onClick={onNext}>
+            Continuar
+            <span className="intake-next-arrow">→</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }

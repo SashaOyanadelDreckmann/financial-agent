@@ -1,0 +1,11 @@
+FROM node:20
+WORKDIR /repo
+RUN npm install -g pnpm@10
+COPY . .
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_APP_ORIGIN
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_APP_ORIGIN=$NEXT_PUBLIC_APP_ORIGIN
+RUN pnpm install && pnpm --filter "@financial-agent/web" build
+EXPOSE 3000
+CMD ["pnpm", "--filter", "@financial-agent/web", "start"]

@@ -14,6 +14,9 @@ type Props = {
   overlayColor?: string;   // ej: '0,0,0' o '255,255,255'
   bgScale?: number;        // ej: 1, 1.1, 1.25
   bgPosition?: string;     // ej: 'center', 'top', '50% 30%'
+
+  /** Para Modo cognitivo: valor usado en data-mode para filtros y animación */
+  dataMode?: string;
 };
 
 export default function PanelCard({
@@ -28,10 +31,16 @@ export default function PanelCard({
   overlayColor = "0,0,0",
   bgScale = 1.05,
   bgPosition = "center",
+  dataMode,
 }: Props) {
+  const dataAttrs = dataMode
+    ? { "data-mode": dataMode.replace(/\s+/g, "_").toLowerCase() }
+    : {};
+
   return (
     <div
       className={`panel-card ${className}`.trim()}
+      {...dataAttrs}
       style={
         bgImage
           ? ({

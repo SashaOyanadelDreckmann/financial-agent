@@ -5,24 +5,13 @@ export type Artifact = {
   description?: string;
   fileUrl?: string;
   previewImageUrl?: string;
-  source?: 'simulation' | 'analysis';
+  source?: 'simulation' | 'analysis' | 'diagnostic';
   createdAt: string;
   saved?: boolean;
+  meta?: Record<string, unknown>;
 };
-export type AgentBlock =
-  | {
-      type: 'chart';
-      chart: {
-        kind: string;
-        data: any[];
-        xKey: string;
-        yKey: string;
-      };
-    }
-  | {
-      type: 'document';
-      artifact: Artifact;
-    };
+export type { AgentBlock } from './types/chat';
+import type { AgentBlock } from './types/chat';
 
 export type Citation = {
   id: string;
@@ -44,24 +33,67 @@ export type AgentResponse = {
 
   // compat: algunos backends pueden mandar mode directo
   mode?: string;
+
+  // bloques UI-rich (charts/documentos/etc.) usados por la pantalla /agent
+  agent_blocks?: AgentBlock[];
+
+  // sugerencias de respuesta rápida (chips interactivos)
+  suggested_replies?: string[];
+
+  // puntuación de contexto acumulado de la hoja (0-100), emitida por el agente
+  context_score?: number;
+
+  // acción de panel: el agente puede controlar qué sección destacar
+  panel_action?: {
+    section?: 'budget' | 'transactions' | 'library' | 'recents' | 'profile' | 'news' | 'objective' | 'mode';
+    message?: string;
+  };
+
+  // actualizaciones de presupuesto inferidas de la conversación
+  budget_updates?: Array<{
+    label: string;
+    type: 'income' | 'expense';
+    amount: number;
+    category?: string;
+  }>;
 };
 
 export type ChatItem =
-  | { type: 'agent_block'; role: 'assistant'; block: any }
-  | { type: 'message'; role: 'user' | 'assistant'; content: string; mode?: string; objective?: string }
+  | { type: 'message'; role: 'user'; content: string }
+  | {
+      type: 'message';
+      role: 'assistant';
+      content: string;
+      mode?: string;
+      objective?: string;
+      agent_blocks?: AgentBlock[];
+      suggested_replies?: string[];
+    }
   | { type: 'artifact'; role: 'assistant'; artifact: Artifact }
   | { type: 'citation'; role: 'assistant'; citation: Citation };
 
 export function toChatItemsFromAgentResponse(res: AgentResponse): ChatItem[] {
   const items: ChatItem[] = [];
+  const hasArtifacts = Array.isArray(res?.artifacts) && res.artifacts.length > 0;
+  const hasBlocks = Array.isArray(res?.agent_blocks) && res.agent_blocks.length > 0;
+  const safeMessage =
+    typeof res?.message === 'string' && res.message.trim().length > 0
+      ? res.message
+      : hasArtifacts || hasBlocks
+      ? 'Entregable generado y anexado al chat. Puedes abrir, descargar o guardar el resultado.'
+      : '';
 
-  if (res?.message) {
+  if (safeMessage) {
     items.push({
       type: 'message',
       role: 'assistant',
-      content: res.message,
+      content: safeMessage,
       mode: res.mode ?? res.reasoning_mode,
       objective: res.react?.objective,
+      agent_blocks: res.agent_blocks,
+      suggested_replies: Array.isArray(res.suggested_replies) && res.suggested_replies.length > 0
+        ? res.suggested_replies
+        : undefined,
     });
   }
 

@@ -1,5 +1,29 @@
+'use client';
 import type { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
-import { FormBlock } from '@/components/ui/FormBlock';
+
+const INCOME_OPTIONS: { value: IntakeQuestionnaire['incomeBand']; label: string; sub: string }[] = [
+  { value: 'no_income', label: 'Sin ingresos', sub: 'Actualmente' },
+  { value: '<300k', label: 'Hasta $300 mil', sub: 'Mensual' },
+  { value: '300k-600k', label: '$300k – $600k', sub: 'Mensual' },
+  { value: '600k-1M', label: '$600k – $1M', sub: 'Mensual' },
+  { value: '1M-2M', label: '$1M – $2M', sub: 'Mensual' },
+  { value: '2M-4M', label: '$2M – $4M', sub: 'Mensual' },
+  { value: '>4M', label: 'Más de $4M', sub: 'Mensual' },
+  { value: 'variable', label: 'Variable', sub: 'Cambia cada mes' },
+];
+
+const COVERAGE_OPTIONS: { value: IntakeQuestionnaire['expensesCoverage']; label: string; sub: string }[] = [
+  { value: 'surplus', label: 'Me sobra', sub: 'Queda dinero al final del mes' },
+  { value: 'tight', label: 'Llego justo', sub: 'Se acaba pero alcanza' },
+  { value: 'sometimes', label: 'A veces no alcanza', sub: 'Meses difíciles' },
+  { value: 'no', label: 'No alcanza', sub: 'Necesito ajustar gastos' },
+];
+
+const TRACKING_OPTIONS: { value: IntakeQuestionnaire['tracksExpenses']; label: string }[] = [
+  { value: 'yes', label: 'Sí, siempre' },
+  { value: 'sometimes', label: 'A veces' },
+  { value: 'no', label: 'No registro' },
+];
 
 export function CashflowStep({
   form,
@@ -8,104 +32,90 @@ export function CashflowStep({
   onBack,
 }: {
   form: IntakeQuestionnaire;
-  update: <K extends keyof IntakeQuestionnaire>(
-    key: K,
-    value: IntakeQuestionnaire[K]
-  ) => void;
+  update: <K extends keyof IntakeQuestionnaire>(key: K, value: IntakeQuestionnaire[K]) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
-  const ready =
-    !!form.incomeBand &&
-    !!form.expensesCoverage &&
-    !!form.tracksExpenses;
+  const ready = !!form.incomeBand && !!form.expensesCoverage && !!form.tracksExpenses;
 
   return (
-    <div className="app-content animate-fade-in">
-      {/* Intro */}
-      <div className="app-section">
-        <p className="text-small text-muted">
-          Paso 2 · Ingresos y gastos
-        </p>
-
-        <h1>Ingresos y gastos</h1>
-
-        <p className="text-muted max-w-xl">
-          Esta sección nos ayuda a entender tu flujo mensual de dinero
-          y si tus ingresos actuales son suficientes para cubrir tus gastos.
+    <div className="intake-step animate-intake-in">
+      <div className="intake-step-header">
+        <span className="intake-step-tag">Ingresos y gastos</span>
+        <h2 className="intake-step-title">¿Cómo fluye tu dinero?</h2>
+        <p className="intake-step-subtitle">
+          Tu flujo mensual es la base de cualquier plan financiero.
+          Sin datos reales, los consejos son genéricos. Los tuyos no lo serán.
         </p>
       </div>
 
-      {/* Form */}
-      <div className="form-section">
-        <FormBlock
-          label="¿Cuál es tu nivel de ingresos mensuales aproximado?"
-          help="Selecciona un rango aproximado."
-        >
-          <select
-            value={form.incomeBand}
+      <div className="intake-question-block">
+        <label className="intake-question-label">¿Cuánto ingresas al mes, aproximadamente?</label>
+        <div className="intake-chips intake-chips-grid">
+          {INCOME_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`intake-chip intake-chip-wide${form.incomeBand === opt.value ? ' is-selected' : ''}`}
+              onClick={() => update('incomeBand', opt.value)}
+            >
+              <span className="intake-chip-main">{opt.label}</span>
+              <span className="intake-chip-sub">{opt.sub}</span>
+            </button>
+          ))}
+        </div>
+        {form.incomeBand && (
+          <input
+            className="intake-input intake-input-sm"
+            type="number"
+            min={0}
+            placeholder="Monto exacto (opcional)"
+            value={form.exactMonthlyIncome ?? ''}
             onChange={(e) =>
-              update('incomeBand', e.target.value as any)
+              update('exactMonthlyIncome', e.target.value ? Number(e.target.value) : undefined as any)
             }
-          >
-            <option value="<500k">Menos de $500.000</option>
-            <option value="500k-1M">$500.000 – $1.000.000</option>
-            <option value="1M-2M">$1.000.000 – $2.000.000</option>
-            <option value=">2M">Más de $2.000.000</option>
-          </select>
-        </FormBlock>
-
-        <FormBlock
-          label="¿Tus ingresos cubren tus gastos mensuales?"
-          help="Evalúa tu situación al final del mes."
-        >
-          <select
-            value={form.expensesCoverage}
-            onChange={(e) =>
-              update('expensesCoverage', e.target.value as any)
-            }
-          >
-            <option value="surplus">Sí, me sobra dinero</option>
-            <option value="tight">Llego justo a fin de mes</option>
-            <option value="sometimes">A veces no alcanza</option>
-            <option value="no">No logro cubrirlos</option>
-          </select>
-        </FormBlock>
-
-        <FormBlock
-          label="¿Registras o haces seguimiento de tus gastos?"
-          help="Puede ser con una app, Excel o de forma manual."
-        >
-          <select
-            value={form.tracksExpenses}
-            onChange={(e) =>
-              update('tracksExpenses', e.target.value as any)
-            }
-          >
-            <option value="yes">Sí, de forma regular</option>
-            <option value="sometimes">A veces</option>
-            <option value="no">No</option>
-          </select>
-        </FormBlock>
+          />
+        )}
       </div>
 
-      {/* Footer */}
-      <div className="form-footer">
-        <button
-          type="button"
-          onClick={onBack}
-          className="continue-ghost"
-        >
-          Volver
-        </button>
+      <div className="intake-question-block">
+        <label className="intake-question-label">¿Tus ingresos cubren tus gastos mensuales?</label>
+        <div className="intake-chips">
+          {COVERAGE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`intake-chip intake-chip-wide${form.expensesCoverage === opt.value ? ' is-selected' : ''}`}
+              onClick={() => update('expensesCoverage', opt.value)}
+            >
+              <span className="intake-chip-main">{opt.label}</span>
+              <span className="intake-chip-sub">{opt.sub}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
+      <div className="intake-question-block">
+        <label className="intake-question-label">¿Registras o monitoreas tus gastos?</label>
+        <div className="intake-chips">
+          {TRACKING_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`intake-chip${form.tracksExpenses === opt.value ? ' is-selected' : ''}`}
+              onClick={() => update('tracksExpenses', opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="intake-footer">
+        <button className="intake-back-btn" onClick={onBack}>← Volver</button>
         {ready && (
-          <button
-            type="button"
-            onClick={onNext}
-            className="continue-ghost"
-          >
-            Continuar
+          <button className="intake-next-btn" onClick={onNext}>
+            Continuar <span className="intake-next-arrow">→</span>
           </button>
         )}
       </div>

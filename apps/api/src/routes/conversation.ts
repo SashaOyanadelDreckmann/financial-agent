@@ -18,6 +18,7 @@ import {
 
 import { saveProfile } from '../services/storage.service';
 import { loadUserById } from '../services/user.service';
+import { loadSession } from '../services/session.service';
 
 const agent = new InterviewerAgent();
 
@@ -65,8 +66,9 @@ export async function conversationNextCore(
   } = req.body;
 
   // 🔐 Auth
-  const sessionId = req.cookies?.session;
-  const user = sessionId ? loadUserById(sessionId) : null;
+  const token = req.cookies?.session;
+  const session = token ? loadSession(token) : null;
+  const user = session ? loadUserById(session.userId) : null;
 
   if (!user) {
     return res.status(401).json({ error: 'No authenticated user' });

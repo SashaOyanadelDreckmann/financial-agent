@@ -1,8 +1,8 @@
-// apps/web/app/register/page.tsx
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { registerUser } from '@/lib/api';
 import { useSessionStore } from '@/state/session.store';
 
@@ -10,12 +10,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const setAuthenticated = useSessionStore((s) => s.setAuthenticated);
 
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-  });
-
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +21,6 @@ export default function RegisterPage() {
     try {
       setLoading(true);
       setError(null);
-
       const res = await registerUser(form);
       try {
         if (form.name) localStorage.setItem('user_name', form.name);
@@ -42,85 +36,68 @@ export default function RegisterPage() {
   };
 
   return (
-    <>
-      {/* Fondo animado */}
-      <div className="animated-bg">
-        <div className="bg-layer layer-1" />
-        <div className="bg-layer layer-2" />
-      </div>
+    <main className="auth-shell">
+        <div className="auth-card">
+          <div className="auth-eyebrow">FinancieraMente</div>
+          <h1 className="auth-title">Crear cuenta</h1>
+          <p className="auth-subtitle">Un primer paso breve. Luego, conversamos con calma.</p>
 
-      <main className="app-shell">
-        <div className="app-content">
-
-          <section className="app-section animate-fade-in">
-            <h1 className="text-3xl font-light">
-              Crear cuenta
-            </h1>
-
-            <p className="text-muted max-w-sm">
-              Un primer paso breve.  
-              Luego, conversamos con calma.
-            </p>
-          </section>
-
-          <section className="app-section">
-            <div className="form-section max-w-md">
-
-              <div className="form-group">
-                <label className="form-label">Nombre</label>
-                <input
-                  placeholder="Cómo prefieres que te llame"
-                  value={form.name}
-                  onChange={(e) => update('name', e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Email</label>
-                <input
-                  placeholder="Tu correo personal"
-                  value={form.email}
-                  onChange={(e) => update('email', e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Contraseña</label>
-                <input
-                  type="password"
-                  placeholder="Una clave simple, solo para ti"
-                  value={form.password}
-                  onChange={(e) => update('password', e.target.value)}
-                />
-              </div>
-
-              {error && (
-                <p className="text-small text-muted">
-                  {error}
-                </p>
-              )}
-
+          <div className="auth-fields">
+            <div className="auth-field">
+              <label className="auth-label">Nombre</label>
+              <input
+                className="auth-input"
+                type="text"
+                placeholder="Cómo prefieres que te llame"
+                value={form.name}
+                onChange={(e) => update('name', e.target.value)}
+                autoComplete="given-name"
+              />
             </div>
-          </section>
 
-          <section className="app-section">
-            <div className="form-footer max-w-md">
-              <button
-                onClick={onSubmit}
-                disabled={loading}
-                className="button-primary"
-              >
-                {loading ? 'Creando…' : 'Continuar'}
-              </button>
-
-              <span className="text-small text-muted">
-                Toma menos de un minuto
-              </span>
+            <div className="auth-field">
+              <label className="auth-label">Email</label>
+              <input
+                className="auth-input"
+                type="email"
+                placeholder="tu@correo.com"
+                value={form.email}
+                onChange={(e) => update('email', e.target.value)}
+                autoComplete="email"
+              />
             </div>
-          </section>
 
+            <div className="auth-field">
+              <label className="auth-label">Contraseña</label>
+              <input
+                className="auth-input"
+                type="password"
+                placeholder="Una clave simple, solo para ti"
+                value={form.password}
+                onChange={(e) => update('password', e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
+                autoComplete="new-password"
+              />
+            </div>
+
+            {error && <p className="auth-error">{error}</p>}
+          </div>
+
+          <button
+            className="auth-submit"
+            onClick={onSubmit}
+            disabled={loading}
+          >
+            {loading ? 'Creando…' : 'Continuar'}
+          </button>
+
+          <div className="auth-footer">
+            <span className="auth-footer-text">¿Ya tienes cuenta?</span>
+            <Link href="/login" className="auth-footer-link">Iniciar sesión</Link>
+          </div>
+
+          <p className="auth-fine-print">Toma menos de un minuto · Privado · Sin spam</p>
         </div>
-      </main>
-    </>
+    </main>
   );
 }

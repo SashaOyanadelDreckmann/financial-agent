@@ -157,7 +157,7 @@ export const ChartBlockSchema = z.object({
     xKey: z.string(),          // ej: "month"
     yKey: z.string(),          // ej: "balance"
 
-    data: z.array(z.record(z.string(), z.number())),
+    data: z.array(z.record(z.string(), z.union([z.number(), z.string()]))),
 
     // hints opcionales para la UI
     format: z.enum(['currency', 'percentage', 'number']).optional(),
@@ -168,11 +168,28 @@ export const ChartBlockSchema = z.object({
 export type ChartBlock = z.infer<typeof ChartBlockSchema>;
 
 /**
+ * 📋 Table Block
+ * Tabla comparativa renderizable en el chat.
+ */
+export const TableBlockSchema = z.object({
+  type: z.literal('table'),
+  table: z.object({
+    title: z.string(),
+    headers: z.array(z.string()),
+    rows: z.array(z.array(z.string())),
+    note: z.string().optional(),
+  }),
+});
+
+export type TableBlock = z.infer<typeof TableBlockSchema>;
+
+/**
  * 🧩 Union de bloques soportados por el agente.
  * Se puede extender sin romper compatibilidad.
  */
 export const AgentBlockSchema = z.union([
   ChartBlockSchema,
+  TableBlockSchema,
 ]);
 
 export type AgentBlock = z.infer<typeof AgentBlockSchema>;
@@ -201,7 +218,25 @@ export const ChatAgentResponseSchema = z.object({
 
   state_updates: z.record(z.string(), z.any()).default({}),
 
+  suggested_replies: z.array(z.string()).optional(),
+
+  panel_action: z.object({
+    section: z.enum(['budget', 'transactions', 'library', 'recents', 'profile', 'news', 'objective', 'mode']).optional(),
+    message: z.string().optional(),
+  }).optional(),
+
   meta: z.record(z.string(), z.any()).optional(),
+
+  // Puntuación 0-100 del contexto acumulado de esta hoja (generado por el agente)
+  context_score: z.number().min(0).max(100).optional(),
+
+  // Actualizaciones de presupuesto inferidas por el agente de la conversación
+  budget_updates: z.array(z.object({
+    label: z.string(),
+    type: z.enum(['income', 'expense']),
+    amount: z.number(),
+    category: z.string().optional(),
+  })).optional(),
 });
 
 export type ChatAgentResponse = z.infer<typeof ChatAgentResponseSchema>;

@@ -1,7 +1,20 @@
+'use client';
 import type {
   IntakeQuestionnaire,
   FinancialProductEntry,
 } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
+import { CHILE_FINANCIAL_INSTITUTIONS, FINANCIAL_SERVICE_OPTIONS } from '@/lib/financialCatalog';
+
+const QUICK_PRODUCTS = [
+  'Tarjeta de crédito',
+  'Crédito de consumo',
+  'Crédito hipotecario',
+  'Línea de crédito',
+  'Cuenta de ahorro',
+  'Fondo mutuo',
+  'AFP / APV',
+  'Seguro de vida',
+];
 
 export function ProductsStep({
   form,
@@ -11,149 +24,123 @@ export function ProductsStep({
   onBack,
 }: {
   form: IntakeQuestionnaire;
-  updateProduct: (
-    index: number,
-    field: keyof FinancialProductEntry,
-    value: any
-  ) => void;
+  updateProduct: (index: number, field: keyof FinancialProductEntry, value: any) => void;
   addProductRow: () => void;
   onNext: () => void;
   onBack: () => void;
 }) {
-  const hasAtLeastOneProduct =
-    form.financialProducts.some((p) => p.product.trim());
+  const hasAtLeastOneProduct = form.financialProducts.some((p) => p.product?.trim());
+
+  const quickAdd = (label: string) => {
+    const emptyIdx = form.financialProducts.findIndex((p) => !p.product?.trim());
+    if (emptyIdx >= 0) {
+      updateProduct(emptyIdx, 'product', label);
+    } else {
+      addProductRow();
+      // Will be set on next render — use a micro-task
+      setTimeout(() => {
+        updateProduct(form.financialProducts.length, 'product', label);
+      }, 0);
+    }
+  };
+
+  const alreadyAdded = form.financialProducts.map((p) => p.product?.trim()).filter(Boolean);
 
   return (
-    <div className="app-content animate-fade-in">
-      {/* Intro */}
-      <div className="app-section">
-        <p className="text-small text-muted">
-          Paso 4 · Productos financieros
-        </p>
-
-        <h1>Productos financieros</h1>
-
-        <p className="text-muted max-w-xl">
-          Ingresa los productos financieros que utilizas actualmente.
-          No es necesario ser exacto: una estimación aproximada es suficiente
-          para el análisis.
+    <div className="intake-step animate-intake-in">
+      <div className="intake-step-header">
+        <span className="intake-step-tag">Productos financieros</span>
+        <h2 className="intake-step-title">¿Qué productos tienes?</h2>
+        <p className="intake-step-subtitle">
+          Tus tarjetas, créditos y cuentas son piezas clave del rompecabezas.
+          Puedes ser aproximado, no necesitamos cifras exactas todavía.
         </p>
       </div>
 
-      {/* Productos */}
-      <div className="form-section">
-        {form.financialProducts.map((p, i) => (
-          <div
-            key={i}
-            className="
-              flex flex-col gap-10
-              border border-white/10
-              rounded-3xl
-              p-10
-              bg-white/[0.02]
-            "
-          >
-            <div className="text-small text-muted">
-              Producto {i + 1}
-            </div>
+      {/* Quick-add chips */}
+      <div className="intake-question-block">
+        <label className="intake-question-label">Agrega rápidamente</label>
+        <div className="intake-chips intake-chips-wrap">
+          {QUICK_PRODUCTS.map((qp) => {
+            const active = alreadyAdded.includes(qp);
+            return (
+              <button
+                key={qp}
+                type="button"
+                className={`intake-chip intake-chip-tag${active ? ' is-selected' : ''}`}
+                onClick={() => !active && quickAdd(qp)}
+                disabled={active}
+              >
+                {active ? '✓ ' : '+ '}{qp}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-            {/* Datos principales */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="form-group">
-                <label className="form-label">
-                  Tipo de producto
-                </label>
-                <input
-                  placeholder="Ej: Tarjeta de crédito, crédito consumo"
-                  value={p.product}
-                  onChange={(e) =>
-                    updateProduct(i, 'product', e.target.value)
-                  }
-                />
-              </div>
+      {/* Product rows */}
+      {form.financialProducts.filter(p => p.product?.trim()).length > 0 && (
+        <div className="intake-question-block">
+          <label className="intake-question-label">Detalla cada producto</label>
+          <div className="intake-products-list">
+            {form.financialProducts.map((p, i) => {
+              if (!p.product?.trim() && i > 0) return null;
+              return (
+                <div key={i} className="intake-product-row">
+                  <div className="intake-product-row-header">
+                    <span className="intake-product-tag">{p.product || `Producto ${i + 1}`}</span>
+                  </div>
+                  <div className="intake-product-fields">
+                    {!p.product?.trim() && (
+                      <input
+                        className="intake-input"
+                        list="financial-product-suggestions"
+                        placeholder="Tipo de producto"
+                        value={p.product}
+                        onChange={(e) => updateProduct(i, 'product', e.target.value)}
+                      />
+                    )}
+                    <input
+                      className="intake-input"
+                      list="financial-institution-suggestions"
+                      placeholder="Institución (Ej: BancoEstado, Santander)"
+                      value={p.institution ?? ''}
+                      onChange={(e) => updateProduct(i, 'institution', e.target.value)}
+                    />
+                    <input
+                      className="intake-input"
+                      type="number"
+                      placeholder="Costo mensual aprox. (opcional)"
+                      value={p.monthlyCost ?? ''}
+                      onChange={(e) =>
+                        updateProduct(i, 'monthlyCost', e.target.value ? Number(e.target.value) : undefined)
+                      }
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-              <div className="form-group">
-                <label className="form-label">
-                  Institución
-                </label>
-                <input
-                  placeholder="Ej: Banco, fintech, aseguradora"
-                  value={p.institution}
-                  onChange={(e) =>
-                    updateProduct(i, 'institution', e.target.value)
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Costos */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="form-group">
-                <label className="form-label">
-                  Costo mensual aproximado
-                </label>
-                <input
-                  type="number"
-                  placeholder="Monto en pesos"
-                  value={p.monthlyCost ?? ''}
-                  onChange={(e) =>
-                    updateProduct(
-                      i,
-                      'monthlyCost',
-                      Number(e.target.value)
-                    )
-                  }
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">
-                  Notas u observaciones
-                  <span className="text-muted"> (opcional)</span>
-                </label>
-                <input
-                  placeholder="Ej: costo anual, pago variable"
-                  value={p.notes}
-                  onChange={(e) =>
-                    updateProduct(i, 'notes', e.target.value)
-                  }
-                />
-              </div>
-            </div>
-            </div>
-        ))}
-        {/* Agregar producto */}
-        <div className="flex justify-center pt-10">
-          <button
-            type="button"
-            onClick={addProductRow}
-            className="continue-ghost"
-          >
-            <span className="text-lg leading-none">+</span>
-            Agregar otro producto
+          <button className="intake-add-btn" type="button" onClick={addProductRow}>
+            + Agregar otro producto
           </button>
         </div>
+      )}
 
-        {/* Footer */}
-        <div className="form-footer">
-          <button
-            type="button"
-            onClick={onBack}
-            className="continue-ghost"
-          >
-            Volver
-          </button>
+      <datalist id="financial-product-suggestions">
+        {FINANCIAL_SERVICE_OPTIONS.map((o) => <option key={o.id} value={o.label} />)}
+      </datalist>
+      <datalist id="financial-institution-suggestions">
+        {CHILE_FINANCIAL_INSTITUTIONS.map((inst) => <option key={inst} value={inst} />)}
+      </datalist>
 
-          {hasAtLeastOneProduct && (
-            <button
-              type="button"
-              onClick={onNext}
-              className="continue-ghost"
-            >
-              Continuar
-            </button>
-          )}
-        </div>
+      <div className="intake-footer">
+        <button className="intake-back-btn" onClick={onBack}>← Volver</button>
+        <button className="intake-next-btn" onClick={onNext}>
+          {hasAtLeastOneProduct ? 'Continuar' : 'Omitir por ahora'}
+          <span className="intake-next-arrow">→</span>
+        </button>
       </div>
     </div>
   );

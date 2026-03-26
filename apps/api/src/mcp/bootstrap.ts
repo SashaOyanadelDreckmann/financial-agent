@@ -14,7 +14,9 @@ import { registerTool, isBootstrapped, markBootstrapped } from './tools/registry
 /* WEB / SCRAPING                 */
 /* ────────────────────────────── */
 import { webExtractTool } from './tools/web/webExtract.tool';
+import { webSearchTool } from './tools/web/webSearch.tool';
 import { scrapeDoTool } from './tools/scrape/scrapeDo.tool';
+import { chileRegulatoryLookupTool } from './tools/regulatory/chileRegulatoryLookup.tool';
 
 /* ────────────────────────────── */
 /* TIME                           */
@@ -47,6 +49,15 @@ import { portfolioProjectionTool } from './tools/simpro/portfolioProjection.tool
 import { scenarioProjectionTool } from './tools/simpro/scenarioProjection.tool';
 import { riskDrawdownTool } from './tools/simpro/riskDrawdown.tool';
 import { generateSimulationPdfTool } from './tools/pdf/generateSimulationPdf.tool';
+import { generateNarrativePdfTool } from './tools/pdf/generateNarrativePdf.tool';
+
+/* ────────────────────────────── */
+/* FINANCE — Herramientas de alto valor  */
+/* ────────────────────────────── */
+import { debtAnalyzerTool }   from './tools/finance/debtAnalyzer.tool';
+import { apvOptimizerTool }   from './tools/finance/apvOptimizer.tool';
+import { budgetAnalyzerTool } from './tools/finance/budgetAnalyzer.tool';
+import { goalPlannerTool }    from './tools/finance/goalPlanner.tool';
 
 /* ────────────────────────────── */
 /* RAG                            */
@@ -60,8 +71,10 @@ export function bootstrapMCP() {
   if (isBootstrapped()) return;
 
   /* WEB */
+  registerTool(webSearchTool);
   registerTool(webExtractTool);
   registerTool(scrapeDoTool);
+  registerTool(chileRegulatoryLookupTool);
 
   /* TIME */
   registerTool(todayTool);
@@ -85,6 +98,13 @@ export function bootstrapMCP() {
   registerTool(scenarioProjectionTool);
   registerTool(riskDrawdownTool);
   registerTool(generateSimulationPdfTool);
+  registerTool(generateNarrativePdfTool);
+
+  /* FINANCE — Alto valor */
+  registerTool(debtAnalyzerTool);
+  registerTool(apvOptimizerTool);
+  registerTool(budgetAnalyzerTool);
+  registerTool(goalPlannerTool);
 
   /* RAG */
   registerTool(ragLookupTool);
