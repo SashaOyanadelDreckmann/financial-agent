@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 import { getSessionId } from '@/lib/session';
 import { sendToAgent } from '@/lib/agent';
@@ -10,6 +11,9 @@ import {
   getSessionInfo,
   removeInjectedIntake,
   removeInjectedProfile,
+  loadSheets,
+  saveSheets,
+  getWelcomeMessage,
 } from '@/lib/api';
 
 import PanelCard from '../../components/PanelCard';
@@ -59,6 +63,7 @@ type BankSimulation = {
 type DocFlight = {
   id: string;
   label: string;
+  previewUrl?: string;
   startX: number;
   startY: number;
   endX: number;
@@ -73,6 +78,11 @@ type ChatThread = {
   autoNamed: boolean;
   items: ChatItem[];
   draft: string;
+  status: 'active' | 'context';
+  contextScore: number;      // 0-100, agent-driven
+  userMessageCount: number;  // track for 70-msg limit
+  createdAt: string;
+  completedAt?: string;
 };
 
 const CHAT_GAME_INSTRUCTION =
@@ -126,62 +136,40 @@ export default function AgentPage() {
     return `${prefix}_${seed}`;
   }
 
+  function makeInitialThread(id: string, label: string, name: string): ChatThread {
+    return {
+      id,
+      label,
+      name,
+      autoNamed: false,
+      items: [],
+      draft: '',
+      status: 'active',
+      contextScore: 0,
+      userMessageCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
   const [chatThreads, setChatThreads] = useState<ChatThread[]>([
-    {
-      id: 'chat-1',
-      label: '1',
-      name: 'Plan financiero',
-      autoNamed: false,
-      items: [
-        {
-          type: 'message',
-          role: 'assistant',
-          content: CHAT_GAME_INSTRUCTION,
-          mode: 'information',
-        },
-      ],
-      draft: '',
-    },
-    {
-      id: 'chat-2',
-      label: '2',
-      name: 'Escenarios',
-      autoNamed: false,
-      items: [
-        {
-          type: 'message',
-          role: 'assistant',
-          content: CHAT_GAME_INSTRUCTION,
-          mode: 'information',
-        },
-      ],
-      draft: '',
-    },
-    {
-      id: 'chat-3',
-      label: '3',
-      name: 'Diagnostico',
-      autoNamed: false,
-      items: [
-        {
-          type: 'message',
-          role: 'assistant',
-          content: CHAT_GAME_INSTRUCTION,
-          mode: 'information',
-        },
-      ],
-      draft: '',
-    },
+    makeInitialThread('chat-1', '1', 'Nueva conversación'),
+    makeInitialThread('chat-2', '2', 'Nueva conversación'),
+    makeInitialThread('chat-3', '3', 'Nueva conversación'),
   ]);
   const [activeChatId, setActiveChatId] = useState('chat-1');
+  const [sheetsLoaded, setSheetsLoaded] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(false);
   const [micActive, setMicActive] = useState(false);
   const [panelStage, setPanelStage] = useState(3);
+  const [mobileTab, setMobileTab] = useState<'chat' | 'panel'>('chat');
+  const [mobilePanelExpanded, setMobilePanelExpanded] = useState(false);
   const [panelDirection, setPanelDirection] = useState<-1 | 1>(-1);
   const [isMonochrome, setIsMonochrome] = useState(false);
   const [progressPulse, setProgressPulse] = useState(false);
   const [isRailMorphing, setIsRailMorphing] = useState(false);
   const [levelUpText, setLevelUpText] = useState<string | null>(null);
+  const [knowledgePopupOpen, setKnowledgePopupOpen] = useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [isTransactionsModalOpen, setIsTransactionsModalOpen] = useState(false);
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
@@ -237,14 +225,34 @@ export default function AgentPage() {
     uploadedFiles: [],
   });
   const [docFlight, setDocFlight] = useState<DocFlight | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [isRealtimeOpen, setIsRealtimeOpen] = useState(false);
+  const [realtimeSpeaking, setRealtimeSpeaking] = useState(false);
+  const [realtimeListening, setRealtimeListening] = useState(false);
+  const [realtimeTranscript, setRealtimeTranscript] = useState('');
+  const [realtimeHistory, setRealtimeHistory] = useState<Array<{ role: 'user' | 'agent'; text: string }>>([]);
+  const realtimeRecognitionRef = useRef<any>(null);
+  const [bubblePos, setBubblePos] = useState({ x: 0, y: 0 });
+  const bubblePosInitRef = useRef(false);
+  const bubbleDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   const [sessionInfo, setSessionInfo] = useState<any>(null);
   const agentMetaRef = useRef<AgentMeta>({});
   const [, forceRender] = useState(0);
+  const [chatSlideDir, setChatSlideDir] = useState<'left' | 'right' | null>(null);
+  const [isMobilePreview, setIsMobilePreview] = useState(false);
   const previousKnowledgeScoreRef = useRef(0);
   const previousMilestoneDoneIdsRef = useRef<Set<string>>(new Set());
   const recentLibraryRef = useRef<HTMLDivElement | null>(null);
+  const panelScrollRef = useRef<HTMLElement | null>(null);
+  const [newReportId, setNewReportId] = useState<string | null>(null);
+  const [isLandingRecents, setIsLandingRecents] = useState(false);
+  const [panelCallout, setPanelCallout] = useState<{ section: string; message: string } | null>(null);
+  const [highlightedSection, setHighlightedSection] = useState<string | null>(null);
+  const panelCalloutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousPanelStageRef = useRef(panelStage);
+  const chatSwipeTouchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const chatBodyRef = useRef<HTMLElement | null>(null);
 
   const loadProfileIfNeeded = useProfileStore((s) => s.loadProfileIfNeeded);
   const profile = useProfileStore((s) => s.profile);
@@ -259,24 +267,105 @@ export default function AgentPage() {
   const items = activeThread?.items ?? [];
   const input = activeThread?.draft ?? '';
 
+  // Mark as mounted so portals can render (prevents hydration mismatch)
+  useEffect(() => { setMounted(true); }, []);
+
+  // Load sheets from API on mount
   useEffect(() => {
-    setChatThreads((prev) =>
-      prev.map((thread) => {
-        if (thread.items.length > 0) return thread;
-        return {
-          ...thread,
-          items: [
-            {
-              type: 'message',
-              role: 'assistant',
-              content: CHAT_GAME_INSTRUCTION,
-              mode: 'information',
-            },
-          ],
-        };
-      })
-    );
+    loadSheets().then((data) => {
+      if (data?.sheets && Array.isArray(data.sheets) && data.sheets.length > 0) {
+        // Migrate saved sheets to current type
+        const restored: ChatThread[] = data.sheets.map((s: any) => ({
+          id: s.id ?? `chat-${Date.now()}`,
+          label: s.label ?? '1',
+          name: s.name ?? 'Conversación',
+          autoNamed: s.autoNamed ?? false,
+          items: Array.isArray(s.items) ? s.items : [],
+          draft: s.draft ?? '',
+          status: s.status ?? 'active',
+          contextScore: s.contextScore ?? 0,
+          userMessageCount: s.userMessageCount ?? 0,
+          createdAt: s.createdAt ?? new Date().toISOString(),
+          completedAt: s.completedAt,
+        }));
+        // Ensure base sheets chat-1..3 always exist (pad missing ones)
+        const BASE_IDS = ['chat-1', 'chat-2', 'chat-3'] as const;
+        for (const bid of BASE_IDS) {
+          if (!restored.find((s) => s.id === bid)) {
+            const idx = BASE_IDS.indexOf(bid);
+            restored.splice(idx, 0, makeInitialThread(bid, String(idx + 1), 'Nueva conversación'));
+          }
+        }
+        setChatThreads(restored);
+        const activeSheet = restored.find((s) => s.status === 'active');
+        if (activeSheet) setActiveChatId(activeSheet.id);
+      }
+      setSheetsLoaded(true);
+    }).catch(() => setSheetsLoaded(true));
   }, []);
+
+  // Load welcome message after sheets loaded + session info
+  const welcomeLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!sheetsLoaded || welcomeLoadedRef.current) return;
+    // Check if active thread has no messages
+    const active = chatThreads.find((t) => t.id === activeChatId);
+    if (!active || active.items.length > 0) return;
+    welcomeLoadedRef.current = true;
+    getWelcomeMessage().then((data) => {
+      if (data?.message) {
+        setChatThreads((prev) =>
+          prev.map((t) =>
+            t.id === activeChatId
+              ? {
+                  ...t,
+                  items: [
+                    {
+                      type: 'message',
+                      role: 'assistant',
+                      content: data.message,
+                      mode: 'information',
+                      suggested_replies: [
+                        'Simular mis ahorros actuales',
+                        'Revisar mi presupuesto',
+                        'Ver tasas actuales en Chile',
+                        'Entender mis deudas',
+                      ],
+                    } as ChatItem,
+                  ],
+                }
+              : t
+          )
+        );
+      }
+    }).catch(() => {});
+  }, [sheetsLoaded, chatThreads, activeChatId]);
+
+  // Save sheets to API with debounce whenever they change
+  useEffect(() => {
+    if (!sheetsLoaded) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      // Save only serializable parts (no functions)
+      const toSave = chatThreads.map((t) => ({
+        id: t.id,
+        label: t.label,
+        name: t.name,
+        autoNamed: t.autoNamed,
+        items: t.items,
+        draft: t.draft,
+        status: t.status,
+        contextScore: t.contextScore,
+        userMessageCount: t.userMessageCount,
+        createdAt: t.createdAt,
+        completedAt: t.completedAt,
+      }));
+      saveSheets(toSave).catch(() => {});
+    }, 1500);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [chatThreads, sheetsLoaded]);
 
   function setDraftForActive(nextDraft: string) {
     setChatThreads((prev) =>
@@ -491,6 +580,16 @@ export default function AgentPage() {
 
   const knowledgeScore = progressBreakdown.total;
 
+  // Sheet-based progress: 3 base sheets × 50 msgs each = 100%
+  const sheetProgress = useMemo(() => {
+    const BASE_IDS = ['chat-1', 'chat-2', 'chat-3'];
+    const baseSheets = chatThreads.filter((t) => BASE_IDS.includes(t.id));
+    const completedCount = baseSheets.filter((t) => t.status === 'context').length;
+    const activeSheet = baseSheets.find((t) => t.status === 'active');
+    const activeContrib = activeSheet ? Math.min(activeSheet.userMessageCount / 50, 1) / 3 : 0;
+    return Math.min(100, Math.round((completedCount / 3 + activeContrib) * 100));
+  }, [chatThreads]);
+
   const knowledgeStage = useMemo(() => {
     if (knowledgeScore < 30) return 'Explorando';
     if (knowledgeScore < 60) return 'Perfilando';
@@ -664,18 +763,20 @@ export default function AgentPage() {
     try {
       const raw = localStorage.getItem('agent.chat.threads.v1');
       if (!raw) return;
-      const parsed = JSON.parse(raw) as ChatThread[];
-      if (!Array.isArray(parsed) || parsed.length !== 3) return;
-      const sanitized = parsed.map((thread, idx) => ({
+      const parsed = JSON.parse(raw) as Partial<ChatThread>[];
+      if (!Array.isArray(parsed)) return;
+      const sanitized: ChatThread[] = parsed.map((thread, idx) => ({
         id: thread.id || `chat-${idx + 1}`,
         label: thread.label || String(idx + 1),
-        name:
-          typeof thread.name === 'string' && thread.name.trim().length > 0
-            ? thread.name
-            : `Chat ${idx + 1}`,
-        autoNamed: Boolean((thread as Partial<ChatThread>).autoNamed),
+        name: typeof thread.name === 'string' && thread.name.trim().length > 0 ? thread.name : `Chat ${idx + 1}`,
+        autoNamed: Boolean(thread.autoNamed),
         items: Array.isArray(thread.items) ? thread.items : [],
         draft: typeof thread.draft === 'string' ? thread.draft : '',
+        status: thread.status ?? 'active',
+        contextScore: thread.contextScore ?? 0,
+        userMessageCount: thread.userMessageCount ?? 0,
+        createdAt: thread.createdAt ?? new Date().toISOString(),
+        completedAt: thread.completedAt,
       }));
       setChatThreads(sanitized);
     } catch {}
@@ -710,6 +811,32 @@ export default function AgentPage() {
       return () => window.clearTimeout(timer);
     }
   }, [panelStage]);
+
+  // Native touch listeners for chat horizontal swipe (passive:false to detect before scroll)
+  useEffect(() => {
+    const el = chatBodyRef.current;
+    if (!el) return;
+    let startX = 0;
+    let startY = 0;
+    const onStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    };
+    const onEnd = (e: TouchEvent) => {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        switchChatBySwipe(dx < 0 ? 'left' : 'right');
+      }
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchend', onEnd, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchend', onEnd);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChatId, chatThreads]);
 
   useEffect(() => {
     try {
@@ -865,6 +992,15 @@ export default function AgentPage() {
       { type: 'message', role: 'user', content: userMessage },
     ]);
 
+    // Increment user message count for sheet cycling
+    setChatThreads((prev) =>
+      prev.map((t) =>
+        t.id === activeChatId
+          ? { ...t, userMessageCount: t.userMessageCount + 1 }
+          : t
+      )
+    );
+
     try {
       const res = (await sendToAgent({
         user_message: userMessage,
@@ -889,9 +1025,16 @@ export default function AgentPage() {
           knowledge_score: knowledgeScore,
           completed_milestones: completedMilestones,
           total_milestones: milestones.length,
+          milestone_details: milestones.map((m) => ({ id: m.id, label: m.label, done: m.done })),
           reports_count: savedReports.length,
           has_profile: Boolean(sessionInfo?.injectedProfile || profile),
           has_intake: Boolean(sessionInfo?.injectedIntake),
+          budget_summary: {
+            income: budgetTotals.income,
+            expenses: budgetTotals.expenses,
+            balance: budgetTotals.balance,
+            rows_count: budgetRows.filter((r) => r.amount > 0).length,
+          },
         },
         preferences: {
           response_style: 'professional',
@@ -903,6 +1046,63 @@ export default function AgentPage() {
         res?.react?.objective ?? agentMetaRef.current.objective;
       agentMetaRef.current.mode = res?.mode ?? agentMetaRef.current.mode;
       forceRender((x) => x + 1);
+
+      // Handle panel action from agent
+      if (res?.panel_action && (res.panel_action.section || res.panel_action.message)) {
+        handlePanelAction(res.panel_action);
+      }
+
+      // Handle budget updates inferred by agent from conversation
+      if (Array.isArray(res?.budget_updates) && res.budget_updates.length > 0) {
+        setBudgetRows((prev) => {
+          const updated = [...prev];
+          for (const upd of res.budget_updates!) {
+            // Try to find existing row with same label (case-insensitive)
+            const existingIdx = updated.findIndex(
+              (r) => r.type === upd.type && r.note.toLowerCase().includes(upd.label.toLowerCase())
+            );
+            if (existingIdx >= 0) {
+              // Update existing row amount
+              updated[existingIdx] = { ...updated[existingIdx], amount: upd.amount };
+            } else {
+              // Add new row
+              updated.push({
+                id: `agent-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                category: upd.category ?? (upd.type === 'income' ? 'Ingresos' : 'Gastos'),
+                type: upd.type,
+                amount: upd.amount,
+                note: upd.label,
+              });
+            }
+          }
+          return updated;
+        });
+      }
+
+      // Update context score + check sheet cycling (50-message limit per sheet)
+      if (typeof res?.context_score === 'number') {
+        setChatThreads((prev) => {
+          const updated = prev.map((t) => {
+            if (t.id !== activeChatId) return t;
+            const newScore = Math.max(t.contextScore, res.context_score!);
+            const shouldCycle = t.userMessageCount >= 50 && t.status === 'active';
+            if (shouldCycle) {
+              // Auto-switch to next available base sheet (chat-1/2/3)
+              const BASE_IDS = ['chat-1', 'chat-2', 'chat-3'];
+              const nextSheet = prev.find((s) => BASE_IDS.includes(s.id) && s.status === 'active' && s.id !== t.id);
+              if (nextSheet) {
+                setTimeout(() => setActiveChatId(nextSheet.id), 0);
+              } else {
+                // All 3 base sheets complete — trigger meta-sheet after brief delay
+                setTimeout(() => generateMetaSheet(prev), 600);
+              }
+              return { ...t, status: 'context' as const, contextScore: newScore, completedAt: new Date().toISOString() };
+            }
+            return { ...t, contextScore: newScore };
+          });
+          return updated;
+        });
+      }
 
       const next = toChatItemsFromAgentResponse(res);
       if (next.length === 0) {
@@ -932,10 +1132,6 @@ export default function AgentPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function toggleMic() {
-    setMicActive((v) => !v);
   }
 
   function updateBudgetRow(
@@ -1015,43 +1211,310 @@ export default function AgentPage() {
 
   function launchDocToLibraryAnimation(
     label: string,
-    sourceRect?: DOMRect
+    sourceRect?: DOMRect,
+    previewUrl?: string,
+    reportId?: string
   ) {
-    if (!sourceRect || !recentLibraryRef.current) return;
+    if (!sourceRect) return;
 
-    const targetRect =
-      recentLibraryRef.current.getBoundingClientRect();
+    // 1 — Open the panel if collapsed, pointing to stage 2 (medium)
+    setPanelStage((prev) => (prev === 3 ? 2 : prev));
 
-    const startX = sourceRect.left + sourceRect.width / 2;
-    const startY = sourceRect.top + sourceRect.height / 2;
-    const endX = targetRect.left + targetRect.width / 2;
-    const endY = targetRect.top + 34;
-
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-
-    setDocFlight({
-      id,
-      label,
-      startX,
-      startY,
-      endX,
-      endY,
-      running: false,
-    });
-
-    window.requestAnimationFrame(() => {
-      setDocFlight((prev) =>
-        prev && prev.id === id
-          ? { ...prev, running: true }
-          : prev
-      );
-    });
-
+    // Small delay so panel starts opening before we measure target position
     window.setTimeout(() => {
-      setDocFlight((prev) =>
-        prev && prev.id === id ? null : prev
+      const targetEl = recentLibraryRef.current;
+      if (!targetEl) return;
+
+      const targetRect = targetEl.getBoundingClientRect();
+
+      const startX = sourceRect.left + sourceRect.width / 2;
+      const startY = sourceRect.top + sourceRect.height / 2;
+      // Land in the top-left quadrant of the recents grid (like placing on a stack)
+      const endX = targetRect.left + Math.min(80, targetRect.width * 0.28);
+      const endY = targetRect.top + targetRect.height * 0.45;
+
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+      setDocFlight({
+        id,
+        label,
+        previewUrl,
+        startX,
+        startY,
+        endX,
+        endY,
+        running: false,
+      });
+
+      // Start flight on next frame (gives browser time to mount the element)
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          setDocFlight((prev) =>
+            prev && prev.id === id ? { ...prev, running: true } : prev
+          );
+        });
+      });
+
+      // When flight lands: trigger recents landing effect + item entry animation
+      window.setTimeout(() => {
+        setDocFlight((prev) => (prev && prev.id === id ? null : prev));
+
+        // Highlight the recents block
+        setIsLandingRecents(true);
+        window.setTimeout(() => setIsLandingRecents(false), 1200);
+
+        // Mark the new item for its entry animation
+        if (reportId) {
+          setNewReportId(reportId);
+          window.setTimeout(() => setNewReportId(null), 1800);
+        }
+
+        // Scroll the panel to show recents
+        if (panelScrollRef.current && recentLibraryRef.current) {
+          const panelEl = panelScrollRef.current;
+          const cardEl = recentLibraryRef.current;
+          const panelRect = panelEl.getBoundingClientRect();
+          const cardRect = cardEl.getBoundingClientRect();
+          const scrollTarget = panelEl.scrollTop + (cardRect.top - panelRect.top) - 16;
+          panelEl.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+        }
+      }, 920);
+    }, 80);
+  }
+
+  async function generateMetaSheet(sheets: ChatThread[]) {
+    const BASE_IDS = ['chat-1', 'chat-2', 'chat-3'];
+    const contextSheets = sheets.filter((s) => BASE_IDS.includes(s.id) && s.status === 'context');
+    if (contextSheets.length < 3) return;
+    // Already have meta sheet?
+    if (sheets.find((s) => s.id === 'meta-sheet')) return;
+
+    const metaSheet = makeInitialThread('meta-sheet', '★', 'Hoja maestra');
+    setChatThreads((prev) => [...prev, metaSheet]);
+    setActiveChatId('meta-sheet');
+
+    // Build a rich context summary from the 3 sheets
+    const contextSummary = contextSheets
+      .map((s) => {
+        const msgs = s.items
+          .filter((it) => it.type === 'message')
+          .slice(-12)
+          .map((it) => `[${(it as any).role}]: ${((it as any).content ?? '').slice(0, 300)}`)
+          .join('\n');
+        return `=== Hoja "${s.name}" ===\n${msgs}`;
+      })
+      .join('\n\n');
+
+    try {
+      const res = (await sendToAgent({
+        user_message: `SISTEMA: Se han completado las 3 hojas de conversación. Genera un resumen ejecutivo personalizado que integre todo el contexto recopilado, los objetivos identificados, el perfil financiero del usuario y una hoja de ruta de recomendaciones de alto impacto para esta nueva hoja maestra. Contexto de las 3 hojas:\n${contextSummary}`,
+        session_id: getSessionId(),
+        history: [],
+        context: { meta_sheet_init: true },
+        ui_state: { meta_sheet: true },
+        preferences: { response_style: 'professional', language: 'es-CL' },
+      })) as AgentResponse;
+
+      const items = toChatItemsFromAgentResponse(res);
+      const toAdd = items.length > 0 ? items : [{
+        type: 'message' as const,
+        role: 'assistant' as const,
+        content: res.message ?? 'Hoja maestra inicializada.',
+        mode: res.mode ?? 'synthesis',
+      }];
+      setChatThreads((prev) =>
+        prev.map((t) => t.id === 'meta-sheet' ? { ...t, items: toAdd } : t)
       );
-    }, 900);
+    } catch {}
+  }
+
+  function openRealtimeMode() {
+    if (!bubblePosInitRef.current) {
+      setBubblePos({ x: window.innerWidth - 280, y: window.innerHeight - 120 });
+      bubblePosInitRef.current = true;
+    }
+    setIsRealtimeOpen(true);
+    setRealtimeHistory([]);
+    setRealtimeTranscript('');
+  }
+
+  function onBubbleMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    // Only drag on the bubble itself, not on buttons inside
+    if ((e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    const orig = { ...bubblePos };
+    bubbleDragRef.current = { startX: e.clientX, startY: e.clientY, origX: orig.x, origY: orig.y };
+
+    const onMove = (ev: MouseEvent) => {
+      if (!bubbleDragRef.current) return;
+      setBubblePos({
+        x: bubbleDragRef.current.origX + (ev.clientX - bubbleDragRef.current.startX),
+        y: bubbleDragRef.current.origY + (ev.clientY - bubbleDragRef.current.startY),
+      });
+    };
+    const onUp = () => {
+      bubbleDragRef.current = null;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  function handlePanelAction(action: { section?: string; message?: string }) {
+    const section = action.section;
+    const message = action.message;
+    if (!section && !message) return;
+
+    // 1 — Abre el panel si está colapsado
+    setPanelStage((prev) => (prev === 3 ? 2 : prev));
+
+    // 2 — Destaca la sección
+    if (section) {
+      setHighlightedSection(section);
+      window.setTimeout(() => setHighlightedSection(null), 4500);
+    }
+
+    // 3 — Muestra callout con mensaje del agente
+    if (message && section) {
+      // Cancela timer anterior si había uno
+      if (panelCalloutTimerRef.current) clearTimeout(panelCalloutTimerRef.current);
+      setPanelCallout({ section, message });
+      // Auto-dismiss después de 7 segundos
+      panelCalloutTimerRef.current = setTimeout(() => {
+        setPanelCallout(null);
+        panelCalloutTimerRef.current = null;
+      }, 7000);
+    }
+
+    // 4 — Scroll al bloque objetivo dentro del panel (breve delay para que abra)
+    if (section && panelScrollRef.current) {
+      window.setTimeout(() => {
+        const target = panelScrollRef.current?.querySelector(`[data-panel-section="${section}"]`);
+        if (target && panelScrollRef.current) {
+          const panelRect = panelScrollRef.current.getBoundingClientRect();
+          const targetRect = target.getBoundingClientRect();
+          const scrollTarget = panelScrollRef.current.scrollTop + (targetRect.top - panelRect.top) - 12;
+          panelScrollRef.current.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
+        }
+      }, 180);
+    }
+  }
+
+  function closeRealtimeMode() {
+    setIsRealtimeOpen(false);
+    setRealtimeSpeaking(false);
+    setRealtimeListening(false);
+    if (realtimeRecognitionRef.current) {
+      try { realtimeRecognitionRef.current.stop(); } catch {}
+      realtimeRecognitionRef.current = null;
+    }
+  }
+
+  async function sendRealtimeMessage(text: string) {
+    if (!text.trim()) return;
+    const userText = text.trim();
+    setRealtimeHistory((prev) => [...prev, { role: 'user', text: userText }]);
+    setRealtimeTranscript('');
+    setRealtimeSpeaking(true);
+
+    // Write user message to active chat sheet
+    setItemsForActive((prev) => [
+      ...prev,
+      { type: 'message', role: 'user', content: `🎙 ${userText}` },
+    ]);
+    setChatThreads((prev) =>
+      prev.map((t) => t.id === activeChatId ? { ...t, userMessageCount: t.userMessageCount + 1 } : t)
+    );
+
+    try {
+      const res = (await sendToAgent({
+        user_message: userText,
+        session_id: getSessionId(),
+        history: realtimeHistory.slice(-6).map((h) => ({
+          role: h.role === 'user' ? 'user' : 'assistant',
+          content: h.text,
+        })),
+        context: {},
+        ui_state: { realtime_mode: true },
+        preferences: { response_style: 'concise', language: 'es-CL' },
+      })) as any;
+
+      const agentText = res?.message ?? 'No pude generar una respuesta.';
+      setRealtimeHistory((prev) => [...prev, { role: 'agent', text: agentText }]);
+
+      // Write agent response to active chat sheet
+      setItemsForActive((prev) => [
+        ...prev,
+        { type: 'message', role: 'assistant', content: agentText, mode: 'conversacion' },
+      ]);
+
+      // TTS — voz juvenil y simpática (misma configuración que modo entrevista)
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        const utt = new SpeechSynthesisUtterance(agentText.slice(0, 500));
+        utt.lang = 'es-CL';
+        utt.rate = 1.3;
+        utt.pitch = 1.1;
+        utt.volume = 1;
+        // Prefer Google Neural / Natural / Premium voices — más naturales y juveniles
+        const voices = window.speechSynthesis.getVoices();
+        const preferred =
+          voices.find((v) => v.lang.startsWith('es') && /Google|Natural|Premium|Paulina/i.test(v.name)) ||
+          voices.find((v) => v.lang === 'es-CL') ||
+          voices.find((v) => v.lang.startsWith('es')) ||
+          null;
+        if (preferred) utt.voice = preferred;
+        utt.onend = () => setRealtimeSpeaking(false);
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utt);
+      } else {
+        setRealtimeSpeaking(false);
+      }
+    } catch {
+      setRealtimeSpeaking(false);
+      setRealtimeHistory((prev) => [...prev, { role: 'agent', text: 'Ocurrió un error. Intenta de nuevo.' }]);
+    }
+  }
+
+  function startRealtimeListen() {
+    if (realtimeListening) {
+      if (realtimeRecognitionRef.current) {
+        try { realtimeRecognitionRef.current.stop(); } catch {}
+      }
+      setRealtimeListening(false);
+      return;
+    }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const rec = new SpeechRecognition();
+    rec.lang = 'es-CL';
+    rec.interimResults = true;
+    rec.continuous = false;
+    realtimeRecognitionRef.current = rec;
+    rec.onresult = (e: any) => {
+      const transcript = Array.from(e.results)
+        .map((r: any) => r[0].transcript)
+        .join('');
+      setRealtimeTranscript(transcript);
+      if (e.results[e.results.length - 1].isFinal) {
+        sendRealtimeMessage(transcript);
+      }
+    };
+    rec.onend = () => setRealtimeListening(false);
+    rec.start();
+    setRealtimeListening(true);
+  }
+
+  function switchChatBySwipe(direction: 'left' | 'right') {
+    const ids = chatThreads.map((t) => t.id);
+    const currentIdx = ids.indexOf(activeChatId);
+    const nextIdx = direction === 'left'
+      ? Math.min(currentIdx + 1, ids.length - 1)
+      : Math.max(currentIdx - 1, 0);
+    if (nextIdx === currentIdx) return;
+    setChatSlideDir(direction);
+    setActiveChatId(ids[nextIdx]);
+    setTimeout(() => setChatSlideDir(null), 320);
   }
 
   function cyclePanelStage() {
@@ -1215,10 +1678,13 @@ export default function AgentPage() {
         !isMonochrome ? 'is-normal-matte' : ''
       } ${
         isMonochrome ? 'is-monochrome' : ''
+      } ${
+        mobilePanelExpanded ? 'mobile-panel-expanded' : ''
       }`}
     >
       <section
-        className={`agent-chat active-chat-${activeThread?.label ?? '1'}`}
+        ref={chatBodyRef as React.RefObject<HTMLElement>}
+        className={`agent-chat active-chat-${activeThread?.label ?? '1'}${chatSlideDir ? ` chat-slide-${chatSlideDir}` : ''}`}
       >
         <header className="agent-chat-header">
           <div className="agent-chat-controls-row">
@@ -1227,17 +1693,25 @@ export default function AgentPage() {
                 <button
                   key={thread.id}
                   type="button"
-                  className={`chat-sheet-tab ${
-                    thread.id === activeChatId ? 'is-active' : ''
-                  }`}
+                  className={`chat-sheet-tab${thread.id === activeChatId ? ' is-active' : ''}${thread.status === 'context' ? ' is-context' : ''}`}
                   onClick={() => setActiveChatId(thread.id)}
-                  title={`Cambiar a chat ${thread.label}`}
-                  aria-label={`Cambiar a chat ${thread.label}`}
+                  title={thread.status === 'context' ? `Contexto: ${thread.name}` : `Chat ${thread.label}: ${thread.name}`}
                 >
-                  {thread.label}
+                  {thread.status === 'context' ? '◆' : thread.label}
                 </button>
               ))}
+              {/* No manual new-sheet button — sheets are fixed to 3 + optional meta sheet */}
             </div>
+            {/* Context score progress bar */}
+            {activeThread && activeThread.contextScore > 0 && (
+              <div className="sheet-context-bar" title={`Contexto: ${activeThread.contextScore}%`}>
+                <div className="sheet-context-fill" style={{ width: `${activeThread.contextScore}%` }} />
+                <span className="sheet-context-label">{activeThread.contextScore}% contexto</span>
+                {activeThread.contextScore >= 80 && (
+                  <span className="sheet-context-badge">Rico</span>
+                )}
+              </div>
+            )}
             <div className="header-toggle-group">
               <button
                 type="button"
@@ -1264,6 +1738,15 @@ export default function AgentPage() {
                 }
               >
                 B/N
+              </button>
+              <button
+                type="button"
+                className="layout-mode-toggle mobile-preview-toggle"
+                onClick={() => setIsMobilePreview((v) => !v)}
+                title={isMobilePreview ? 'Cerrar vista mobile' : 'Ver en vista mobile'}
+                aria-label="Ver en vista mobile"
+              >
+                📱
               </button>
             </div>
           </div>
@@ -1349,8 +1832,9 @@ export default function AgentPage() {
                         publicUrl,
                         sourceRect,
                       }) => {
+                        const reportId = `${artifact.id}-${Date.now()}`;
                         const report: SavedReport = {
-                          id: `${artifact.id}-${Date.now()}`,
+                          id: reportId,
                           title: artifact.title,
                           group: classifyReportGroup(
                             artifact.title,
@@ -1365,7 +1849,9 @@ export default function AgentPage() {
                         ]);
                         launchDocToLibraryAnimation(
                           artifact.title,
-                          sourceRect
+                          sourceRect,
+                          artifact.previewImageUrl ?? publicUrl,
+                          reportId
                         );
                       }}
                     />
@@ -1387,11 +1873,49 @@ export default function AgentPage() {
               return null;
             })}
 
+            {/* Suggested reply chips — shown after last assistant message, when not loading */}
+            {!loading && (() => {
+              const lastAssistant = [...items].reverse().find(
+                (it) => it.type === 'message' && it.role === 'assistant'
+              ) as Extract<(typeof items)[number], { type: 'message'; role: 'assistant' }> | undefined;
+              if (!lastAssistant?.suggested_replies?.length) return null;
+              return (
+                <div className="suggested-replies">
+                  {lastAssistant.suggested_replies.map((reply, idx) => (
+                    <button
+                      key={`${reply}-${idx}`}
+                      type="button"
+                      className="suggestion-chip"
+                      onClick={() => {
+                        setDraftForActive(reply);
+                        // small delay to let user see the chip was pressed
+                        setTimeout(() => onSend(), 80);
+                      }}
+                    >
+                      {reply}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+
             {loading && (
-              <div className="agent-bubble assistant muted">
-                Pensando...
+              <div className="agent-bubble assistant thinking-bubble">
+                <span className="thinking-dot" />
+                <span className="thinking-dot" />
+                <span className="thinking-dot" />
               </div>
             )}
+          </div>
+
+          {/* Swipe hint dots — mobile only */}
+          <div className="mobile-chat-swipe-dots">
+            {chatThreads.map((t) => (
+              <span
+                key={t.id}
+                className={`mobile-chat-swipe-dot${t.id === activeChatId ? ' is-active' : ''}`}
+              />
+            ))}
           </div>
 
           <div className="agent-input">
@@ -1410,10 +1934,11 @@ export default function AgentPage() {
             <div className="controls">
               <button
                 type="button"
-                className={`continue-button ${micActive ? 'active' : ''}`}
-                onClick={toggleMic}
+                className="continue-button realtime-btn"
+                onClick={openRealtimeMode}
+                title="Abrir modo conversación en tiempo real"
               >
-                {micActive ? '●' : 'hablar'}
+                Hablar en tiempo real
               </button>
 
               <div style={{ flex: 1 }} />
@@ -1438,336 +1963,464 @@ export default function AgentPage() {
         className="agent-divider-rail"
         aria-label="Progreso del conocimiento del usuario"
       >
-        <div
-          className={`knowledge-rail-card ${
-            progressPulse ? 'is-level-up' : ''
-          } ${isRailMorphing ? 'is-rail-morphing' : ''} stage-${panelStage}`}
+        {/* Compact circular progress button */}
+        {/* Full-height interactive rail card */}
+        <button
+          type="button"
+          className={`knowledge-rail-card ${progressPulse ? 'is-level-up' : ''}`}
+          onClick={() => setKnowledgePopupOpen((v) => !v)}
+          aria-label={`Conocimiento ${knowledgeScore}% — ver hitos`}
+          title="Ver mapa de conocimiento"
+          style={{ '--rail-glow-h': `${knowledgeScore}%` } as React.CSSProperties}
         >
-          <span className="knowledge-rail-label">Conocimiento</span>
-          <span className="knowledge-rail-value">
-            {knowledgeScore}%
+          {/* Rotated label */}
+          <span className="knowledge-rail-label">Conoc.</span>
+
+          {/* Vertical progress track with milestone dots */}
+          <div className="knowledge-rail-track-wrap">
+            <div className="knowledge-rail-track">
+              <div
+                className="knowledge-rail-fill"
+                style={{ height: `${knowledgeScore}%` }}
+              />
+              {milestones.map((m, i) => {
+                const isNext = !m.done && milestones.slice(0, i).every((prev) => prev.done);
+                return (
+                  <div
+                    key={m.id}
+                    className={`knowledge-rail-dot${m.done ? ' is-done' : ''}${isNext ? ' is-next' : ''}`}
+                    style={{
+                      bottom: `${(i / Math.max(milestones.length - 1, 1)) * 100}%`,
+                    }}
+                    title={m.label}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Score */}
+          <div className="knowledge-rail-score">
+            <span className="knowledge-rail-value">{knowledgeScore}%</span>
+            <span className="knowledge-rail-stage">{knowledgeStage}</span>
+          </div>
+
+          {/* Milestones count */}
+          <span className="knowledge-rail-meta">
+            {completedMilestones}/{milestones.length}
           </span>
-          <span className="knowledge-rail-stage">{knowledgeStage}</span>
-          <span className="knowledge-rail-legend">
-            Ponderado: chat 30%, multi-chat 10%, bloques y diagnostico completan el mapa.
-          </span>
+
+          {/* Click hint */}
+          <span className="knowledge-rail-cta">hitos</span>
+
+          {/* Level-up toast */}
           {levelUpText && (
             <span className="knowledge-level-up" role="status">
               {levelUpText}
             </span>
           )}
+        </button>
 
-          <div
-            className="knowledge-rail-track"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={knowledgeScore}
-          >
+        {/* Floating popup */}
+        {knowledgePopupOpen && (
+          <>
             <div
-              className="knowledge-rail-fill"
-              style={{ height: `${knowledgeScore}%` }}
+              className="knowledge-popup-backdrop"
+              onClick={() => setKnowledgePopupOpen(false)}
             />
-          </div>
+            <div className="knowledge-popup" role="dialog" aria-label="Mapa de conocimiento">
+              <div className="knowledge-popup-header">
+                <div className="knowledge-popup-score">
+                  <span className="knowledge-popup-pct">{knowledgeScore}%</span>
+                  <span className="knowledge-popup-stage">{knowledgeStage}</span>
+                  <div className="knowledge-popup-bar">
+                    <div
+                      className="knowledge-popup-bar-fill"
+                      style={{ width: `${knowledgeScore}%` }}
+                    />
+                  </div>
+                </div>
+                <span className="knowledge-popup-meta">
+                  {completedMilestones}/{milestones.length}<br />hitos
+                </span>
+              </div>
+              <div className="knowledge-popup-milestones">
+                {milestones.map((milestone) => (
+                  <div
+                    key={milestone.id}
+                    className={`knowledge-popup-milestone ${milestone.done ? 'is-done' : ''}`}
+                  >
+                    <div className="knowledge-popup-check">
+                      <svg className="knowledge-popup-check-icon" viewBox="0 0 10 8">
+                        <polyline points="1,4 4,7 9,1" />
+                      </svg>
+                    </div>
+                    <span className="knowledge-popup-milestone-text">
+                      {milestone.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
-          <span className="knowledge-rail-meta">
-            {completedMilestones}/{milestones.length} hitos
-          </span>
-
-          <div className="knowledge-milestones" aria-label="Checklist de hitos">
-            {milestones.map((milestone) => (
-              <label
-                key={milestone.id}
-                className={`knowledge-milestone ${milestone.done ? 'is-done' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={milestone.done}
-                  readOnly
-                  aria-label={milestone.label}
-                />
-                <span>{milestone.label}</span>
-              </label>
-            ))}
-          </div>
+        {/* Mobile subtitle — visible only on mobile via CSS */}
+        <div className="mobile-rail-subtitle">
+          <span className="mobile-rail-subtitle-title">Financieramente</span>
+          <span className="mobile-rail-subtitle-sep">·</span>
+          <span className="mobile-rail-subtitle-desc">Proyecto de tesis</span>
         </div>
       </aside>
 
-      <aside className="agent-panel">
+      <aside className="agent-panel" ref={panelScrollRef as React.RefObject<HTMLElement>}>
+        {/* Mobile: always-visible strip handle + expand toggle */}
+        <div className="mobile-panel-handle">
+          <span className="mobile-panel-handle-title">Panel</span>
+          <button
+            type="button"
+            className="mobile-panel-toggle"
+            onClick={() => setMobilePanelExpanded((v) => !v)}
+            aria-label={mobilePanelExpanded ? 'Minimizar panel' : 'Expandir panel'}
+          >
+            {mobilePanelExpanded ? 'Minimizar' : 'Expandir'}
+          </button>
+        </div>
+        {/* Desktop: close button (hidden on mobile) */}
+        <div className="mobile-panel-close">
+          <button
+            type="button"
+            className="mobile-panel-close-btn"
+            onClick={() => setMobileTab('chat')}
+            aria-label="Volver al chat"
+          >
+            ← Chat
+          </button>
+          <span className="mobile-panel-close-title">Panel</span>
+        </div>
+        {/* Panel callout — mensaje del agente señalando una sección */}
+        {panelCallout && (
+          <div className={`panel-callout panel-callout-${panelCallout.section}`}>
+            <div className="panel-callout-icon">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="10" cy="10" r="8" />
+                <path d="M10 6v4l2.5 2.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="panel-callout-content">
+              <span className="panel-callout-tag">Agente</span>
+              <p className="panel-callout-msg">{panelCallout.message}</p>
+            </div>
+            <button
+              type="button"
+              className="panel-callout-close"
+              onClick={() => setPanelCallout(null)}
+              aria-label="Cerrar"
+            >
+              ×
+            </button>
+            <div className="panel-callout-progress" />
+          </div>
+        )}
+
         <div
           className={`panel-grid ${
             isPanelCollapsed ? 'is-compact-grid' : ''
           }`}
         >
-          <ProfileCard
-            className="panel-pos-profile"
-            userName={sessionInfo?.name ?? undefined}
-            profile={
-              sessionInfo?.injectedProfile
-                ? { profile: sessionInfo.injectedProfile }
-                : profile
-            }
-            injected={Boolean(sessionInfo?.injectedProfile)}
-          />
+          <div className="mob-col mob-col-wide">
+            <ProfileCard
+              className={`panel-pos-profile${highlightedSection === 'profile' ? ' is-panel-highlighted' : ''}`}
+              data-panel-section="profile"
+              userName={sessionInfo?.name ?? undefined}
+              profile={
+                sessionInfo?.injectedProfile
+                  ? { profile: sessionInfo.injectedProfile }
+                  : profile
+              }
+              injected={Boolean(sessionInfo?.injectedProfile)}
+            />
+          </div>
 
-          <PanelCard
-            label="Objetivo activo"
-            className="panel-pos-objective panel-flow-gradient"
-            bgImage="/fondo8.png"
-            overlayColor="154,148,148"
-            overlayOpacity={0.18}
-            bgScale={1.2}
-            bgPosition="center"
-          >
-            {agentMetaRef.current.objective ??
-              'Conversa para que el agente defina un objetivo de alto impacto.'}
-          </PanelCard>
-
-          <PanelCard
-            label="Modo cognitivo"
-            value={agentMetaRef.current.mode ?? 'En calibracion'}
-            className="panel-pos-mode panel-mode-cognitive"
-            bgImage="/image3.png"
-            overlayOpacity={0.28}
-            bgScale={1}
-            dataMode={agentMetaRef.current.mode ?? 'calibracion'}
-          />
-
-          <PanelCard
-            label="Siguiente desbloqueo"
-            className="panel-pos-next panel-flow-gradient"
-            bgImage="/fondo8.png"
-            overlayColor="154,148,148"
-            overlayOpacity={0.2}
-            bgScale={1.1}
-            bgPosition="40% 40%"
-          >
-            {nextMilestone
-              ? `Responde para completar: ${nextMilestone.label}.`
-              : 'Mapa completo. Ya tenemos una lectura avanzada de tu perfil.'}
-          </PanelCard>
-
-          <button
-            type="button"
-            className="interview-flow-card panel-pos-interview"
-            onClick={() => router.push('/interview')}
-            title="Ir a entrevista y diagnóstico"
-          >
-            <span className="interview-flow-label">Flujo guiado</span>
-            <span className="interview-flow-title">
-              Entrevista hablada
-              <br />
-              → Diagnóstico final
-                  </span>
-            <span className="interview-flow-meta">
-              Continuar proceso
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={`panel-feature-card ${
-              'panel-pos-budget'
-            } ${unlockedPanelBlocks.budgetUnlocked ? '' : 'is-locked'}`}
-            onClick={() => {
-              if (!unlockedPanelBlocks.budgetUnlocked) return;
-              setIsBudgetModalOpen(true);
-            }}
-            title={
-              unlockedPanelBlocks.budgetUnlocked
-                ? 'Abrir presupuesto inteligente'
-                : 'Bloqueado: conversa sobre ingresos y gastos'
-            }
-          >
-            <span className="panel-feature-label">Presupuesto</span>
-            <span className="panel-feature-status">
-              {unlockedPanelBlocks.budgetUnlocked ? 'Desbloqueado' : 'Bloqueado'}
-            </span>
-            <span className="panel-feature-copy">
-              Diagnostico de analista financiero, editable por chat y manual.
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={`panel-feature-card ${
-              'panel-pos-transactions'
-            } ${unlockedPanelBlocks.transactionsUnlocked ? '' : 'is-locked'}`}
-            onClick={() => {
-              if (!unlockedPanelBlocks.transactionsUnlocked) return;
-              setIsTransactionsModalOpen(true);
-            }}
-            title={
-              unlockedPanelBlocks.transactionsUnlocked
-                ? 'Abrir transacciones y finanzas abiertas'
-                : 'Bloqueado: conversa sobre cartolas y banco'
-            }
-          >
-            <span className="panel-feature-label">Transacciones</span>
-            <span className="panel-feature-status">
-              {unlockedPanelBlocks.transactionsUnlocked
-                ? 'Desbloqueado'
-                : 'Bloqueado'}
-            </span>
-            <span className="panel-feature-copy">
-              Simulador de conexion bancaria con carga de cartolas PDF/Excel.
-            </span>
-          </button>
-
-          <PanelCard
-            className="news-card panel-pos-news"
-          >
-            <a
-              href="https://fintualist.com/chile/"
-              target="_blank"
-              rel="noreferrer"
-              className="news-link"
+          <div className="mob-col mob-col-wide">
+            <PanelCard
+              label="Objetivo activo"
+              className={`panel-pos-objective panel-flow-gradient${highlightedSection === 'objective' ? ' is-panel-highlighted' : ''}`}
+              data-panel-section="objective"
+              bgImage="/fondo8.png"
+              overlayColor="154,148,148"
+              overlayOpacity={0.18}
+              bgScale={1.2}
+              bgPosition="center"
             >
-              <div className="news-image">
-                <div className="news-overlay">
-                  <span className="news-title">
-                    Noticias y contexto
+              {agentMetaRef.current.objective ??
+                'Conversa para que el agente defina un objetivo de alto impacto.'}
+            </PanelCard>
+          </div>
+
+          <div className="mob-col">
+            <PanelCard
+              label="Modo cognitivo"
+              value={agentMetaRef.current.mode ?? 'En calibracion'}
+              className={`panel-pos-mode panel-mode-cognitive${highlightedSection === 'mode' ? ' is-panel-highlighted' : ''}`}
+              data-panel-section="mode"
+              bgImage="/image3.png"
+              overlayOpacity={0.28}
+              bgScale={1}
+              dataMode={agentMetaRef.current.mode ?? 'calibracion'}
+            />
+          </div>
+
+          <div className="mob-col">
+            <PanelCard
+              label="Siguiente desbloqueo"
+              className="panel-pos-next panel-flow-gradient"
+              bgImage="/fondo8.png"
+              overlayColor="154,148,148"
+              overlayOpacity={0.2}
+              bgScale={1.1}
+              bgPosition="40% 40%"
+            >
+              {nextMilestone
+                ? `Responde para completar: ${nextMilestone.label}.`
+                : 'Mapa completo. Ya tenemos una lectura avanzada de tu perfil.'}
+            </PanelCard>
+          </div>
+
+          <div className="mob-col mob-col-wide">
+            <button
+              type="button"
+              className="interview-flow-card panel-pos-interview"
+              onClick={() => router.push('/interview')}
+              title="Ir a entrevista y diagnóstico"
+            >
+              <span className="interview-flow-label">Flujo guiado</span>
+              <span className="interview-flow-title">
+                Entrevista hablada
+                <br />
+                → Diagnóstico final
+                    </span>
+              <span className="interview-flow-meta">
+                Continuar proceso
+              </span>
+            </button>
+          </div>
+
+          <div className="mob-col">
+            <button
+              type="button"
+              data-panel-section="budget"
+              className={`panel-feature-card panel-pos-budget ${unlockedPanelBlocks.budgetUnlocked ? '' : 'is-locked'}${highlightedSection === 'budget' ? ' is-panel-highlighted' : ''}`}
+              onClick={() => {
+                if (!unlockedPanelBlocks.budgetUnlocked) return;
+                setIsBudgetModalOpen(true);
+              }}
+              title={
+                unlockedPanelBlocks.budgetUnlocked
+                  ? 'Abrir presupuesto inteligente'
+                  : 'Bloqueado: conversa sobre ingresos y gastos'
+              }
+            >
+              <span className="panel-feature-label">Presupuesto</span>
+              <span className="panel-feature-status">
+                {unlockedPanelBlocks.budgetUnlocked ? 'Desbloqueado' : 'Bloqueado'}
+              </span>
+              <span className="panel-feature-copy">
+                Diagnostico de analista financiero, editable por chat y manual.
+              </span>
+            </button>
+          </div>
+
+          <div className="mob-col">
+            <button
+              type="button"
+              data-panel-section="transactions"
+              className={`panel-feature-card panel-pos-transactions ${unlockedPanelBlocks.transactionsUnlocked ? '' : 'is-locked'}${highlightedSection === 'transactions' ? ' is-panel-highlighted' : ''}`}
+              onClick={() => {
+                if (!unlockedPanelBlocks.transactionsUnlocked) return;
+                setIsTransactionsModalOpen(true);
+              }}
+              title={
+                unlockedPanelBlocks.transactionsUnlocked
+                  ? 'Abrir transacciones y finanzas abiertas'
+                  : 'Bloqueado: conversa sobre cartolas y banco'
+              }
+            >
+              <span className="panel-feature-label">Transacciones</span>
+              <span className="panel-feature-status">
+                {unlockedPanelBlocks.transactionsUnlocked
+                  ? 'Desbloqueado'
+                  : 'Bloqueado'}
+              </span>
+              <span className="panel-feature-copy">
+                Simulador de conexion bancaria con carga de cartolas PDF/Excel.
+              </span>
+            </button>
+          </div>
+
+          <div className="mob-col mob-col-wide">
+            <PanelCard
+              className={`news-card panel-pos-news${highlightedSection === 'news' ? ' is-panel-highlighted' : ''}`}
+              data-panel-section="news"
+            >
+              <a
+                href="https://fintualist.com/chile/"
+                target="_blank"
+                rel="noreferrer"
+                className="news-link"
+              >
+                <div className="news-image">
+                  <div className="news-overlay">
+                    <span className="news-title">
+                      Noticias y contexto
+                    </span>
+                  </div>
+                </div>
+              </a>
+            </PanelCard>
+          </div>
+
+          <div className="mob-col mob-col-wide">
+            <PanelCard
+              label="Biblioteca de documentos"
+              className={`panel-pos-library panel-flow-gradient${highlightedSection === 'library' ? ' is-panel-highlighted' : ''}`}
+              data-panel-section="library"
+              bgImage="/fondo8.png"
+              overlayColor="154,148,148"
+              overlayOpacity={0.24}
+              bgScale={1.08}
+            >
+              <div className="reports-grid">
+                <div className="report-group">
+                  <span className="report-group-title">Plan de accion</span>
+                  <span className="report-group-count">
+                    {reportsByGroup.plan_action.length}
+                  </span>
+                </div>
+                <div className="report-group">
+                  <span className="report-group-title">Simulacion</span>
+                  <span className="report-group-count">
+                    {reportsByGroup.simulation.length}
+                  </span>
+                </div>
+                <div className="report-group">
+                  <span className="report-group-title">Presupuesto</span>
+                  <span className="report-group-count">
+                    {reportsByGroup.budget.length}
+                  </span>
+                </div>
+                <div className="report-group">
+                  <span className="report-group-title">Diagnostico</span>
+                  <span className="report-group-count">
+                    {reportsByGroup.diagnosis.length}
                   </span>
                 </div>
               </div>
-            </a>
-          </PanelCard>
+              <div className="report-list">
+                {savedReports.length === 0 && (
+                  <span className="report-empty">
+                    Guarda PDFs desde el chat para agruparlos aqui.
+                  </span>
+                )}
+                {savedReports.slice(0, 6).map((report) => (
+                  <a
+                    key={report.id}
+                    href={report.fileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="report-item"
+                  >
+                    <span>{report.title}</span>
+                    <span className="report-tag">{report.group}</span>
+                  </a>
+                ))}
+              </div>
+            </PanelCard>
+          </div>
 
-          <PanelCard
-            label="Biblioteca de documentos"
-            className="panel-pos-library panel-flow-gradient"
-            bgImage="/fondo8.png"
-            overlayColor="154,148,148"
-            overlayOpacity={0.24}
-            bgScale={1.08}
-          >
-            <div className="reports-grid">
-              <div className="report-group">
-                <span className="report-group-title">Plan de accion</span>
-                <span className="report-group-count">
-                  {reportsByGroup.plan_action.length}
+          <div className="mob-col mob-col-wide">
+            <div
+              ref={recentLibraryRef}
+              data-panel-section="recents"
+              className={`recent-library-card panel-pos-recent${isLandingRecents ? ' is-landing' : ''}${highlightedSection === 'recents' ? ' is-panel-highlighted' : ''}`}
+            >
+              <div className="recent-library-head">
+                <span className="recent-library-title">
+                  Documentos recientes
+                </span>
+                <span className="recent-library-count">
+                  {recentReports.length}
                 </span>
               </div>
-              <div className="report-group">
-                <span className="report-group-title">Simulacion</span>
-                <span className="report-group-count">
-                  {reportsByGroup.simulation.length}
-                </span>
-              </div>
-              <div className="report-group">
-                <span className="report-group-title">Presupuesto</span>
-                <span className="report-group-count">
-                  {reportsByGroup.budget.length}
-                </span>
-              </div>
-              <div className="report-group">
-                <span className="report-group-title">Diagnostico</span>
-                <span className="report-group-count">
-                  {reportsByGroup.diagnosis.length}
-                </span>
-              </div>
-            </div>
-            <div className="report-list">
-              {savedReports.length === 0 && (
-                <span className="report-empty">
-                  Guarda PDFs desde el chat para agruparlos aqui.
-                </span>
-              )}
-              {savedReports.slice(0, 6).map((report) => (
-                <a
-                  key={report.id}
-                  href={report.fileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="report-item"
-                >
-                  <span>{report.title}</span>
-                  <span className="report-tag">{report.group}</span>
-                </a>
-              ))}
-            </div>
-          </PanelCard>
 
-          <div
-            ref={recentLibraryRef}
-            className="recent-library-card panel-pos-recent"
-          >
-            <div className="recent-library-head">
-              <span className="recent-library-title">
-                Documentos recientes
-              </span>
-              <span className="recent-library-count">
-                {recentReports.length}
-              </span>
-            </div>
-
-            <div className="recent-library-grid">
-              {recentReports.length === 0 && (
-                <span className="recent-empty">
-                  Aqui llegan los PDFs guardados desde el chat.
-                </span>
-              )}
-              {recentReports.map((report, idx) => (
-                <a
-                  key={report.id}
-                  href={report.fileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="recent-item"
-                  style={
-                    (() => {
-                      const offset = docVisualOffset(report.id, idx);
-                      return {
-                        ['--doc-rot' as any]: `${offset.rotation}deg`,
-                        ['--doc-y' as any]: `${offset.yShift}px`,
-                      } as React.CSSProperties;
-                    })()
-                  }
-                >
-                  <div className="recent-item-preview-wrap">
-                    <embed
-                      src={`${report.fileUrl}#page=1&view=FitH&zoom=55`}
-                      type="application/pdf"
-                      className="recent-item-preview"
-                    />
-                  </div>
-                  <span className="recent-item-name">{report.title}</span>
-                </a>
-              ))}
+              <div className="recent-library-grid">
+                {recentReports.length === 0 && (
+                  <span className="recent-empty">
+                    Aqui llegan los PDFs guardados desde el chat.
+                  </span>
+                )}
+                {recentReports.map((report, idx) => (
+                  <a
+                    key={report.id}
+                    href={report.fileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`recent-item${report.id === newReportId ? ' is-new' : ''}`}
+                    style={
+                      (() => {
+                        const offset = docVisualOffset(report.id, idx);
+                        return {
+                          ['--doc-rot' as any]: `${offset.rotation}deg`,
+                          ['--doc-y' as any]: `${offset.yShift}px`,
+                        } as React.CSSProperties;
+                      })()
+                    }
+                  >
+                    <div className="recent-item-preview-wrap">
+                      <embed
+                        src={`${report.fileUrl}#page=1&view=FitH&zoom=55`}
+                        type="application/pdf"
+                        className="recent-item-preview"
+                      />
+                    </div>
+                    <span className="recent-item-name">{report.title}</span>
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
 
-          {sessionInfo?.injectedProfile && (
-            <button
-              className="continue-ghost panel-action panel-pos-aux"
-              onClick={async () => {
-                await removeInjectedProfile();
-                window.location.reload();
-              }}
-            >
-              Remover perfil inyectado
-            </button>
-          )}
+          <div className="mob-col mob-col-wide">
+            {sessionInfo?.injectedProfile && (
+              <button
+                className="continue-ghost panel-action panel-pos-aux"
+                onClick={async () => {
+                  await removeInjectedProfile();
+                  window.location.reload();
+                }}
+              >
+                Remover perfil inyectado
+              </button>
+            )}
 
-          {sessionInfo?.injectedIntake && (
-            <button
-              className="continue-ghost panel-action panel-pos-aux"
-              onClick={async () => {
-                await removeInjectedIntake();
-                window.location.reload();
-              }}
-            >
-              Remover intake inyectado
-            </button>
-          )}
+            {sessionInfo?.injectedIntake && (
+              <button
+                className="continue-ghost panel-action panel-pos-aux"
+                onClick={async () => {
+                  await removeInjectedIntake();
+                  window.location.reload();
+                }}
+              >
+                Remover intake inyectado
+              </button>
+            )}
+          </div>
         </div>
       </aside>
 
       {docFlight && (
         <div
-          className={`doc-flight-chip ${
-            docFlight.running ? 'is-running' : ''
-          }`}
+          className={`doc-flight-chip${docFlight.running ? ' is-running' : ''}`}
           style={
             {
               left: `${docFlight.startX}px`,
@@ -1777,8 +2430,19 @@ export default function AgentPage() {
             } as any
           }
         >
-          {docFlight.label}
+          <div className="doc-flight-preview">
+            {docFlight.previewUrl ? (
+              <embed
+                src={`${docFlight.previewUrl}#page=1&view=FitH`}
+                type="application/pdf"
+                className="doc-flight-embed"
+              />
+            ) : (
+              <div className="doc-flight-placeholder" />
+            )}
           </div>
+          <span className="doc-flight-label">{docFlight.label}</span>
+        </div>
       )}
 
       {isBudgetModalOpen && (
@@ -1964,6 +2628,103 @@ export default function AgentPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Floating voice bubble — only renders when open */}
+      {mounted && isRealtimeOpen && createPortal(
+        <div
+          className={`voice-bubble is-open${realtimeListening ? ' is-listening' : ''}${realtimeSpeaking ? ' is-speaking' : ''}`}
+          role="dialog"
+          aria-label="Llamada en tiempo real"
+          style={{ left: bubblePos.x, top: bubblePos.y }}
+          onMouseDown={onBubbleMouseDown}
+        >
+          <div className="voice-bubble-inner">
+            {/* Drag handle area — subtle grip indicator */}
+            <div className="voice-bubble-drag-handle" />
+
+            {/* Close */}
+            <button className="voice-bubble-close" onClick={closeRealtimeMode} aria-label="Cerrar">✕</button>
+
+            {/* Status row */}
+            <div className="voice-bubble-status">
+              <div className={`voice-status-dot${realtimeListening ? ' is-listening' : realtimeSpeaking ? ' is-speaking' : ''}`} />
+              <span className="voice-status-text">
+                {realtimeListening ? 'Escuchando...' : realtimeSpeaking ? 'Respondiendo...' : 'Listo para hablar'}
+              </span>
+              {/* Mic button inline in status row */}
+              <button
+                type="button"
+                className={`voice-mic-btn${realtimeListening ? ' is-active' : ''}`}
+                onClick={startRealtimeListen}
+                aria-label={realtimeListening ? 'Detener' : 'Hablar'}
+              >
+                <div className="voice-mic-ring" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  {realtimeListening ? (
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  ) : (
+                    <>
+                      <path d="M12 1a3 3 0 0 1 3 3v8a3 3 0 0 1-6 0V4a3 3 0 0 1 3-3z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" y1="19" x2="12" y2="23" />
+                      <line x1="8" y1="23" x2="16" y2="23" />
+                    </>
+                  )}
+                </svg>
+              </button>
+            </div>
+
+            {/* Live transcript */}
+            {(realtimeHistory.length > 0 || realtimeListening) && (
+              <div className="voice-bubble-transcript">
+                {realtimeHistory.slice(-4).map((h, idx) => (
+                  <div key={idx} className={`voice-transcript-line voice-transcript-${h.role}`}>
+                    {h.text}
+                  </div>
+                ))}
+                {realtimeListening && realtimeTranscript && (
+                  <div className="voice-transcript-line voice-transcript-user is-interim">
+                    {realtimeTranscript}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Mobile preview overlay — desktop only, portaled to body to escape overflow:hidden */}
+      {isMobilePreview && mounted && createPortal(
+        <div
+          className="mobile-preview-overlay"
+          onClick={() => setIsMobilePreview(false)}
+        >
+          <div
+            className="mobile-preview-phone"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mobile-preview-bar">
+              <span>Vista mobile — 390 × 844</span>
+              <button
+                type="button"
+                onClick={() => setIsMobilePreview(false)}
+                className="mobile-preview-close"
+              >
+                ✕
+              </button>
+            </div>
+            <iframe
+              src={window.location.href}
+              title="Mobile preview"
+              width={390}
+              height={844}
+              className="mobile-preview-iframe"
+            />
+          </div>
+        </div>,
+        document.body
       )}
     </main>
   );

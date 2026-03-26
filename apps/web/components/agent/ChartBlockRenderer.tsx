@@ -22,7 +22,7 @@ type ChartBlock = {
     subtitle?: string;
     xKey: string;
     yKey: string;
-    data: Record<string, number>[];
+    data: Record<string, number | string>[];
     format?: 'currency' | 'percentage' | 'number';
     currency?: string;
   };

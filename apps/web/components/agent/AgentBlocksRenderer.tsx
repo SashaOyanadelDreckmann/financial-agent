@@ -1,12 +1,8 @@
 'use client';
 
 import { ChartBlockRenderer } from './ChartBlockRenderer';
-
-type AgentBlock =
-  | {
-      type: 'chart';
-      chart: any;
-    };
+import { TableBlockRenderer } from './TableBlockRenderer';
+import type { AgentBlock } from '@/lib/agent.response.types';
 
 export function AgentBlocksRenderer({
   blocks,
@@ -16,11 +12,22 @@ export function AgentBlocksRenderer({
   if (!blocks?.length) return null;
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="latex-annex-blocks">
       {blocks.map((block, i) => {
         switch (block.type) {
           case 'chart':
-            return <ChartBlockRenderer key={i} block={block} />;
+            return (
+              <div key={i} className="latex-annex-chart">
+                <ChartBlockRenderer block={block} />
+              </div>
+            );
+
+          case 'table':
+            return (
+              <div key={i} className="latex-annex-table">
+                <TableBlockRenderer block={block} />
+              </div>
+            );
 
           default:
             return null;

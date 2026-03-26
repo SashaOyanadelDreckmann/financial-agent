@@ -6,7 +6,10 @@ import type {
   Citation,
   AgentBlock,
   ChartBlock,
+  TableBlock,
 } from './chat.types';
+
+import { runReportAgent } from '../report.agent/report.agent';
 
 import {
   ChatAgentResponseSchema,
@@ -75,6 +78,25 @@ type ContextChartSummary = {
   lastValue?: number;
 };
 
+type UploadedEvidenceSummary = {
+  name: string;
+};
+
+type ReportTablePayload = {
+  title: string;
+  columns: string[];
+  rows: Array<Array<string | number>>;
+  align?: Array<'left' | 'center' | 'right'>;
+};
+
+type ReportChartPayload = {
+  title: string;
+  subtitle?: string;
+  kind?: 'line' | 'bar' | 'area';
+  labels: string[];
+  values: number[];
+};
+
 type PdfContextPayload = {
   title: string;
   subtitle: string;
@@ -93,36 +115,328 @@ function isConceptualPdfRequest(input: ChatAgentInput, mode: ReasoningMode): boo
   return conceptual && !hasNumbers && (mode === 'education' || mode === 'regulation' || mode === 'information');
 }
 
+function getCurrentRequestText(input: ChatAgentInput, intent?: string): string {
+  return `${input.user_message} ${intent ?? ''}`.toLowerCase();
+}
+
+function shouldPreferNarrativeReport(
+  input: ChatAgentInput,
+  mode: ReasoningMode,
+  intent?: string
+): boolean {
+  const full = getCurrentRequestText(input, intent);
+  const asksReport = /\b(pdf|reporte|informe|documento|archivo|resumen ejecutivo)\b/i.test(full);
+  const asksTableOrChartExplanation =
+    /\b(tabla|tablas|cuadro|matriz|grafico|gráfico|chart)\b/i.test(full) &&
+    /\b(explica|explicame|explicación|analiza|interpret|estructur|resum)\b/i.test(full);
+
+  if (!asksReport && !asksTableOrChartExplanation) return false;
+
+  const strongSimulationSignal =
+    /\b(simul|proyecci|rentabilidad|drawdown|volatilidad|monte\s*carlo|escenario)\b/i.test(full) ||
+    (/\b(tasa|aporte|capital|mes|meses)\b/i.test(full) && /[\$]?\d{3,}/.test(full));
+
+  if (strongSimulationSignal && mode === 'simulation') return false;
+  return true;
+}
+
+function shouldIncludeCMFRegulatorySupport(
+  input: ChatAgentInput,
+  intent?: string
+): boolean {
+  const full = getCurrentRequestText(input, intent);
+  const asksPdf = /\b(pdf|reporte|informe|documento|archivo)\b/i.test(full);
+  const asksRegulatory = /\b(cmf|fintec|ley fintec|glosario|normativa|regulaci[oó]n|marco legal)\b/i.test(full);
+  return asksPdf && asksRegulatory;
+}
+
 function buildNarrativeSections(input: ChatAgentInput, intent: string): Array<{ heading: string; body: string }> {
   const recentUserSignals = pickRecentUserSignals(input);
-  const profile = ((input.context ?? {}) as any)?.profile ?? ((input.context ?? {}) as any)?.injected_profile;
+  const context = (input.context ?? {}) as Record<string, any>;
+  const profile = context.profile ?? context.injected_profile;
+  const recentArtifacts = pickContextArtifacts(input);
+  const recentCharts = pickContextCharts(input);
+  const uploadedEvidence = pickUploadedEvidence(input);
+  const userInstructions = [input.user_message, ...recentUserSignals].filter(Boolean).slice(0, 4).join(' | ');
   const profileSummary = profile
-    ? `Contexto de usuario disponible para personalizar el informe sin asumir datos no declarados.`
-    : 'No hay perfil completo; se usa un enfoque pedagógico y accionable.';
+    ? 'Se incorpora perfil del usuario para personalizar el contenido sin forzar un diagnóstico clínico.'
+    : 'No hay perfil completo; se usa un enfoque contextual y accionable basado en el chat.';
 
-  return [
+  const chartSummary =
+    recentCharts.length > 0
+      ? `Graficos considerados: ${recentCharts
+          .map((c) => c.title ?? c.yKey ?? c.kind)
+          .filter(Boolean)
+          .join(' | ')
+          .slice(0, 320)}.`
+      : 'No hay graficos recientes para anexar en este informe.';
+
+  const artifactSummary =
+    recentArtifacts.length > 0
+      ? `Documentos previos usados como continuidad: ${recentArtifacts
+          .map((a) => a.title)
+          .filter(Boolean)
+          .join(' | ')
+          .slice(0, 300)}.`
+      : 'No hay documentos previos del chat para continuidad.';
+
+  const evidenceSummary =
+    uploadedEvidence.length > 0
+      ? `Archivos/evidencia subida: ${uploadedEvidence.map((f) => f.name).join(' | ').slice(0, 260)}.`
+      : 'No hay evidencia de archivos subida en este tramo.';
+  const includeCMF = shouldIncludeCMFRegulatorySupport(input, intent);
+
+  const sections: Array<{ heading: string; body: string }> = [
     {
       heading: 'Contexto',
       body: `Objetivo solicitado: ${intent}. ${profileSummary}`,
     },
     {
-      heading: 'Explicación clave',
+      heading: 'Instrucciones y alcance',
       body:
+        userInstructions.length > 0
+          ? `Se priorizan estas instrucciones del usuario: ${userInstructions.slice(0, 380)}.`
+          : 'Se estructura el informe en base al contexto conversacional disponible.',
+    },
+    {
+      heading: 'Sintesis estructurada',
+      body: [
         recentUserSignals.length > 0
-          ? `Se priorizan estas señales del chat: ${recentUserSignals.join(' | ')}.`
-          : 'Se explica el concepto principal de forma ordenada y con foco práctico.',
+          ? `Senales del chat usadas para estructurar el informe: ${recentUserSignals.join(' | ').slice(0, 320)}.`
+          : 'Se entrega una sintesis clara en formato ejecutivo.',
+        chartSummary,
+        artifactSummary,
+      ].join(' '),
     },
     {
-      heading: 'Aplicación práctica',
-      body:
-        'Se incluyen ejemplos aplicados a decisiones financieras reales y próximos pasos para profundizar análisis.',
+      heading: 'Tablas, graficos y evidencia',
+      body: `${evidenceSummary} Si corresponde, el informe traduce graficos y tablas en conclusiones accionables para la decision solicitada.`,
     },
     {
-      heading: 'Fuentes y marco regulatorio',
+      heading: 'Cierre operativo',
       body:
-        'Se integra referencia regulatoria cuando corresponda (CMF y Ley Fintec), diferenciando hechos de interpretación.',
+        'Este documento es un informe contextual del tema conversado (no un diagnóstico por defecto) y queda listo para reutilizarse en nuevas iteraciones.',
     },
   ];
+
+  if (includeCMF) {
+    sections.push({
+      heading: 'Marco regulatorio y fuentes (CMF)',
+      body:
+        'Este informe integra definiciones regulatorias de la CMF cuando corresponda. Si se usan datos normativos, deben citarse explícitamente como fuente CMF en el entregable y en la respuesta del chat.',
+    });
+  }
+
+  return sections;
+}
+
+function pickUploadedEvidence(input: ChatAgentInput): UploadedEvidenceSummary[] {
+  const context = (input.context ?? {}) as Record<string, any>;
+  const direct = context.uploaded_evidence_files;
+  const consolidated = context.consolidated_context?.transactions?.uploadedFiles;
+  const candidate = Array.isArray(direct)
+    ? direct
+    : Array.isArray(consolidated)
+    ? consolidated
+    : [];
+
+  return candidate
+    .slice(-8)
+    .filter((x: unknown) => typeof x === 'string' && x.trim().length > 0)
+    .map((name: string) => ({ name: name.trim() }));
+}
+
+function isDiagnosticReportRequest(input: ChatAgentInput, intent?: string): boolean {
+  const full = getCurrentRequestText(input, intent);
+  return /\b(diagnos|diagnóstico|perfil financiero|radiograf[ií]a financiera)\b/i.test(
+    full
+  );
+}
+
+function buildDiagnosticNarrativeSections(
+  input: ChatAgentInput,
+  intent: string,
+  mode: ReasoningMode
+): Array<{ heading: string; body: string }> {
+  const context = (input.context ?? {}) as Record<string, any>;
+  const profile = context.profile ?? context.injected_profile;
+  const intake = context.intake_context ?? context.injected_intake;
+  const recentUserSignals = pickRecentUserSignals(input);
+  const recentArtifacts = pickContextArtifacts(input);
+  const recentCharts = pickContextCharts(input);
+  const uploadedEvidence = pickUploadedEvidence(input);
+
+  const profileNarrative =
+    typeof profile?.diagnosticNarrative === 'string' && profile.diagnosticNarrative.trim().length > 0
+      ? profile.diagnosticNarrative.trim().slice(0, 700)
+      : 'Sin narrativa diagnóstica persistida; se usa diagnóstico inferido desde conversación y evidencia reciente.';
+
+  const tensions = Array.isArray(profile?.tensions) ? profile.tensions.slice(0, 4) : [];
+  const hypotheses = Array.isArray(profile?.hypotheses) ? profile.hypotheses.slice(0, 4) : [];
+  const openQuestions = Array.isArray(profile?.openQuestions) ? profile.openQuestions.slice(0, 4) : [];
+
+  const chartLine =
+    recentCharts.length > 0
+      ? `Graficos relevantes del chat: ${recentCharts
+          .map((c) => c.title ?? c.yKey ?? c.kind)
+          .filter(Boolean)
+          .join(' | ')
+          .slice(0, 320)}.`
+      : 'No hay graficos recientes en el historial.';
+
+  const docsLine =
+    recentArtifacts.length > 0
+      ? `Documentos previos considerados: ${recentArtifacts
+          .map((a) => a.title)
+          .filter(Boolean)
+          .join(' | ')
+          .slice(0, 320)}.`
+      : 'No hay documentos previos en la conversacion.';
+
+  const evidenceLine =
+    uploadedEvidence.length > 0
+      ? `Evidencia subida por el usuario: ${uploadedEvidence
+          .map((f) => f.name)
+          .join(' | ')
+          .slice(0, 320)}.`
+      : 'No se detecta evidencia de cartolas/archivos en este turno.';
+
+  const profileTraits: string[] = [];
+  if (profile?.profile?.financialClarity) profileTraits.push(`claridad ${profile.profile.financialClarity}`);
+  if (profile?.profile?.decisionStyle) profileTraits.push(`decision ${profile.profile.decisionStyle}`);
+  if (profile?.profile?.timeHorizon) profileTraits.push(`horizonte ${profile.profile.timeHorizon}`);
+  if (profile?.profile?.financialPressure) profileTraits.push(`presion ${profile.profile.financialPressure}`);
+
+  return [
+    {
+      heading: 'Resumen ejecutivo del diagnostico',
+      body: `Objetivo del informe: ${intent}. Modo cognitivo aplicado: ${mode}. ${profileNarrative}`,
+    },
+    {
+      heading: 'Lectura integrada del contexto',
+      body: [
+        recentUserSignals.length > 0
+          ? `Senales conversacionales recientes: ${recentUserSignals.join(' | ').slice(0, 300)}.`
+          : 'No hay senales conversacionales recientes suficientes.',
+        chartLine,
+        docsLine,
+        evidenceLine,
+      ].join(' '),
+    },
+    {
+      heading: 'Diagnostico por categorias',
+      body: profileTraits.length
+        ? `Perfil inferido: ${profileTraits.join(', ')}.`
+        : 'Perfil inferido no estructurado: se recomienda completar entrevista para robustecer categorias.',
+    },
+    {
+      heading: 'Tensiones e hipotesis',
+      body: [
+        tensions.length > 0 ? `Tensiones detectadas: ${tensions.join(' | ')}.` : 'No se detectan tensiones explicitas.',
+        hypotheses.length > 0 ? `Hipotesis de trabajo: ${hypotheses.join(' | ')}.` : 'Sin hipotesis persistidas.',
+      ].join(' '),
+    },
+    {
+      heading: 'Brechas y proximos pasos',
+      body: [
+        openQuestions.length > 0
+          ? `Preguntas abiertas para cerrar brechas: ${openQuestions.join(' | ')}.`
+          : 'No hay preguntas abiertas persistidas; el plan puede ejecutarse con seguimiento mensual.',
+        intake ? 'Se incorporo informacion de intake para mantener coherencia con perfil.' : 'No hay intake persistido en este contexto.',
+      ].join(' '),
+    },
+  ];
+}
+
+function classifyReportCategory(
+  input: ChatAgentInput,
+  mode: ReasoningMode,
+  intent: string,
+  diagnostic: boolean
+): { key: 'plan_action' | 'simulation' | 'budget' | 'diagnosis' | 'other'; titlePrefix: string } {
+  if (diagnostic) return { key: 'diagnosis', titlePrefix: 'Diagnostico financiero integral' };
+  if (mode === 'budgeting') return { key: 'budget', titlePrefix: 'Presupuesto y flujo' };
+  if (mode === 'planification' || mode === 'decision_support')
+    return { key: 'plan_action', titlePrefix: 'Plan de accion financiero' };
+  if (mode === 'simulation' || mode === 'comparison')
+    return { key: 'simulation', titlePrefix: 'Simulacion y escenarios' };
+
+  const full = `${input.user_message} ${intent}`.toLowerCase();
+  if (/\b(presupuesto|gasto|ingreso|flujo)\b/i.test(full)) {
+    return { key: 'budget', titlePrefix: 'Presupuesto y flujo' };
+  }
+  if (/\b(plan|accion|paso a paso|roadmap)\b/i.test(full)) {
+    return { key: 'plan_action', titlePrefix: 'Plan de accion financiero' };
+  }
+  return { key: 'other', titlePrefix: 'Informe contextual' };
+}
+
+function buildBudgetReportTables(input: ChatAgentInput): ReportTablePayload[] {
+  const context = (input.context ?? {}) as Record<string, any>;
+  const rowsRaw = context.consolidated_context?.budget?.rows;
+  const totals = context.consolidated_context?.budget?.totals;
+  const rows = Array.isArray(rowsRaw) ? rowsRaw.slice(0, 20) : [];
+  if (rows.length === 0 && !totals) return [];
+
+  const out: ReportTablePayload[] = [];
+  if (rows.length > 0) {
+    out.push({
+      title: 'Detalle presupuestario',
+      columns: ['Categoria', 'Tipo', 'Monto', 'Nota'],
+      rows: rows.map((r: any) => [
+        String(r?.category ?? '-'),
+        String(r?.type ?? '-'),
+        typeof r?.amount === 'number' ? r.amount : Number(r?.amount ?? 0),
+        String(r?.note ?? ''),
+      ]),
+      align: ['left', 'center', 'right', 'left'],
+    });
+  }
+
+  if (totals && typeof totals === 'object') {
+    out.push({
+      title: 'Totales de presupuesto',
+      columns: ['Indicador', 'Valor'],
+      rows: [
+        ['Ingresos', Number(totals?.income ?? 0)],
+        ['Gastos', Number(totals?.expense ?? 0)],
+        ['Balance', Number(totals?.balance ?? 0)],
+      ],
+      align: ['left', 'right'],
+    });
+  }
+
+  return out;
+}
+
+function pickContextReportCharts(input: ChatAgentInput): ReportChartPayload[] {
+  const raw = ((input.context ?? {}) as any)?.recent_chart_blocks;
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .slice(-3)
+    .map((b: any) => {
+      const chart = b?.chart;
+      if (!chart || !Array.isArray(chart?.data) || chart.data.length === 0) return null;
+      const xKey = typeof chart?.xKey === 'string' ? chart.xKey : 'x';
+      const yKey = typeof chart?.yKey === 'string' ? chart.yKey : 'y';
+      const clipped = chart.data.slice(-48);
+      const labels = clipped.map((p: any, i: number) => String(p?.[xKey] ?? i + 1));
+      const values = clipped.map((p: any) => Number(p?.[yKey] ?? 0)).filter((v: number) => Number.isFinite(v));
+      if (labels.length === 0 || values.length === 0) return null;
+
+      return {
+        title: String(chart?.title ?? 'Grafico del informe'),
+        subtitle: typeof chart?.subtitle === 'string' ? chart.subtitle : undefined,
+        kind:
+          chart?.kind === 'line' || chart?.kind === 'bar' || chart?.kind === 'area'
+            ? chart.kind
+            : 'line',
+        labels: labels.slice(0, values.length),
+        values: values.slice(0, labels.length),
+      } as ReportChartPayload;
+    })
+    .filter((x): x is ReportChartPayload => Boolean(x));
 }
 
 type PdfFormatPreferences = {
@@ -208,8 +522,23 @@ function userAllowsAgentToChooseFormat(text: string): boolean {
 }
 
 function shouldAskPdfFormat(input: ChatAgentInput): boolean {
-  const asksPdf = /\b(pdf|reporte|informe|documento|descargar|archivo)\b/i.test(input.user_message);
+  const asksPdf = /\b(pdf|reporte|informe|documento|descargar|archivo|guarda(?:rlo)?|biblioteca)\b/i.test(
+    input.user_message
+  );
   if (!asksPdf) return false;
+
+  // Si el usuario pide generar/entregar un PDF, se ejecuta en el turno actual sin bloquear por formato.
+  const explicitGenerateIntent =
+    /\b(haz|crea|genera|entrega|arm[aá]|prepara|construye|quiero)\b/i.test(input.user_message);
+  if (explicitGenerateIntent) return false;
+
+  // Solo preguntar formato cuando el usuario explícitamente pide diseñar/ajustar formato
+  // y NO está pidiendo ejecución inmediata.
+  const explicitFormatRequest =
+    /\b(formato|audiencia|estilo visual|diseñ|diseñ[oa]r|estructura)\b/i.test(
+      input.user_message
+    );
+  if (!explicitFormatRequest) return false;
   if (userAllowsAgentToChooseFormat(input.user_message)) return false;
 
   const recentAssistantAskedFormat = (input.history ?? [])
@@ -477,27 +806,61 @@ function enrichPlanSteps(
   const genericPdfRequest = /\b(pdf|reporte|informe|documento|archivo|descargar)\b/i.test(
     input.user_message
   );
+  const diagnosticPdfRequest = isDiagnosticReportRequest(input, intent);
+  const prefersNarrativeReport = shouldPreferNarrativeReport(input, mode, intent);
+  const category = classifyReportCategory(input, mode, intent, diagnosticPdfRequest);
+  const budgetTables = buildBudgetReportTables(input);
+  const reportCharts = pickContextReportCharts(input);
   return steps.map((step) => {
     if (step.tool === 'pdf.generate_report') {
       const stylePrefs = inferPdfFormatPreferences(input);
+      const preferredSections = diagnosticPdfRequest
+        ? buildDiagnosticNarrativeSections(input, intent, mode)
+        : buildNarrativeSections(input, intent);
       return {
         ...step,
         args: {
           ...step.args,
-          title: step.args?.title ?? `Informe profesional · ${intent.slice(0, 58)}`,
+          title:
+            step.args?.title ??
+            `${category.titlePrefix} · ${intent.slice(0, 52)}`,
           subtitle:
             step.args?.subtitle ??
-            `Documento coherente con historial, perfil y objetivo del usuario`,
+            (diagnosticPdfRequest
+              ? `Diagnostico conectado a chat, graficos y evidencia subida`
+              : `Documento coherente con historial, perfil, tablas y graficos disponibles`),
+          source: diagnosticPdfRequest ? 'diagnostic' : 'analysis',
           style:
             step.args?.style ??
             (stylePrefs.style as 'corporativo' | 'minimalista' | 'tecnico' | undefined) ??
             'corporativo',
-          sections: step.args?.sections ?? buildNarrativeSections(input, intent),
+          sections: step.args?.sections ?? preferredSections,
+          tables: step.args?.tables ?? budgetTables,
+          charts: step.args?.charts ?? reportCharts,
         },
       };
     }
 
     if (step.tool !== 'pdf.generate_simulation') return step;
+
+    if (prefersNarrativeReport) {
+      const stylePrefs = inferPdfFormatPreferences(input);
+      return {
+        ...step,
+        tool: 'pdf.generate_report',
+        args: {
+          title: `${category.titlePrefix} · ${intent.slice(0, 52)}`,
+          subtitle: 'Informe estructurado desde chat, graficos, tablas, evidencia e instrucciones',
+          source: diagnosticPdfRequest ? 'diagnostic' : 'analysis',
+          style:
+            (stylePrefs.style as 'corporativo' | 'minimalista' | 'tecnico' | undefined) ??
+            'corporativo',
+          sections: buildNarrativeSections(input, intent),
+          tables: budgetTables,
+          charts: reportCharts,
+        },
+      };
+    }
 
     const monthsRaw =
       step.args?.months ??
@@ -583,16 +946,54 @@ function buildFallbackPdfStep(
   intent: string,
   inferred: InferredUserModel
 ): { goal: string; tool: string; args: any } {
+  if (isDiagnosticReportRequest(input, intent)) {
+    const category = classifyReportCategory(input, mode, intent, true);
+    return {
+      goal: 'Generar informe PDF de diagnostico integral',
+      tool: 'pdf.generate_report',
+      args: {
+        title: `${category.titlePrefix} · ${intent.slice(0, 52)}`,
+        subtitle: 'Informe conectado a chat, evidencia y diagnostico del usuario',
+        source: 'diagnostic',
+        style: 'corporativo',
+        sections: buildDiagnosticNarrativeSections(input, intent, mode),
+        tables: buildBudgetReportTables(input),
+        charts: pickContextReportCharts(input),
+      },
+    };
+  }
+
+  if (shouldPreferNarrativeReport(input, mode, intent)) {
+    const category = classifyReportCategory(input, mode, intent, false);
+    return {
+      goal: 'Generar informe PDF contextual',
+      tool: 'pdf.generate_report',
+      args: {
+        title: `${category.titlePrefix} · ${intent.slice(0, 52)}`,
+        subtitle: 'Documento estructurado con contexto conversacional, tablas y evidencia disponible',
+        source: 'analysis',
+        style: 'corporativo',
+        sections: buildNarrativeSections(input, intent),
+        tables: buildBudgetReportTables(input),
+        charts: pickContextReportCharts(input),
+      },
+    };
+  }
+
   const conceptual = isConceptualPdfRequest(input, mode);
   if (conceptual) {
+    const category = classifyReportCategory(input, mode, intent, false);
     return {
       goal: 'Generar informe PDF narrativo profesional',
       tool: 'pdf.generate_report',
       args: {
-        title: `Informe profesional · ${intent.slice(0, 58)}`,
+        title: `${category.titlePrefix} · ${intent.slice(0, 52)}`,
         subtitle: 'Documento narrativo personalizado al contexto del usuario',
+        source: 'analysis',
         style: 'corporativo',
         sections: buildNarrativeSections(input, intent),
+        tables: buildBudgetReportTables(input),
+        charts: pickContextReportCharts(input),
       },
     };
   }
@@ -624,43 +1025,111 @@ function extractChartBlocksFromToolOutput(
   tool: string,
   data: any
 ): ChartBlock[] {
-  if (!data || !Array.isArray(data.series)) return [];
-
-  // Heurística mínima: series con month + balance / p50
-  const sample = data.series[0];
-  if (!sample || typeof sample.month !== 'number') return [];
-
   const blocks: ChartBlock[] = [];
-  const pushBlock = (title: string, subtitle: string, yKey: string, kind: 'line' | 'bar' | 'area' = 'line') => {
+
+  const pushBlock = (
+    title: string,
+    subtitle: string,
+    yKey: string,
+    series: any[],
+    xKey = 'month',
+    kind: 'line' | 'bar' | 'area' = 'line',
+    format: 'currency' | 'percentage' | 'number' = 'currency',
+  ) => {
     blocks.push({
       type: 'chart',
-      chart: {
-        kind,
-        title,
-        subtitle,
-        xKey: 'month',
-        yKey,
-        data: data.series,
-        format: 'currency',
-        currency: 'CLP',
-      },
+      chart: { kind, title, subtitle, xKey, yKey, data: series, format, currency: 'CLP' },
     });
   };
 
+  // ── finance.debt_analyzer ────────────────────────────────────────
+  if (tool === 'finance.debt_analyzer' && data?.schedule?.length > 0) {
+    pushBlock(
+      'Amortización del crédito — saldo pendiente',
+      'Cómo decrece tu deuda cuota a cuota',
+      'balance', data.schedule, 'month', 'area',
+    );
+    return blocks;
+  }
+
+  // ── finance.apv_optimizer ────────────────────────────────────────
+  if (tool === 'finance.apv_optimizer' && Array.isArray(data?.chart_series) && data.chart_series.length > 0) {
+    pushBlock(
+      'APV Régimen A — proyección acumulada',
+      'Con beneficio tributario del 15%',
+      'regimen_a', data.chart_series, 'year', 'area',
+    );
+    pushBlock(
+      'APV Régimen B — proyección acumulada',
+      'Con exención de impuesto a la renta',
+      'regimen_b', data.chart_series, 'year', 'area',
+    );
+    pushBlock(
+      'Sin APV — base comparativa',
+      'Mismo aporte sin beneficio tributario',
+      'sin_apv', data.chart_series, 'year', 'line',
+    );
+    return blocks;
+  }
+
+  // ── finance.budget_analyzer ──────────────────────────────────────
+  if (tool === 'finance.budget_analyzer' && data?.summary) {
+    const s = data.summary;
+    const budgetData: Record<string, number | string>[] = [
+      { categoria: 'Gastos fijos',     valor: Number(s.rule_50_30_20?.needs_actual ?? 0) },
+      { categoria: 'Gastos variables', valor: Number(s.rule_50_30_20?.wants_actual ?? 0) },
+      { categoria: 'Deudas',          valor: Math.round((Number(s.debt_to_income_pct ?? 0) / 100) * Number(s.income ?? 0)) },
+      { categoria: 'Ahorro actual',   valor: Number(s.savings_actual ?? 0) },
+      { categoria: 'Balance libre',   valor: Math.max(0, Number(s.balance ?? 0)) },
+    ].filter((d) => Number(d.valor) > 0);
+
+    if (budgetData.length >= 2) {
+      blocks.push({
+        type: 'chart',
+        chart: {
+          kind: 'bar',
+          title: 'Distribución del ingreso mensual',
+          subtitle: `Score de salud financiera: ${s.health_score}/100 (${s.health_level})`,
+          xKey: 'categoria',
+          yKey: 'valor',
+          data: budgetData,
+          format: 'currency',
+          currency: 'CLP',
+        },
+      });
+    }
+    return blocks;
+  }
+
+  // ── finance.goal_planner ─────────────────────────────────────────
+  if (tool === 'finance.goal_planner' && Array.isArray(data?.summary?.series) && data.summary.series.length > 0) {
+    pushBlock(
+      'Proyección hacia tu meta financiera',
+      'Evolución del ahorro vs meta objetivo',
+      'balance', data.summary.series, 'month', 'area',
+    );
+    return blocks;
+  }
+
+  // ── Simulaciones existentes (backward compat) ────────────────────
+  if (!Array.isArray(data?.series)) return [];
+  const sample = data.series[0];
+  if (!sample || typeof sample.month !== 'number') return [];
+
   if ('p10' in sample && 'p50' in sample && 'p90' in sample) {
-    pushBlock('Monte Carlo - Percentil P50', 'Escenario central esperado', 'p50', 'line');
-    pushBlock('Monte Carlo - Banda conservadora P10', 'Cola baja de resultados', 'p10', 'area');
-    pushBlock('Monte Carlo - Banda optimista P90', 'Cola alta de resultados', 'p90', 'area');
+    pushBlock('Monte Carlo - Percentil P50', 'Escenario central esperado', 'p50', data.series, 'month', 'line');
+    pushBlock('Monte Carlo - Banda conservadora P10', 'Cola baja de resultados', 'p10', data.series, 'month', 'area');
+    pushBlock('Monte Carlo - Banda optimista P90', 'Cola alta de resultados', 'p90', data.series, 'month', 'area');
     return blocks;
   }
 
   if ('balance' in sample && 'scenario' in sample) {
-    pushBlock('Escenario proyectado - Balance', 'Comparación por escenario', 'balance', 'line');
+    pushBlock('Escenario proyectado - Balance', 'Comparación por escenario', 'balance', data.series, 'month', 'line');
     return blocks;
   }
 
   if ('balance' in sample) {
-    pushBlock('Evolución del portafolio', 'Proyección en el tiempo', 'balance', 'line');
+    pushBlock('Evolución del portafolio', 'Proyección en el tiempo', 'balance', data.series, 'month', 'line');
     return blocks;
   }
 
@@ -759,7 +1228,11 @@ export async function runCoreAgent(
     if (rag?.citations) citations.push(...rag.citations);
   }
 
-  if (mode === 'regulation' || /\b(cmf|fintec|ley fintec|regulaci[oó]n)\b/i.test(text)) {
+  if (
+    mode === 'regulation' ||
+    /\b(cmf|fintec|ley fintec|regulaci[oó]n|glosario|normativa)\b/i.test(text) ||
+    shouldIncludeCMFRegulatorySupport(input, classification.intent)
+  ) {
     const reg = await runMCPTool({
       tool: 'regulatory.lookup_cl',
       args: { query: text, limit: 4 },
@@ -793,16 +1266,20 @@ export async function runCoreAgent(
     : { objective: 'respond', steps: [] };
 
   if (isConceptualPdfRequest(input, mode)) {
+    const category = classifyReportCategory(input, mode, classification.intent, false);
     plan.steps = plan.steps.map((s) =>
       s.tool === 'pdf.generate_simulation'
         ? {
             ...s,
             tool: 'pdf.generate_report',
             args: {
-              title: `Informe profesional · ${classification.intent.slice(0, 58)}`,
+              title: `${category.titlePrefix} · ${classification.intent.slice(0, 52)}`,
               subtitle: 'Documento narrativo personalizado al contexto del usuario',
+              source: 'analysis',
               style: 'corporativo',
               sections: buildNarrativeSections(input, classification.intent),
+              tables: buildBudgetReportTables(input),
+              charts: pickContextReportCharts(input),
             },
           }
         : s
@@ -826,10 +1303,101 @@ export async function runCoreAgent(
   );
 
   /* ────────────────────────────── */
+  /* Contexto compartido para PDFs  */
+  /* ────────────────────────────── */
+  const _uiState = (input.ui_state ?? {}) as Record<string, any>;
+  const _ctx = (input.context ?? {}) as Record<string, any>;
+  const _budgetRows: any[] = Array.isArray(_uiState.budget_rows)
+    ? _uiState.budget_rows
+    : Array.isArray(_ctx.budget_rows)
+    ? _ctx.budget_rows
+    : [];
+  const _budgetSummary = _uiState.budget_summary ?? {};
+
+  /* ────────────────────────────── */
   /* Ejecutar tools                 */
   /* ────────────────────────────── */
   for (const step of plan.steps) {
     if (!step.tool) continue;
+
+    // ── Informe narrativo: delegar al agente director de informes ──────────
+    if (step.tool === 'pdf.generate_report') {
+      try {
+        const uiState = _uiState;
+        const ctx = _ctx;
+        const budgetRows = _budgetRows;
+        const budgetSummary = _budgetSummary;
+
+        const reportArtifact = await runReportAgent({
+          user_message: text,
+          intent: classification.intent,
+          mode,
+          style: step.args?.style ?? 'corporativo',
+          source: isDiagnosticReportRequest(input, classification.intent)
+            ? 'diagnostic'
+            : (step.args?.source ?? 'analysis'),
+          history: (input.history ?? []).slice(-14),
+          user_profile: ctx.injected_profile ?? undefined,
+          injected_intake: ctx.injected_intake ?? undefined,
+          budget: {
+            income: Number(budgetSummary.income ?? 0),
+            expenses: Number(budgetSummary.expenses ?? 0),
+            balance: Number(budgetSummary.balance ?? 0),
+            rows: budgetRows,
+          },
+          recent_charts: Array.isArray(ctx.recent_chart_summaries)
+            ? ctx.recent_chart_summaries
+            : undefined,
+          recent_artifacts: Array.isArray(ctx.recent_artifacts)
+            ? ctx.recent_artifacts
+            : undefined,
+          knowledge_score: typeof uiState.knowledge_score === 'number'
+            ? uiState.knowledge_score
+            : undefined,
+          milestones: Array.isArray(uiState.milestone_details)
+            ? uiState.milestone_details
+            : undefined,
+        });
+
+        if (reportArtifact) {
+          if (isDiagnosticReportRequest(input, classification.intent)) {
+            (reportArtifact as any).source = 'diagnostic';
+            (reportArtifact as any).meta = {
+              ...((reportArtifact as any).meta ?? {}),
+              report_kind: 'diagnostic_integral',
+              generated_by: 'report_agent',
+            };
+          } else {
+            (reportArtifact as any).meta = {
+              ...((reportArtifact as any).meta ?? {}),
+              generated_by: 'report_agent',
+            };
+          }
+          artifacts.push(reportArtifact);
+          tool_calls.push({
+            tool: 'pdf.generate_report',
+            args: step.args ?? {},
+            status: 'success',
+            result: { artifact_id: (reportArtifact as any).id },
+          } as ToolCall);
+        }
+      } catch (reportErr) {
+        console.error('[ReportAgent] Error generating deep report, falling back to standard tool:', reportErr);
+        // Fall through to standard tool execution
+        const result = await runMCPTool({
+          tool: step.tool,
+          args: step.args ?? {},
+          turn_id: turnId,
+          user_id: input.user_id,
+          ctx: { mode, intent: classification.intent },
+        });
+        if (result?.tool_call) tool_calls.push(result.tool_call);
+        if (result?.data && isArtifactLike(result.data)) artifacts.push(result.data);
+        if (result?.citations) citations.push(...result.citations);
+      }
+      continue;
+    }
+    // ──────────────────────────────────────────────────────────────────────
 
     const result = await runMCPTool({
       tool: step.tool,
@@ -848,6 +1416,17 @@ export async function runCoreAgent(
 
       // 📦 artifacts
       if (isArtifactLike(result.data)) {
+        if (
+          result.data.type === 'pdf' &&
+          isDiagnosticReportRequest(input, classification.intent)
+        ) {
+          result.data.source = 'diagnostic';
+          result.data.meta = {
+            ...(result.data.meta ?? {}),
+            report_kind: 'diagnostic_integral',
+            context_scope: 'chat_charts_uploads_profile',
+          };
+        }
         artifacts.push(result.data);
       }
 
@@ -862,21 +1441,79 @@ export async function runCoreAgent(
   }
 
   if (asksPdfNow && artifacts.length === 0) {
-    const fallbackStep = buildFallbackPdfStep(input, mode, classification.intent, inferredUserModel);
-    const forced = await runMCPTool({
-      tool: fallbackStep.tool,
-      args: fallbackStep.args ?? {},
-      turn_id: turnId,
-      user_id: input.user_id,
-      ctx: { mode, intent: classification.intent },
-    });
-    if (forced?.tool_call) tool_calls.push(forced.tool_call);
-    if (forced?.data) {
-      tool_outputs.push({ tool: fallbackStep.tool, data: forced.data });
-      if (isArtifactLike(forced.data)) artifacts.push(forced.data);
+    try {
+      const fallbackArtifact = await runReportAgent({
+        user_message: text,
+        intent: classification.intent,
+        mode,
+        style: 'corporativo',
+        source: isDiagnosticReportRequest(input, classification.intent) ? 'diagnostic' : 'analysis',
+        history: (input.history ?? []).slice(-14),
+        user_profile: _ctx.injected_profile ?? undefined,
+        injected_intake: _ctx.injected_intake ?? undefined,
+        budget: {
+          income: Number(_budgetSummary.income ?? 0),
+          expenses: Number(_budgetSummary.expenses ?? 0),
+          balance: Number(_budgetSummary.balance ?? 0),
+          rows: _budgetRows,
+        },
+        recent_charts: Array.isArray(_ctx.recent_chart_summaries) ? _ctx.recent_chart_summaries : undefined,
+        recent_artifacts: Array.isArray(_ctx.recent_artifacts) ? _ctx.recent_artifacts : undefined,
+        knowledge_score: typeof _uiState.knowledge_score === 'number' ? _uiState.knowledge_score : undefined,
+        milestones: Array.isArray(_uiState.milestone_details) ? _uiState.milestone_details : undefined,
+      });
+      if (fallbackArtifact) {
+        (fallbackArtifact as any).meta = {
+          ...((fallbackArtifact as any).meta ?? {}),
+          generated_by: 'report_agent',
+          path: 'fallback',
+        };
+        tool_outputs.push({ tool: 'pdf.generate_report', data: fallbackArtifact });
+        artifacts.push(fallbackArtifact);
+        tool_calls.push({
+          tool: 'pdf.generate_report',
+          args: {},
+          status: 'success',
+          result: { artifact_id: (fallbackArtifact as any).id },
+        } as ToolCall);
+      }
+    } catch (fallbackErr) {
+      console.error('[ReportAgent] Fallback report failed, using standard MCP tool:', fallbackErr);
+      const fallbackStep = buildFallbackPdfStep(input, mode, classification.intent, inferredUserModel);
+      const forced = await runMCPTool({
+        tool: fallbackStep.tool,
+        args: fallbackStep.args ?? {},
+        turn_id: turnId,
+        user_id: input.user_id,
+        ctx: { mode, intent: classification.intent },
+      });
+      if (forced?.tool_call) tool_calls.push(forced.tool_call);
+      if (forced?.data) {
+        tool_outputs.push({ tool: fallbackStep.tool, data: forced.data });
+        if (isArtifactLike(forced.data)) artifacts.push(forced.data);
+      }
+      if (forced?.citations) citations.push(...forced.citations);
     }
-    if (forced?.citations) citations.push(...forced.citations);
   }
+
+  /* ────────────────────────────── */
+  /* Documentos adjuntos            */
+  /* ────────────────────────────── */
+  const context = (input.context ?? {}) as Record<string, any>;
+  const uploadedDocs = Array.isArray(context.uploaded_documents)
+    ? context.uploaded_documents
+    : [];
+  const docsText =
+    uploadedDocs.length > 0
+      ? uploadedDocs
+          .filter((d: any) => d?.name && typeof d?.text === 'string')
+          .map((d: any) => `[Documento: ${d.name}]\n${(d.text as string).slice(0, 24000)}\n`)
+          .join('\n---\n\n')
+      : '';
+  const effectiveMessage =
+    docsText.length > 0
+      ? `[El usuario ha adjuntado los siguientes documentos. Usa su contenido para responder de forma precisa.]\n\n${docsText}\n[Pregunta del usuario:]\n${text}`
+      : text;
 
   /* ────────────────────────────── */
   /* Prompt final                   */
@@ -889,7 +1526,8 @@ export async function runCoreAgent(
 Reglas:
 - Explica resultados de forma clara y estructurada.
 - Si hay gráficos, descríbelos y refiérelos en el texto.
-- Si existe PDF, incentiva guardarlo o reutilizarlo sin pedir confirmación.`,
+- Si existe PDF, incentiva guardarlo o reutilizarlo sin pedir confirmación.
+- Si el usuario adjuntó documentos (PDF, Excel), analiza su contenido y responde en base a ellos.`,
     },
     ...(input.history ?? []).map((h) => ({
       role: h.role as LLMMessage['role'],
@@ -898,7 +1536,7 @@ Reglas:
     {
       role: 'user',
       content: JSON.stringify({
-        message: text,
+        message: effectiveMessage,
         objective: plan.objective,
         tool_outputs,
         context: input.context ?? {},
@@ -910,7 +1548,155 @@ Reglas:
   ];
 
   const rawMessage = await complete(messages, { temperature: 0.4 });
-  let message = stripEmojis(rawMessage ?? '');
+
+  // Parse SUGERENCIAS from response
+  let suggested_replies: string[] | undefined;
+  const sugerenciasMatch = rawMessage?.match(/<SUGERENCIAS>(\[[\s\S]*?\])<\/SUGERENCIAS>/);
+  if (sugerenciasMatch) {
+    try {
+      const parsed = JSON.parse(sugerenciasMatch[1]);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        suggested_replies = parsed
+          .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0)
+          .slice(0, 4);
+      }
+    } catch {}
+  }
+
+  // Parse PANEL action from response
+  let panel_action: { section?: 'budget' | 'transactions' | 'library' | 'recents' | 'profile' | 'news' | 'objective' | 'mode'; message?: string } | undefined;
+  const panelMatch = rawMessage?.match(/<PANEL>(\{[\s\S]*?\})<\/PANEL>/);
+  if (panelMatch) {
+    try {
+      const parsed = JSON.parse(panelMatch[1]);
+      if (parsed && typeof parsed === 'object') {
+        const validSections = ['budget', 'transactions', 'library', 'recents', 'profile', 'news', 'objective', 'mode'] as const;
+        const rawSection = typeof parsed.section === 'string' ? parsed.section : undefined;
+        panel_action = {
+          section: rawSection && (validSections as readonly string[]).includes(rawSection)
+            ? rawSection as typeof validSections[number]
+            : undefined,
+          message: typeof parsed.message === 'string' ? parsed.message.slice(0, 120) : undefined,
+        };
+      }
+    } catch {}
+  }
+
+  // Parse CONTEXT_SCORE from response
+  let context_score: number | undefined;
+  const contextScoreMatch = rawMessage?.match(/<CONTEXT_SCORE>(\d{1,3})<\/CONTEXT_SCORE>/);
+  if (contextScoreMatch) {
+    const s = parseInt(contextScoreMatch[1], 10);
+    if (s >= 0 && s <= 100) context_score = s;
+  }
+
+  // Parse inline CHART blocks from response (agent can emit charts without tools)
+  const chartTagRegex = /<CHART>([\s\S]*?)<\/CHART>/g;
+  let chartMatch: RegExpExecArray | null;
+  while ((chartMatch = chartTagRegex.exec(rawMessage ?? '')) !== null) {
+    try {
+      const parsed = JSON.parse(chartMatch[1]);
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        Array.isArray(parsed.data) &&
+        parsed.data.length > 0 &&
+        typeof parsed.xKey === 'string' &&
+        typeof parsed.yKey === 'string'
+      ) {
+        const validKinds = ['line', 'bar', 'area'] as const;
+        const kind: 'line' | 'bar' | 'area' = validKinds.includes(parsed.kind) ? parsed.kind : 'bar';
+        const validFormats = ['currency', 'percentage', 'number'] as const;
+        const format = validFormats.includes(parsed.format) ? parsed.format : 'number';
+        // Coerce all values to numbers (agent sometimes emits strings)
+        const coercedData: Array<Record<string, number>> = parsed.data.map((row: Record<string, unknown>) => {
+          const out: Record<string, number> = {};
+          for (const [k, v] of Object.entries(row)) {
+            const n = Number(v);
+            out[k] = Number.isFinite(n) ? n : 0;
+          }
+          return out;
+        });
+        agent_blocks.push({
+          type: 'chart',
+          chart: {
+            kind,
+            title: typeof parsed.title === 'string' ? parsed.title.slice(0, 80) : 'Gráfico',
+            subtitle: typeof parsed.subtitle === 'string' ? parsed.subtitle.slice(0, 120) : undefined,
+            xKey: parsed.xKey,
+            yKey: parsed.yKey,
+            data: coercedData,
+            format,
+            currency: typeof parsed.currency === 'string' ? parsed.currency : 'CLP',
+          },
+        } as ChartBlock);
+      }
+    } catch {}
+  }
+
+  // Parse inline TABLE blocks
+  const tableTagRegex = /<TABLE>([\s\S]*?)<\/TABLE>/g;
+  let tableMatch: RegExpExecArray | null;
+  while ((tableMatch = tableTagRegex.exec(rawMessage ?? '')) !== null) {
+    try {
+      const parsed = JSON.parse(tableMatch[1]);
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        typeof parsed.title === 'string' &&
+        Array.isArray(parsed.headers) &&
+        Array.isArray(parsed.rows)
+      ) {
+        agent_blocks.push({
+          type: 'table',
+          table: {
+            title: parsed.title.slice(0, 100),
+            headers: parsed.headers.map((h: unknown) => String(h ?? '')),
+            rows: parsed.rows.map((row: unknown[]) =>
+              (Array.isArray(row) ? row : []).map((cell: unknown) => String(cell ?? ''))
+            ),
+            note: typeof parsed.note === 'string' ? parsed.note.slice(0, 200) : undefined,
+          },
+        } as TableBlock);
+      }
+    } catch {}
+  }
+
+  // Parse BUDGET_UPDATE blocks (agent can push budget rows to the panel)
+  let budget_updates: Array<{ label: string; type: 'income' | 'expense'; amount: number; category?: string }> | undefined;
+  const budgetTagRegex = /<BUDGET_UPDATE>([\s\S]*?)<\/BUDGET_UPDATE>/g;
+  let budgetMatch: RegExpExecArray | null;
+  const rawBudgetUpdates: Array<{ label: string; type: 'income' | 'expense'; amount: number; category?: string }> = [];
+  while ((budgetMatch = budgetTagRegex.exec(rawMessage ?? '')) !== null) {
+    try {
+      const parsed = JSON.parse(budgetMatch[1]);
+      const arr = Array.isArray(parsed) ? parsed : [parsed];
+      for (const item of arr) {
+        if (!item || typeof item !== 'object') continue;
+        const amount = Number(item.amount);
+        if (!Number.isFinite(amount) || amount < 0) continue;
+        const type = item.type === 'income' ? 'income' : 'expense';
+        rawBudgetUpdates.push({
+          label: typeof item.label === 'string' ? item.label.slice(0, 60) : 'Ítem',
+          type,
+          amount: Math.round(amount),
+          category: typeof item.category === 'string' ? item.category : undefined,
+        });
+      }
+    } catch {}
+  }
+  if (rawBudgetUpdates.length > 0) budget_updates = rawBudgetUpdates;
+
+  let message = stripEmojis(
+    (rawMessage ?? '')
+      .replace(/<SUGERENCIAS>[\s\S]*?<\/SUGERENCIAS>/g, '')
+      .replace(/<PANEL>[\s\S]*?<\/PANEL>/g, '')
+      .replace(/<CONTEXT_SCORE>[\s\S]*?<\/CONTEXT_SCORE>/g, '')
+      .replace(/<CHART>[\s\S]*?<\/CHART>/g, '')
+      .replace(/<TABLE>[\s\S]*?<\/TABLE>/g, '')
+      .replace(/<BUDGET_UPDATE>[\s\S]*?<\/BUDGET_UPDATE>/g, '')
+      .trim()
+  );
   if (!message) {
     if (artifacts.length > 0) {
       message =
@@ -956,6 +1742,10 @@ Reglas:
     state_updates: {
       inferred_user_model: inferredUserModel,
     },
+    suggested_replies,
+    panel_action,
+    context_score,
+    budget_updates,
     meta: {
       turn_id: turnId,
       latency_ms: Date.now() - startedAt,

@@ -21,6 +21,7 @@ function getClient(): OpenAI {
 type CompleteOptions = {
   systemPrompt?: string;
   temperature?: number;
+  model?: string;
 };
 
 // ✅ Overloads (esto suele matar el error de VSCode altiro)
@@ -31,6 +32,12 @@ export async function complete(
   options?: CompleteOptions
 ): Promise<string> {
   const openai = getClient();
+  const model = options?.model ?? process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
+  const envTemp = process.env.OPENAI_TEMPERATURE
+    ? Number(process.env.OPENAI_TEMPERATURE)
+    : undefined;
+  const temperature =
+    options?.temperature ?? (Number.isFinite(envTemp) ? envTemp : 0.6);
 
   const messages: LLMMessage[] =
     typeof input === 'string'
@@ -44,9 +51,9 @@ export async function complete(
       : input;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4.1-mini',
+    model,
     messages,
-    temperature: options?.temperature ?? 0.6,
+    temperature,
   });
 
   return response.choices[0].message.content?.trim() ?? '';
@@ -56,11 +63,13 @@ export async function completeStructured<T>(params: {
   system: string;
   user: string;
   temperature?: number;
+  model?: string;
 }): Promise<T> {
   const openai = getClient();
+  const model = params.model ?? process.env.OPENAI_MODEL ?? 'gpt-4.1';
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4.1',
+    model,
     messages: [
       { role: 'system', content: `${params.system}\n\nRespond ONLY with valid json.` },
       { role: 'user', content: `${params.user}\n\njson` },

@@ -1,6 +1,7 @@
 // apps/api/src/services/storage.service.ts
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { FinancialDiagnosticProfile } from '../schemas/profile.schema';
 
 /* ────────────────────────────── */
@@ -14,7 +15,9 @@ import { FinancialDiagnosticProfile } from '../schemas/profile.schema';
  * En producción este servicio puede ser reemplazado
  * por una implementación sobre DB o storage externo.
  */
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(process.cwd(), 'data');
 
 /* ────────────────────────────── */
 /* Utilidades internas            */
@@ -31,11 +34,11 @@ function ensureDataDir(): void {
 
 /**
  * Genera un identificador trazable y ordenable temporalmente.
- * NOTA: deliberadamente no usa UUID para facilitar auditoría humana.
  */
 function generateProfileId(): string {
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  return `financial_profile_${ts}`;
+  // Incluye UUID para evitar colisiones y evitar IDs predecibles en producción.
+  return `financial_profile_${ts}_${crypto.randomUUID()}`;
 }
 
 /**
@@ -43,6 +46,18 @@ function generateProfileId(): string {
  */
 function resolveProfilePath(profileId: string): string {
   return path.join(DATA_DIR, `${profileId}.json`);
+}
+
+function atomicWriteJson(filePath: string, data: unknown) {
+  const dir = path.dirname(filePath);
+  const tmp = path.join(
+    dir,
+    `.${path.basename(filePath)}.${process.pid}.${crypto
+      .randomBytes(6)
+      .toString('hex')}.tmp`
+  );
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
+  fs.renameSync(tmp, filePath);
 }
 
 /* ────────────────────────────── */
@@ -64,11 +79,7 @@ export function saveProfile(
   const profileId = generateProfileId();
   const filePath = resolveProfilePath(profileId);
 
-  fs.writeFileSync(
-    filePath,
-    JSON.stringify(profile, null, 2),
-    'utf-8'
-  );
+  atomicWriteJson(filePath, profile);
 
   return {
     profileId,

@@ -16,13 +16,22 @@ const DEFAULT_INTAKE = {
   employmentStatus: 'employed' as
     | 'employed'
     | 'freelance'
-    | 'unemployed',
-  profession: undefined as string | undefined,
-  incomeBand: '500k-1M' as
-    | '<500k'
-    | '500k-1M'
+    | 'unemployed'
+    | 'student'
+    | 'employed_student'
+    | 'freelance_student'
+    | 'employed_freelance'
+    | 'employed_freelance_student',
+  profession: '' as string,
+  incomeBand: '600k-1M' as
+    | 'no_income'
+    | '<300k'
+    | '300k-600k'
+    | '600k-1M'
     | '1M-2M'
-    | '>2M',
+    | '2M-4M'
+    | '>4M'
+    | 'variable',
   exactMonthlyIncome: undefined as number | undefined,
 
   expensesCoverage: 'tight' as
@@ -41,7 +50,8 @@ const DEFAULT_INTAKE = {
     | '<300k'
     | '300k-1M'
     | '1M-3M'
-    | '>3M'
+    | '3M-10M'
+    | '>10M'
     | undefined,
   exactSavingsAmount: undefined as number | undefined,
 
@@ -86,6 +96,9 @@ type InterviewState = {
   /** Bloque activo */
   currentBlockId?: InterviewBlockId;
 
+  /** Análisis/metadata opcional (p.ej. output LLM) */
+  llmAnalysis?: any;
+
   /** Respuestas locales por bloque */
   answersByBlock: Record<InterviewBlockId, string[]>;
 
@@ -97,6 +110,7 @@ type InterviewState = {
 
   /** Actions */
   setIntake: (intake: Partial<typeof DEFAULT_INTAKE>) => void;
+  setLLMAnalysis: (analysis: any) => void;
   setResponse: (response: any) => void;
   addAnswer: (blockId: InterviewBlockId, answer: string) => void;
   resetBlock: (blockId: InterviewBlockId) => void;
@@ -110,6 +124,8 @@ export const useInterviewStore = create<InterviewState>((set) => ({
   intake: JSON.parse(JSON.stringify(DEFAULT_INTAKE)),
 
   currentBlockId: undefined,
+
+  llmAnalysis: undefined,
 
   answersByBlock: {},
   completedBlocks: {},
@@ -132,7 +148,7 @@ export const useInterviewStore = create<InterviewState>((set) => ({
     })),
 
   setLLMAnalysis: (analysis: any) =>
-    set(() => ({ llmAnalysis: analysis })),
+    set({ llmAnalysis: analysis }),
 
   /**
    * Punto CRÍTICO de sincronización con backend

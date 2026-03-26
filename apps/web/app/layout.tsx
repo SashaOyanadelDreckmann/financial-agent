@@ -3,6 +3,12 @@ import './globals.css';
 import './agent.css';
 import { AnimatedBackground } from '@/components/layout/AnimatedBackground';
 
+export const metadata = {
+  title: 'Financiera Mente',
+  description: 'Claridad financiera, antes de decidir.',
+  viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -10,11 +16,18 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="FinMente" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
+      </head>
       <body>
-        {/* Fondo animado global */}
         <AnimatedBackground />
-
-        {/* App shell neutro (SIN padding) */}
         <div className="app-shell">
           {children}
         </div>

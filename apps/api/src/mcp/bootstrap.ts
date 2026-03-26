@@ -52,6 +52,14 @@ import { generateSimulationPdfTool } from './tools/pdf/generateSimulationPdf.too
 import { generateNarrativePdfTool } from './tools/pdf/generateNarrativePdf.tool';
 
 /* ────────────────────────────── */
+/* FINANCE — Herramientas de alto valor  */
+/* ────────────────────────────── */
+import { debtAnalyzerTool }   from './tools/finance/debtAnalyzer.tool';
+import { apvOptimizerTool }   from './tools/finance/apvOptimizer.tool';
+import { budgetAnalyzerTool } from './tools/finance/budgetAnalyzer.tool';
+import { goalPlannerTool }    from './tools/finance/goalPlanner.tool';
+
+/* ────────────────────────────── */
 /* RAG                            */
 /* ────────────────────────────── */
 import { ragLookupTool } from './tools/rag/ragLookup.tool';
@@ -91,6 +99,12 @@ export function bootstrapMCP() {
   registerTool(riskDrawdownTool);
   registerTool(generateSimulationPdfTool);
   registerTool(generateNarrativePdfTool);
+
+  /* FINANCE — Alto valor */
+  registerTool(debtAnalyzerTool);
+  registerTool(apvOptimizerTool);
+  registerTool(budgetAnalyzerTool);
+  registerTool(goalPlannerTool);
 
   /* RAG */
   registerTool(ragLookupTool);

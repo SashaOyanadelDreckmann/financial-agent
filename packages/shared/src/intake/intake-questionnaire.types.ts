@@ -2,13 +2,22 @@
 export type EmploymentStatus =
   | 'employed'
   | 'freelance'
-  | 'unemployed';
+  | 'unemployed'
+  | 'student'
+  | 'employed_student'
+  | 'freelance_student'
+  | 'employed_freelance'
+  | 'employed_freelance_student';
 
 export type IncomeBand =
-  | '<500k'
-  | '500k-1M'
+  | 'no_income'
+  | '<300k'
+  | '300k-600k'
+  | '600k-1M'
   | '1M-2M'
-  | '>2M';
+  | '2M-4M'
+  | '>4M'
+  | 'variable';
 
 export type ExpensesCoverage =
   | 'surplus'
@@ -26,7 +35,8 @@ export type SavingsBand =
   | '<300k'
   | '300k-1M'
   | '1M-3M'
-  | '>3M';
+  | '3M-10M'
+  | '>10M';
 
 export type RiskReaction =
   | 'sell'

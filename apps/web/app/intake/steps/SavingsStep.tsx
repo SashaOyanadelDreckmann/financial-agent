@@ -1,5 +1,13 @@
+'use client';
 import type { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
-import { FormBlock } from '@/components/ui/FormBlock';
+
+const SAVINGS_BAND_OPTIONS: { value: IntakeQuestionnaire['savingsBand']; label: string }[] = [
+  { value: '<300k', label: 'Menos de $300k' },
+  { value: '300k-1M', label: '$300k – $1M' },
+  { value: '1M-3M', label: '$1M – $3M' },
+  { value: '3M-10M', label: '$3M – $10M' },
+  { value: '>10M', label: 'Más de $10M' },
+];
 
 export function SavingsStep({
   form,
@@ -8,119 +16,108 @@ export function SavingsStep({
   onBack,
 }: {
   form: IntakeQuestionnaire;
-  update: <K extends keyof IntakeQuestionnaire>(
-    key: K,
-    value: IntakeQuestionnaire[K]
-  ) => void;
+  update: <K extends keyof IntakeQuestionnaire>(key: K, value: IntakeQuestionnaire[K]) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
   const ready =
     form.hasSavingsOrInvestments === false ||
-    (form.hasSavingsOrInvestments === true &&
-      Boolean(form.savingsBand));
+    (form.hasSavingsOrInvestments === true && !!form.savingsBand);
 
   return (
-    <div className="app-content animate-fade-in">
-      {/* Intro */}
-      <div className="app-section">
-        <p className="text-small text-muted">
-          Paso 3 · Ahorro, inversión y deudas
-        </p>
-
-        <h1>Ahorro, inversión y deudas</h1>
-
-        <p className="text-muted max-w-xl">
-          Esta sección nos permite entender tu situación financiera general:
-          si tienes un respaldo de ahorro y si mantienes compromisos de deuda
-          activos actualmente.
+    <div className="intake-step animate-intake-in">
+      <div className="intake-step-header">
+        <span className="intake-step-tag">Ahorro y deudas</span>
+        <h2 className="intake-step-title">¿Dónde estás parado hoy?</h2>
+        <p className="intake-step-subtitle">
+          Tu colchón financiero y tus compromisos actuales determinan cuánto espacio
+          tienes para crecer. Seamos honestos.
         </p>
       </div>
 
-      {/* Form */}
-      <div className="form-section">
-        {/* ───────── Ahorro ───────── */}
-        <FormBlock
-          label="¿Actualmente tienes ahorros o dinero destinado a inversión?"
-          help="Incluye ahorros en cuentas, depósitos, fondos o inversiones."
-        >
-          <select
-            value={form.hasSavingsOrInvestments ? 'yes' : 'no'}
-            onChange={(e) =>
-              update(
-                'hasSavingsOrInvestments',
-                e.target.value === 'yes'
-              )
-            }
+      <div className="intake-question-block">
+        <label className="intake-question-label">¿Tienes ahorros o dinero invertido?</label>
+        <p className="intake-question-hint">Cuenta bancaria de ahorro, DAP, fondos mutuos, AFP voluntario, etc.</p>
+        <div className="intake-chips">
+          <button
+            type="button"
+            className={`intake-chip intake-chip-yesno${form.hasSavingsOrInvestments === true ? ' is-selected' : ''}`}
+            onClick={() => update('hasSavingsOrInvestments', true)}
           >
-            <option value="yes">Sí</option>
-            <option value="no">No</option>
-          </select>
-        </FormBlock>
+            Sí, tengo
+          </button>
+          <button
+            type="button"
+            className={`intake-chip intake-chip-yesno${form.hasSavingsOrInvestments === false ? ' is-selected' : ''}`}
+            onClick={() => {
+              update('hasSavingsOrInvestments', false);
+              update('savingsBand', undefined as any);
+            }}
+          >
+            Todavía no
+          </button>
+        </div>
 
         {form.hasSavingsOrInvestments && (
-          <FormBlock
-            label="¿A cuánto asciende aproximadamente ese ahorro o inversión?"
-            help="Selecciona un rango aproximado. No es necesario ser exacto."
-          >
-            <select
-              value={form.savingsBand ?? ''}
+          <div className="intake-sub-question animate-intake-in">
+            <label className="intake-question-label-sm">¿En qué rango están esos ahorros?</label>
+            <div className="intake-chips">
+              {SAVINGS_BAND_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value!}
+                  type="button"
+                  className={`intake-chip${form.savingsBand === opt.value ? ' is-selected' : ''}`}
+                  onClick={() => update('savingsBand', opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <input
+              className="intake-input intake-input-sm"
+              type="number"
+              min={0}
+              placeholder="Monto exacto (opcional)"
+              value={form.exactSavingsAmount ?? ''}
               onChange={(e) =>
-                update('savingsBand', e.target.value as any)
+                update('exactSavingsAmount', e.target.value ? Number(e.target.value) : undefined as any)
               }
-            >
-              <option value="" disabled>
-                Selecciona un rango
-              </option>
-              <option value="<500k">Menos de $500.000</option>
-              <option value="500k-1M">$500.000 – $1.000.000</option>
-              <option value="1M-2M">$1.000.000 – $2.000.000</option>
-              <option value=">2M">Más de $2.000.000</option>
-            </select>
-          </FormBlock>
-        )}
-
-        {/* ───────── Deudas ───────── */}
-        <FormBlock
-          label="¿Actualmente tienes deudas o compromisos financieros activos?"
-          help="Incluye créditos, tarjetas, préstamos o pagos en cuotas."
-        >
-          <select
-            value={form.hasDebt ? 'yes' : 'no'}
-            onChange={(e) =>
-              update('hasDebt', e.target.value === 'yes')
-            }
-          >
-            <option value="yes">Sí</option>
-            <option value="no">No</option>
-          </select>
-        </FormBlock>
-
-        {form.hasDebt && (
-          <div className="text-small text-muted max-w-xl">
-            Más adelante te pediremos el detalle de tus productos financieros
-            para entender mejor estas deudas (montos, costos y condiciones).
+            />
           </div>
         )}
       </div>
 
-      {/* Footer */}
-      <div className="form-footer">
-        <button
-          type="button"
-          onClick={onBack}
-          className="continue-ghost"
-        >
-          Volver
-        </button>
-
-        {ready && (
+      <div className="intake-question-block">
+        <label className="intake-question-label">¿Tienes deudas o compromisos financieros activos?</label>
+        <p className="intake-question-hint">Tarjeta de crédito, crédito de consumo, hipotecario, cuotas, etc.</p>
+        <div className="intake-chips">
           <button
             type="button"
-            onClick={onNext}
-            className="continue-ghost"
+            className={`intake-chip intake-chip-yesno${form.hasDebt === true ? ' is-selected is-caution' : ''}`}
+            onClick={() => update('hasDebt', true)}
           >
-            Continuar
+            Sí, tengo deudas
+          </button>
+          <button
+            type="button"
+            className={`intake-chip intake-chip-yesno${form.hasDebt === false ? ' is-selected' : ''}`}
+            onClick={() => update('hasDebt', false)}
+          >
+            Sin deudas activas
+          </button>
+        </div>
+        {form.hasDebt && (
+          <p className="intake-debt-note animate-intake-in">
+            En el siguiente paso agregarás el detalle de tus productos financieros.
+          </p>
+        )}
+      </div>
+
+      <div className="intake-footer">
+        <button className="intake-back-btn" onClick={onBack}>← Volver</button>
+        {ready && (
+          <button className="intake-next-btn" onClick={onNext}>
+            Continuar <span className="intake-next-arrow">→</span>
           </button>
         )}
       </div>

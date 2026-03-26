@@ -46,7 +46,9 @@ Aquí vive **la experiencia**. Todo lo visible y lo interactivo.
 
 app/  
 → **Rutas y pantallas**  
-- `/agent` → chat principal  
+- `/` → portada (Comenzar evaluación, Demo rápida, Ingresar)  
+- `/demo` → chat rápido sin panel ni login  
+- `/agent` → chat principal con panel, presupuesto pro, transacciones, voz  
 - `/intake` → cuestionario guiado  
 - `/diagnosis` → resultado y narrativa  
 - `/interview` → modo entrevista  
@@ -60,6 +62,7 @@ components/
 lib/  
 → **Pegamento frontend-backend**  
 - `api.ts` → cliente HTTP  
+- `financialCatalog.ts` → catálogo de productos e instituciones Chile  
 - `handleAgentResponse.ts` → traduce respuesta del agente a UI  
 - `uiEventDispatcher.ts` → efectos visuales y acciones  
 

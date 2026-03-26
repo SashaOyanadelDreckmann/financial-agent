@@ -15,11 +15,22 @@ export function buildIntakeContext(
   const knowledgeScore =
     Object.values(intake.financialKnowledge).filter(Boolean).length;
 
+  const highStabilityStatuses = new Set([
+    'employed',
+    'employed_student',
+  ]);
+  const mediumStabilityStatuses = new Set([
+    'freelance',
+    'employed_freelance',
+    'freelance_student',
+    'employed_freelance_student',
+  ]);
+
   return {
     incomeStability:
-      intake.employmentStatus === 'employed'
+      highStabilityStatuses.has(intake.employmentStatus)
         ? 'high'
-        : intake.employmentStatus === 'freelance'
+        : mediumStabilityStatuses.has(intake.employmentStatus)
         ? 'medium'
         : 'low',
 
