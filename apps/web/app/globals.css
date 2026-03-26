@@ -636,20 +636,30 @@ button {
   min-height: 100dvh;
   display: flex;
   align-items: center;
-  overflow: hidden;
-  background: transparent; /* body lleva el fondo para que las safe areas no queden negras */
+  overflow: visible;
+  background: transparent;
 }
 
-/* Background — fondo4.jpg, absolute so it fills home-shell without iOS fixed bugs */
+/* Background — fixed to cover entire viewport including iOS safe areas */
 .home-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  /* expand past safe areas with negative margins + extra size */
+  margin: -50px;
+  width: calc(100vw + 100px);
+  height: calc(100vh + 100px);
   z-index: 0;
   background: url('/fondo4.jpg') center / cover no-repeat;
   animation: bgDrift 240s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+/* Cuando la home esta activa, ocultar los overlays oscuros del animated-bg global */
+.home-active .animated-bg::before,
+.home-active .animated-bg::after {
+  display: none !important;
 }
 
 /* No dark overlay — background always fully visible */

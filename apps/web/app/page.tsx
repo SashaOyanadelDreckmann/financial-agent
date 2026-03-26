@@ -46,19 +46,10 @@ const MACHINE_TEXT = `
 `;
 
 export default function HomePage() {
-  // Extiende el fondo al body para que las safe areas (iOS) no queden negras
+  // Marca html con clase para que CSS oculte el overlay oscuro del animated-bg global
   useEffect(() => {
-    const b = document.body;
-    b.style.backgroundImage = "url('/fondo4.jpg')";
-    b.style.backgroundSize = 'cover';
-    b.style.backgroundPosition = 'center';
-    b.style.backgroundAttachment = 'fixed';
-    return () => {
-      b.style.backgroundImage = '';
-      b.style.backgroundSize = '';
-      b.style.backgroundPosition = '';
-      b.style.backgroundAttachment = '';
-    };
+    document.documentElement.classList.add('home-active');
+    return () => document.documentElement.classList.remove('home-active');
   }, []);
 
   return (
