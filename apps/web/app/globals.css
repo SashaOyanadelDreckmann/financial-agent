@@ -1095,23 +1095,16 @@ button {
 /* Login / Register                                  */
 /* ================================================= */
 
-.auth-shell {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: var(--bg);
-}
-
 .auth-card {
   width: 100%;
   max-width: 400px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  background: rgba(28, 28, 30, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
   padding: 40px 32px;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
 }
 
 /* ================================================= */
