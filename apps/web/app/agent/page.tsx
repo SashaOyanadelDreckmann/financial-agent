@@ -253,6 +253,8 @@ export default function AgentPage() {
   const previousPanelStageRef = useRef(panelStage);
   const chatSwipeTouchStartRef = useRef<{ x: number; y: number } | null>(null);
   const chatBodyRef = useRef<HTMLElement | null>(null);
+  const mobilePanelHandleRef = useRef<HTMLDivElement | null>(null);
+  const panelDragRef = useRef<{ startY: number; startH: number } | null>(null);
   const [msgPage, setMsgPage] = useState(0);
   const msgPageRef = useRef(0);
   const totalMsgPagesRef = useRef(1);
@@ -283,6 +285,72 @@ export default function AgentPage() {
 
   // Mark as mounted so portals can render (prevents hydration mismatch)
   useEffect(() => { setMounted(true); }, []);
+
+  // Fix teclado virtual iOS/Android: ajusta --visual-vh al viewport visible real
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      document.documentElement.style.setProperty('--visual-vh', `${vv.height}px`);
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+
+  // Drag continuo en panel mobile: arrastra el handle para ajustar altura
+  useEffect(() => {
+    const handle = mobilePanelHandleRef.current;
+    const panel = panelScrollRef.current;
+    if (!handle || !panel) return;
+
+    const SNAP_CLOSED = 128;
+    const SNAP_OPEN = Math.round(window.innerHeight * 0.52);
+
+    const onTouchStart = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      const currentH = panel.getBoundingClientRect().height;
+      panelDragRef.current = { startY: touch.clientY, startH: currentH };
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!panelDragRef.current) return;
+      const touch = e.touches[0];
+      const dy = panelDragRef.current.startY - touch.clientY; // positivo = arrastrar hacia arriba
+      const newH = Math.max(80, Math.min(SNAP_OPEN + 20, panelDragRef.current.startH + dy));
+      (panel as HTMLElement).style.setProperty('--mobile-panel-h', `${newH}px`);
+      (panel as HTMLElement).style.flexBasis = `${newH}px`;
+    };
+
+    const onTouchEnd = () => {
+      if (!panelDragRef.current) return;
+      const currentH = panel.getBoundingClientRect().height;
+      const snapToOpen = currentH > (SNAP_CLOSED + SNAP_OPEN) / 2;
+      const finalH = snapToOpen ? SNAP_OPEN : SNAP_CLOSED;
+      (panel as HTMLElement).style.flexBasis = '';
+      (panel as HTMLElement).style.removeProperty('--mobile-panel-h');
+      setMobilePanelExpanded(snapToOpen);
+      // Actualizar la variable CSS en el layout
+      const layout = panel.closest('.agent-layout') as HTMLElement | null;
+      if (layout) {
+        layout.classList.toggle('mobile-panel-expanded', snapToOpen);
+      }
+      panelDragRef.current = null;
+    };
+
+    handle.addEventListener('touchstart', onTouchStart, { passive: true });
+    handle.addEventListener('touchmove', onTouchMove, { passive: true });
+    handle.addEventListener('touchend', onTouchEnd);
+    return () => {
+      handle.removeEventListener('touchstart', onTouchStart);
+      handle.removeEventListener('touchmove', onTouchMove);
+      handle.removeEventListener('touchend', onTouchEnd);
+    };
+  }, []);
 
   // Load sheets from API on mount
   useEffect(() => {
@@ -876,6 +944,7 @@ export default function AgentPage() {
       const dx = e.changedTouches[0].clientX - startX;
       const dy = e.changedTouches[0].clientY - startY;
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(6);
         setMsgPage((prev) => {
           const total = totalMsgPagesRef.current;
           if (dx < 0) return Math.min(prev + 1, total - 1);
@@ -991,8 +1060,16 @@ export default function AgentPage() {
     loadProfileIfNeeded().catch(() => {});
   }, [loadProfileIfNeeded]);
 
+  // Haptic feedback — usa Vibration API si esta disponible (Android/algunos iOS PWA)
+  function haptic(pattern: number | number[] = 10) {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(pattern);
+    }
+  }
+
   async function onSend() {
     if (!input.trim() || loading) return;
+    haptic(8); // feedback al enviar mensaje
 
     const userMessage = input.trim();
     setDraftForActive('');
@@ -1539,6 +1616,7 @@ export default function AgentPage() {
   }
 
   function startRealtimeListen() {
+    haptic(realtimeListening ? [10, 10, 10] : 20); // triple para detener, largo para iniciar
     if (realtimeListening) {
       if (realtimeRecognitionRef.current) {
         try { realtimeRecognitionRef.current.stop(); } catch {}
@@ -2126,8 +2204,9 @@ export default function AgentPage() {
       <aside className="agent-panel" ref={panelScrollRef as React.RefObject<HTMLElement>}>
         {/* Mobile: always-visible strip handle + expand toggle */}
         <div
+          ref={mobilePanelHandleRef}
           className="mobile-panel-handle"
-          onClick={() => setMobilePanelExpanded((v) => !v)}
+          onClick={() => { haptic(12); setMobilePanelExpanded((v) => !v); }}
           role="button"
           tabIndex={0}
           aria-label={mobilePanelExpanded ? 'Minimizar panel' : 'Expandir panel'}
@@ -2728,6 +2807,13 @@ export default function AgentPage() {
                   )}
                 </svg>
               </button>
+            </div>
+
+            {/* Waveform visual — siempre presente, visible cuando escucha/habla */}
+            <div className="voice-waveform" aria-hidden="true">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="voice-waveform-bar" />
+              ))}
             </div>
 
             {/* Live transcript */}

@@ -627,6 +627,38 @@
   padding: 10px 8px 12px;
 }
 
+@media (max-width: 767px) {
+  /* Charts dentro de burbujas: scroll horizontal si no caben */
+  .latex-annex-blocks {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .latex-annex-chart,
+  .latex-annex-table {
+    min-width: 280px;
+  }
+
+  .agent-chart-card {
+    min-width: 280px;
+  }
+
+  .agent-chart-canvas {
+    height: 180px;
+    padding: 6px 4px 8px;
+  }
+
+  .agent-chart-title {
+    font-size: 12px;
+  }
+
+  /* Tablas: scroll horizontal */
+  .latex-annex-table {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 .agent-chart-empty {
   display: flex;
   align-items: center;
@@ -2529,8 +2561,9 @@
     flex-direction: column !important;
     padding: 0;
     gap: 0;
-    height: 100dvh;
-    max-height: 100dvh;
+    /* --visual-vh se actualiza via JS (visualViewport API) para manejar teclado iOS */
+    height: var(--visual-vh, 100dvh);
+    max-height: var(--visual-vh, 100dvh);
     overflow: hidden;
     background: url('/fondo4.jpg') center / cover no-repeat !important;
   }
@@ -2643,9 +2676,9 @@
 
   .knowledge-rail-card {
     flex-direction: row !important;
-    flex: 0 0 32px;
+    flex: 0 0 40px;
     width: 100%;
-    height: 32px;
+    height: 40px;
     padding: 0 16px !important;
     gap: 10px !important;
     border-radius: 0 !important;
@@ -2696,9 +2729,9 @@
   .knowledge-rail-label {
     writing-mode: horizontal-tb !important;
     transform: none !important;
-    font-size: 9px !important;
+    font-size: 10px !important;
     white-space: nowrap;
-    opacity: 0.55;
+    opacity: 0.65;
     flex-shrink: 0;
   }
 
@@ -2724,28 +2757,31 @@
     font-weight: 700 !important;
   }
   .knowledge-rail-stage {
-    font-size: 9px !important;
+    font-size: 10px !important;
     max-width: none !important;
     text-align: left !important;
-    color: rgba(255,255,255,0.75) !important;
+    color: rgba(255,255,255,0.80) !important;
   }
   .knowledge-rail-meta  {
-    font-size: 9px !important;
+    font-size: 10px !important;
     flex-shrink: 0;
-    color: rgba(255,255,255,0.60) !important;
+    color: rgba(255,255,255,0.65) !important;
   }
   .knowledge-rail-label {
-    color: rgba(255,255,255,0.55) !important;
+    color: rgba(255,255,255,0.65) !important;
   }
 
   .knowledge-rail-cta {
-    font-size: 9px !important;
+    font-size: 10px !important;
     opacity: 1 !important;
     background: rgba(70, 130, 180, 0.28) !important;
     border: 1px solid rgba(70, 130, 180, 0.60) !important;
     color: #a8d4f5 !important;
     border-radius: 8px;
-    padding: 2px 8px;
+    padding: 3px 10px;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
     flex-shrink: 0;
   }
 
@@ -2787,7 +2823,7 @@
     padding: 0 14px !important;
   }
 
-  /* Panel handle */
+  /* Panel handle — draggable */
   .mobile-panel-handle {
     display: flex;
     align-items: center;
@@ -2798,9 +2834,18 @@
     flex-shrink: 0;
     gap: 8px;
     background: rgba(255,255,255,0.04);
-    cursor: pointer;
+    cursor: ns-resize;
+    touch-action: none;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
+  }
+
+  /* Panel con transicion fluida salvo durante el drag activo */
+  .agent-panel {
+    transition: flex-basis 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .agent-panel.is-dragging {
+    transition: none !important;
   }
 
   /* Panel: compact 2-row grid at bottom */
@@ -3420,34 +3465,35 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Small bubbles — fit ~2 per user within the thread */
+  /* Bubbles — minimum 14px per WCAG/Apple HIG */
   .agent-bubble.user {
     max-width: 80% !important;
-    font-size: 12px !important;
-    padding: 7px 11px !important;
-    line-height: 1.4 !important;
+    font-size: 14px !important;
+    padding: 8px 12px !important;
+    line-height: 1.45 !important;
     border-radius: 14px !important;
   }
 
   .latex-doc { max-width: 90% !important; }
 
   .agent-bubble.assistant {
-    max-width: 90% !important;
-    font-size: 12px !important;
+    max-width: 92% !important;
+    font-size: 14px !important;
+    line-height: 1.55 !important;
   }
 
-  .latex-doc-p  { font-size: 12px; line-height: 1.5; }
-  .latex-doc-h2 { font-size: 13px; }
-  .latex-doc-h3 { font-size: 12px; }
+  .latex-doc-p  { font-size: 13px; line-height: 1.6; }
+  .latex-doc-h2 { font-size: 14px; }
+  .latex-doc-h3 { font-size: 13px; }
 
   /* Latex doc head compact */
   .latex-doc-head {
     padding: 5px 10px !important;
-    font-size: 10px !important;
+    font-size: 11px !important;
   }
 
-  .latex-doc-title { font-size: 10px !important; }
-  .latex-doc-mode  { font-size: 9px !important; }
+  .latex-doc-title { font-size: 11px !important; }
+  .latex-doc-mode  { font-size: 10px !important; }
 
   /* Swipe hint dots below thread */
   .mobile-chat-swipe-dots {
@@ -3800,6 +3846,27 @@
   padding: 10px 16px 4px;
   max-width: 680px;
   animation: suggestFadeIn 0.3s ease forwards;
+}
+
+@media (max-width: 767px) {
+  .suggested-replies {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 8px 12px 6px;
+    gap: 8px;
+    max-width: 100%;
+  }
+  .suggested-replies::-webkit-scrollbar { display: none; }
+
+  .suggestion-chip {
+    flex-shrink: 0;
+    font-size: 13px;
+    padding: 8px 14px;
+    min-height: 36px; /* touch target minimo */
+  }
 }
 
 @keyframes suggestFadeIn {
@@ -4601,4 +4668,66 @@
 @keyframes micRingPulse {
   0%, 100% { transform: scale(1); opacity: 0.6; }
   50% { transform: scale(1.15); opacity: 0.2; }
+}
+
+/* ── Voice waveform bars ─────────────────────────── */
+.voice-waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 28px;
+  padding: 4px 0 2px;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.voice-bubble.is-listening .voice-waveform,
+.voice-bubble.is-speaking .voice-waveform {
+  opacity: 1;
+}
+
+.voice-waveform-bar {
+  width: 3px;
+  border-radius: 3px;
+  background: var(--fg-secondary, rgba(255,255,255,0.5));
+  transform-origin: center bottom;
+  animation: waveBarIdle 2s ease-in-out infinite;
+}
+
+.voice-bubble.is-listening .voice-waveform-bar {
+  background: var(--error, #ff3b30);
+  animation: waveBarListen 0.7s ease-in-out infinite;
+}
+
+.voice-bubble.is-speaking .voice-waveform-bar {
+  background: var(--accent, #3b82f6);
+  animation: waveBarSpeak 0.5s ease-in-out infinite;
+}
+
+/* Cada barra tiene su propio delay */
+.voice-waveform-bar:nth-child(1)  { animation-delay: 0ms;   height: 8px; }
+.voice-waveform-bar:nth-child(2)  { animation-delay: 80ms;  height: 14px; }
+.voice-waveform-bar:nth-child(3)  { animation-delay: 160ms; height: 20px; }
+.voice-waveform-bar:nth-child(4)  { animation-delay: 80ms;  height: 16px; }
+.voice-waveform-bar:nth-child(5)  { animation-delay: 0ms;   height: 10px; }
+.voice-waveform-bar:nth-child(6)  { animation-delay: 120ms; height: 18px; }
+.voice-waveform-bar:nth-child(7)  { animation-delay: 200ms; height: 22px; }
+.voice-waveform-bar:nth-child(8)  { animation-delay: 120ms; height: 16px; }
+.voice-waveform-bar:nth-child(9)  { animation-delay: 40ms;  height: 12px; }
+.voice-waveform-bar:nth-child(10) { animation-delay: 160ms; height: 8px; }
+
+@keyframes waveBarIdle {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.3; }
+  50%       { transform: scaleY(1);   opacity: 0.6; }
+}
+
+@keyframes waveBarListen {
+  0%, 100% { transform: scaleY(0.5); }
+  50%       { transform: scaleY(1.3); }
+}
+
+@keyframes waveBarSpeak {
+  0%, 100% { transform: scaleY(0.7); }
+  50%       { transform: scaleY(1.2); }
 }
