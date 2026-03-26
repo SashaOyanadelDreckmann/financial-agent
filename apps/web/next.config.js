@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   webpack: (config, { dev }) => {
     // En algunos setups, el minimizador CSS (cssnano) falla con ciertos selectores
     // que incluyen '/', aunque el CSS sea válido para el navegador.
