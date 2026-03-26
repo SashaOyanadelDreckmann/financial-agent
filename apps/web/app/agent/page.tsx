@@ -286,6 +286,30 @@ export default function AgentPage() {
   // Mark as mounted so portals can render (prevents hydration mismatch)
   useEffect(() => { setMounted(true); }, []);
 
+  // Bloquear scroll/bounce/resize en el body cuando esta la pagina del agente
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    html.style.overflow = 'hidden';
+    html.style.position = 'fixed';
+    html.style.inset = '0';
+    html.style.overscrollBehavior = 'none';
+    body.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.inset = '0';
+    body.style.overscrollBehavior = 'none';
+    return () => {
+      html.style.overflow = '';
+      html.style.position = '';
+      html.style.inset = '';
+      html.style.overscrollBehavior = '';
+      body.style.overflow = '';
+      body.style.position = '';
+      body.style.inset = '';
+      body.style.overscrollBehavior = '';
+    };
+  }, []);
+
   // Fix teclado virtual iOS/Android: ajusta --visual-vh al viewport visible real
   useEffect(() => {
     const vv = window.visualViewport;

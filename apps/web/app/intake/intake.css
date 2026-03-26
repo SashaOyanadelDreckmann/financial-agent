@@ -15,21 +15,7 @@
   overflow-x: hidden;
 }
 
-/* Background image — same as agent core */
-.intake-shell::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  min-height: 100%;
-  background: url('/fondo4.jpg') center / cover no-repeat;
-  animation: bgDrift 240s ease-in-out infinite alternate;
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* No dark overlay — background always fully visible */
+/* Fondo viene del animated-bg global — no duplicar aqui */
 
 /* All children above the bg */
 .intake-shell > * {
