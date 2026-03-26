@@ -41,7 +41,7 @@ export function createApp() {
 
   app.use(
     cors({
-      origin: process.env.WEB_ORIGIN ?? 'http://localhost:3001',
+      origin: (process.env.WEB_ORIGIN ?? 'http://localhost:3001').trim(),
       credentials: true,
     })
   );
