@@ -273,7 +273,7 @@ export default function AgentPage() {
   const items = activeThread?.items ?? [];
   const input = activeThread?.draft ?? '';
 
-  const PAGE_SIZE = 4;
+  const PAGE_SIZE = 2;
   const msgPages = useMemo(() => {
     const pages: ChatItem[][] = [];
     for (let i = 0; i < items.length; i += PAGE_SIZE) {
