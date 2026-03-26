@@ -1,0 +1,7 @@
+FROM node:20
+WORKDIR /repo
+RUN npm install -g pnpm@10
+COPY . .
+RUN pnpm install && pnpm --filter "@financial-agent/web" build
+EXPOSE 3000
+CMD ["pnpm", "--filter", "@financial-agent/web", "start"]
