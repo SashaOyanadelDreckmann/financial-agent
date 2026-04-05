@@ -94,20 +94,26 @@ export function getConfig(): Config {
 }
 
 /**
- * Print configuration summary at startup (non-sensitive values only).
+ * Format configuration summary for logging (non-sensitive values only).
+ * Call with logger in server.ts after initialization.
  */
-export function logConfigStartup(config: Config): void {
-  console.log('━'.repeat(60));
-  console.log('📋 Configuration Summary');
-  console.log('━'.repeat(60));
-  console.log(`  Environment: ${config.NODE_ENV}`);
-  console.log(`  LLM Model: ${config.ANTHROPIC_MODEL}`);
-  console.log(`  Port: ${config.PORT}`);
-  console.log(`  Web Origin: ${config.WEB_ORIGIN}`);
-  console.log(`  Data Dir: ${config.DATA_DIR}`);
-  console.log(`  Dev Injection: ${config.ENABLE_DEV_INJECTION ? '🔓 ENABLED' : '🔒 disabled'}`);
+export function formatConfigSummary(config: Config): string {
+  const lines = [
+    '━'.repeat(60),
+    '📋 Configuration Summary',
+    '━'.repeat(60),
+    `  Environment: ${config.NODE_ENV}`,
+    `  LLM Model: ${config.ANTHROPIC_MODEL}`,
+    `  Port: ${config.PORT}`,
+    `  Web Origin: ${config.WEB_ORIGIN}`,
+    `  Data Dir: ${config.DATA_DIR}`,
+    `  Dev Injection: ${config.ENABLE_DEV_INJECTION ? '🔓 ENABLED' : '🔒 disabled'}`,
+  ];
+
   if (config.ENABLE_DEV_INJECTION && config.NODE_ENV === 'production') {
-    console.warn('  ⚠️  WARNING: Dev injection enabled in production!');
+    lines.push('  ⚠️  WARNING: Dev injection enabled in production!');
   }
-  console.log('━'.repeat(60));
+
+  lines.push('━'.repeat(60));
+  return lines.join('\n');
 }

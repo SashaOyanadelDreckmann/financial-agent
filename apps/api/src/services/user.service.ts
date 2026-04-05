@@ -19,6 +19,12 @@ function generateUserId() {
   return `user_${crypto.randomUUID()}`;
 }
 
+/**
+ * Atomically write JSON file with temp file safety.
+ * Prevents data corruption from concurrent writes.
+ * @param filePath - Path to target file
+ * @param data - Data to write
+ */
 function atomicWriteJson(filePath: string, data: unknown) {
   const dir = path.dirname(filePath);
   const tmp = path.join(
@@ -31,6 +37,12 @@ function atomicWriteJson(filePath: string, data: unknown) {
   fs.renameSync(tmp, filePath);
 }
 
+/**
+ * Create a new user account.
+ * @param data - User creation data (name, email, passwordHash)
+ * @returns Created user with generated ID
+ * @throws Error if email already exists
+ */
 export function createUser(data: {
   name: string;
   email: string;

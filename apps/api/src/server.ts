@@ -1,15 +1,17 @@
 // apps/api/src/server.ts
 import { createApp } from './app';
-import { getConfig, logConfigStartup } from './config';
+import { getConfig, formatConfigSummary } from './config';
 import { getLogger, logStartup, logShutdown } from './logger';
 import { bootstrapMCP } from './mcp/bootstrap';
 
 // Validate config at startup
 const config = getConfig();
-logConfigStartup(config);
 
 // Initialize logger
 const logger = getLogger();
+
+// Log configuration
+logger.info(formatConfigSummary(config));
 
 // Create and start app
 const app = createApp();

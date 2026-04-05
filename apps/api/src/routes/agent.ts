@@ -212,7 +212,7 @@ Devuelve SOLO el mensaje, sin comillas ni texto extra.`;
         `${userName}, tu perfil está cargado. Puedo simular escenarios de inversión, analizar tu presupuesto y generar informes PDF. El panel tiene herramientas que se desbloquean con la conversación. ¿Quieres que empecemos simulando tus ahorros actuales?`,
     });
   } catch (err) {
-    console.error('Welcome message error:', err);
+    (req as any).logger?.warn({ msg: 'Welcome message error', error: err });
     const userName2 = user.name?.split(' ')[0] ?? 'amigo';
     return res.json({
       message: `${userName2}, tu perfil financiero está listo. Puedo simular proyecciones, analizar tu presupuesto y generar informes PDF. El panel se desbloquea conforme avanzamos. ¿Por dónde empezamos?`,
@@ -238,12 +238,12 @@ router.post('/agent', async (req, res) => {
     /* ────────────────────────────── */
     if (process.env.NODE_ENV !== 'production') {
       try {
-        console.debug(
-          '[API /agent] received body:',
-          JSON.stringify(req.body, null, 2)
-        );
+        (req as any).logger?.debug({
+          msg: '[API /agent] received body',
+          body: req.body,
+        });
       } catch {
-        console.debug('[API /agent] received body (non-serializable)');
+        (req as any).logger?.debug({ msg: '[API /agent] received body (non-serializable)' });
       }
     }
 
@@ -285,7 +285,7 @@ router.post('/agent', async (req, res) => {
       }
     } catch (err) {
       // no romper si falla
-      console.warn('Error reading injected context', err);
+      (req as any).logger?.warn({ msg: 'Error reading injected context', error: err });
     }
 
     /* ────────────────────────────── */
@@ -300,7 +300,7 @@ router.post('/agent', async (req, res) => {
 
     return res.json(response);
   } catch (err: any) {
-    console.error('[AGENT ERROR]', err);
+    (req as any).logger?.error({ msg: '[AGENT ERROR]', error: err });
 
     return res.status(400).json({
       error: 'Invalid agent request',

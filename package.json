@@ -4,6 +4,7 @@
     "pnpm": "^10.26.1"
   },
   "devDependencies": {
+    "@types/uuid": "^11.0.0",
     "tsx": "^4.21.0"
   }
 }

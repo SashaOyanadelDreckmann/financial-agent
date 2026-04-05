@@ -25,7 +25,7 @@ router.get('/diagnosis/latest', (_req, res) => {
 
     return res.json(parsed); // 👈 SOLO UNA RESPUESTA
   } catch (err) {
-    console.error(err);
+    (req as any).logger?.error({ msg: 'Failed to load diagnosis', error: err });
     return res.status(500).json({
       error: 'Failed to load diagnosis',
     });

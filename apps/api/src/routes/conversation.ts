@@ -208,7 +208,7 @@ export default async function conversationNext(
       }
     );
   } catch (err) {
-    console.error('Error en /conversation/next', err);
+    (req as any).logger?.error({ msg: 'Error en /conversation/next', error: err });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

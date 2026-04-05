@@ -21,6 +21,7 @@ import { runMCPTool } from '../../mcp/tools/runMCPTool';
 import { buildAnthropicTools, getOriginalToolName } from '../../mcp/anthropic-bridge';
 import { randomUUID } from 'crypto';
 import type Anthropic from '@anthropic-ai/sdk';
+import { getLogger } from '../../logger';
 
 import {
   CORE_CLASSIFIER_SYSTEM,
@@ -1401,7 +1402,7 @@ export async function runCoreAgent(
               toolResultContent = JSON.stringify({ success: false, error: 'report_empty' });
             }
           } catch (reportErr) {
-            console.error('[ReportAgent] Error en tool_use loop:', reportErr);
+            getLogger().error({ msg: '[ReportAgent] Error en tool_use loop', error: reportErr });
             toolResultContent = JSON.stringify({ success: false, error: String(reportErr) });
           }
 
@@ -1502,7 +1503,7 @@ export async function runCoreAgent(
         } as ToolCall);
       }
     } catch (fallbackErr) {
-      console.error('[ReportAgent] Fallback report failed, using standard MCP tool:', fallbackErr);
+      getLogger().error({ msg: '[ReportAgent] Fallback report failed, using standard MCP tool', error: fallbackErr });
       const fallbackStep = buildFallbackPdfStep(input, mode, classification.intent, inferredUserModel);
       const forced = await runMCPTool({
         tool: fallbackStep.tool,
