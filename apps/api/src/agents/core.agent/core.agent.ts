@@ -16,14 +16,16 @@ import {
   ReasoningModeSchema,
 } from './chat.types';
 
-import { completeStructured, complete } from '../../services/llm.service';
+import { completeStructured, complete, getAnthropicClient } from '../../services/llm.service';
 import { runMCPTool } from '../../mcp/tools/runMCPTool';
+import { buildAnthropicTools, getOriginalToolName } from '../../mcp/anthropic-bridge';
 import { randomUUID } from 'crypto';
+import type Anthropic from '@anthropic-ai/sdk';
 
 import {
   CORE_CLASSIFIER_SYSTEM,
   CORE_RESPONSE_SYSTEM,
-  CORE_PLANNER_SYSTEM,
+  CORE_TOOL_AGENT_SYSTEM,
 } from './system.prompts';
 
 type LLMMessage = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -1246,63 +1248,6 @@ export async function runCoreAgent(
   }
 
   /* ────────────────────────────── */
-  /* Planning                       */
-  /* ────────────────────────────── */
-  const plan = classification.requires_tools
-    ? await completeStructured<{
-        objective: string;
-        steps: Array<{ goal: string; tool?: string; args?: any }>;
-      }>({
-        system: CORE_PLANNER_SYSTEM,
-        user: JSON.stringify({
-          message: text,
-          intent: classification.intent,
-          mode,
-          inferred_user_model: inferredUserModel,
-          ui_state: input.ui_state ?? {},
-          preferences: input.preferences ?? {},
-        }),
-      })
-    : { objective: 'respond', steps: [] };
-
-  if (isConceptualPdfRequest(input, mode)) {
-    const category = classifyReportCategory(input, mode, classification.intent, false);
-    plan.steps = plan.steps.map((s) =>
-      s.tool === 'pdf.generate_simulation'
-        ? {
-            ...s,
-            tool: 'pdf.generate_report',
-            args: {
-              title: `${category.titlePrefix} · ${classification.intent.slice(0, 52)}`,
-              subtitle: 'Documento narrativo personalizado al contexto del usuario',
-              source: 'analysis',
-              style: 'corporativo',
-              sections: buildNarrativeSections(input, classification.intent),
-              tables: buildBudgetReportTables(input),
-              charts: pickContextReportCharts(input),
-            },
-          }
-        : s
-    );
-  }
-
-  const asksPdfNow = /\b(pdf|reporte|informe|documento|descargar|archivo)\b/i.test(text);
-  const hasPdfStep = plan.steps.some(
-    (s) => s.tool === 'pdf.generate_simulation' || s.tool === 'pdf.generate_report'
-  );
-  if (asksPdfNow && !hasPdfStep) {
-    plan.steps.push(buildFallbackPdfStep(input, mode, classification.intent, inferredUserModel));
-  }
-
-  plan.steps = enrichPlanSteps(
-    plan.steps,
-    input,
-    mode,
-    classification.intent,
-    inferredUserModel
-  );
-
-  /* ────────────────────────────── */
   /* Contexto compartido para PDFs  */
   /* ────────────────────────────── */
   const _uiState = (input.ui_state ?? {}) as Record<string, any>;
@@ -1314,132 +1259,211 @@ export async function runCoreAgent(
     : [];
   const _budgetSummary = _uiState.budget_summary ?? {};
 
-  /* ────────────────────────────── */
-  /* Ejecutar tools                 */
-  /* ────────────────────────────── */
-  for (const step of plan.steps) {
-    if (!step.tool) continue;
+  /* ──────────────────────────────────────────────────────────────────── */
+  /* ReAct loop — Anthropic tool_use nativo (MCP SDK oficial)             */
+  /*                                                                       */
+  /* Reemplaza el planner JSON + ejecución secuencial por el paradigma    */
+  /* ReAct real: Claude decide qué herramientas invocar, en qué orden,    */
+  /* observa los resultados y decide si necesita más datos antes de        */
+  /* terminar. Esto implementa directamente el Model Context Protocol      */
+  /* (MCP) conforme al SDK oficial de Anthropic.                           */
+  /* ──────────────────────────────────────────────────────────────────── */
 
-    // ── Informe narrativo: delegar al agente director de informes ──────────
-    if (step.tool === 'pdf.generate_report') {
-      try {
-        const uiState = _uiState;
-        const ctx = _ctx;
-        const budgetRows = _budgetRows;
-        const budgetSummary = _budgetSummary;
+  const reactSteps: Array<{ step: number; goal: string; decision: string }> = [];
+  const planObjective = classification.intent;
+  const asksPdfNow = /\b(pdf|reporte|informe|documento|descargar|archivo)\b/i.test(text);
 
-        const reportArtifact = await runReportAgent({
-          user_message: text,
+  if (classification.requires_tools) {
+    const anthropic = getAnthropicClient();
+    const anthropicTools = buildAnthropicTools();
+    const model = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6';
+
+    // Mensaje inicial para el loop: contexto enriquecido del usuario
+    const loopMessages: Anthropic.MessageParam[] = [
+      {
+        role: 'user',
+        content: JSON.stringify({
+          message: text,
           intent: classification.intent,
           mode,
-          style: step.args?.style ?? 'corporativo',
-          source: isDiagnosticReportRequest(input, classification.intent)
-            ? 'diagnostic'
-            : (step.args?.source ?? 'analysis'),
-          history: (input.history ?? []).slice(-14),
-          user_profile: ctx.injected_profile ?? undefined,
-          injected_intake: ctx.injected_intake ?? undefined,
-          budget: {
-            income: Number(budgetSummary.income ?? 0),
-            expenses: Number(budgetSummary.expenses ?? 0),
-            balance: Number(budgetSummary.balance ?? 0),
-            rows: budgetRows,
+          inferred_user_model: inferredUserModel,
+          ui_state: input.ui_state ?? {},
+          preferences: input.preferences ?? {},
+          context_summary: {
+            has_profile: Boolean(_ctx.injected_profile ?? _ctx.profile),
+            has_intake: Boolean(_ctx.injected_intake ?? _ctx.intake_context),
+            budget_rows: _budgetRows.length,
+            recent_artifacts: Array.isArray(_ctx.recent_artifacts) ? _ctx.recent_artifacts.length : 0,
           },
-          recent_charts: Array.isArray(ctx.recent_chart_summaries)
-            ? ctx.recent_chart_summaries
-            : undefined,
-          recent_artifacts: Array.isArray(ctx.recent_artifacts)
-            ? ctx.recent_artifacts
-            : undefined,
-          knowledge_score: typeof uiState.knowledge_score === 'number'
-            ? uiState.knowledge_score
-            : undefined,
-          milestones: Array.isArray(uiState.milestone_details)
-            ? uiState.milestone_details
-            : undefined,
+        }),
+      },
+    ];
+
+    const MAX_TOOL_LOOPS = 8;
+    let loopCount = 0;
+
+    while (loopCount < MAX_TOOL_LOOPS) {
+      loopCount++;
+
+      const response = await anthropic.messages.create({
+        model,
+        max_tokens: 4096,
+        system: CORE_TOOL_AGENT_SYSTEM,
+        tools: anthropicTools,
+        messages: loopMessages,
+      });
+
+      // Anexar respuesta del asistente al historial del loop
+      loopMessages.push({ role: 'assistant', content: response.content });
+
+      // Si Claude decidió terminar sin más tools, salir del loop
+      if (response.stop_reason === 'end_turn') break;
+      if (response.stop_reason !== 'tool_use') break;
+
+      // ── Procesar bloques tool_use ────────────────────────────────────
+      const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+      for (const block of response.content) {
+        if (block.type !== 'tool_use') continue;
+
+        const originalName = getOriginalToolName(block.name);
+        const toolArgs = (block.input ?? {}) as Record<string, any>;
+
+        reactSteps.push({
+          step: reactSteps.length,
+          goal: `Ejecutar ${originalName}`,
+          decision: originalName,
         });
 
-        if (reportArtifact) {
-          if (isDiagnosticReportRequest(input, classification.intent)) {
-            (reportArtifact as any).source = 'diagnostic';
-            (reportArtifact as any).meta = {
-              ...((reportArtifact as any).meta ?? {}),
-              report_kind: 'diagnostic_integral',
-              generated_by: 'report_agent',
-            };
-          } else {
-            (reportArtifact as any).meta = {
-              ...((reportArtifact as any).meta ?? {}),
-              generated_by: 'report_agent',
-            };
+        // ── Caso especial: informe narrativo → delegar a RunReportAgent ──
+        if (originalName === 'pdf.generate_report') {
+          let toolResultContent: string;
+          try {
+            const reportArtifact = await runReportAgent({
+              user_message: text,
+              intent: classification.intent,
+              mode,
+              style: toolArgs.style ?? 'corporativo',
+              source: isDiagnosticReportRequest(input, classification.intent)
+                ? 'diagnostic'
+                : (toolArgs.source ?? 'analysis'),
+              history: (input.history ?? []).slice(-14),
+              user_profile: _ctx.injected_profile ?? undefined,
+              injected_intake: _ctx.injected_intake ?? undefined,
+              budget: {
+                income: Number(_budgetSummary.income ?? 0),
+                expenses: Number(_budgetSummary.expenses ?? 0),
+                balance: Number(_budgetSummary.balance ?? 0),
+                rows: _budgetRows,
+              },
+              recent_charts: Array.isArray(_ctx.recent_chart_summaries)
+                ? _ctx.recent_chart_summaries
+                : undefined,
+              recent_artifacts: Array.isArray(_ctx.recent_artifacts)
+                ? _ctx.recent_artifacts
+                : undefined,
+              knowledge_score:
+                typeof _uiState.knowledge_score === 'number'
+                  ? _uiState.knowledge_score
+                  : undefined,
+              milestones: Array.isArray(_uiState.milestone_details)
+                ? _uiState.milestone_details
+                : undefined,
+            });
+
+            if (reportArtifact) {
+              if (isDiagnosticReportRequest(input, classification.intent)) {
+                (reportArtifact as any).source = 'diagnostic';
+                (reportArtifact as any).meta = {
+                  ...((reportArtifact as any).meta ?? {}),
+                  report_kind: 'diagnostic_integral',
+                  generated_by: 'report_agent',
+                };
+              } else {
+                (reportArtifact as any).meta = {
+                  ...((reportArtifact as any).meta ?? {}),
+                  generated_by: 'report_agent',
+                };
+              }
+              artifacts.push(reportArtifact);
+              tool_calls.push({
+                tool: 'pdf.generate_report',
+                args: toolArgs,
+                status: 'success',
+                result: { artifact_id: (reportArtifact as any).id },
+              } as ToolCall);
+              toolResultContent = JSON.stringify({
+                success: true,
+                artifact_id: (reportArtifact as any).id,
+                type: 'pdf',
+              });
+            } else {
+              toolResultContent = JSON.stringify({ success: false, error: 'report_empty' });
+            }
+          } catch (reportErr) {
+            console.error('[ReportAgent] Error en tool_use loop:', reportErr);
+            toolResultContent = JSON.stringify({ success: false, error: String(reportErr) });
           }
-          artifacts.push(reportArtifact);
-          tool_calls.push({
-            tool: 'pdf.generate_report',
-            args: step.args ?? {},
-            status: 'success',
-            result: { artifact_id: (reportArtifact as any).id },
-          } as ToolCall);
+
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: toolResultContent,
+          });
+          continue;
         }
-      } catch (reportErr) {
-        console.error('[ReportAgent] Error generating deep report, falling back to standard tool:', reportErr);
-        // Fall through to standard tool execution
+
+        // ── Caso general: ejecutar herramienta MCP ──────────────────────
         const result = await runMCPTool({
-          tool: step.tool,
-          args: step.args ?? {},
+          tool: originalName,
+          args: toolArgs,
           turn_id: turnId,
           user_id: input.user_id,
           ctx: { mode, intent: classification.intent },
         });
+
         if (result?.tool_call) tool_calls.push(result.tool_call);
-        if (result?.data && isArtifactLike(result.data)) artifacts.push(result.data);
-        if (result?.citations) citations.push(...result.citations);
-      }
-      continue;
-    }
-    // ──────────────────────────────────────────────────────────────────────
 
-    const result = await runMCPTool({
-      tool: step.tool,
-      args: step.args ?? {},
-      turn_id: turnId,
-      user_id: input.user_id,
-      ctx: { mode, intent: classification.intent },
-    });
+        if (result?.data) {
+          tool_outputs.push({ tool: originalName, data: result.data });
 
-    if (!result?.tool_call) continue;
+          // Artefactos (PDFs, etc.)
+          if (isArtifactLike(result.data)) {
+            if (result.data.type === 'pdf' && isDiagnosticReportRequest(input, classification.intent)) {
+              result.data.source = 'diagnostic';
+              result.data.meta = {
+                ...(result.data.meta ?? {}),
+                report_kind: 'diagnostic_integral',
+                context_scope: 'chat_charts_uploads_profile',
+              };
+            }
+            artifacts.push(result.data);
+          }
 
-    tool_calls.push(result.tool_call);
-
-    if (result.data) {
-      tool_outputs.push({ tool: step.tool, data: result.data });
-
-      // 📦 artifacts
-      if (isArtifactLike(result.data)) {
-        if (
-          result.data.type === 'pdf' &&
-          isDiagnosticReportRequest(input, classification.intent)
-        ) {
-          result.data.source = 'diagnostic';
-          result.data.meta = {
-            ...(result.data.meta ?? {}),
-            report_kind: 'diagnostic_integral',
-            context_scope: 'chat_charts_uploads_profile',
-          };
+          // Gráficos extraídos del output de la tool
+          const charts = extractChartBlocksFromToolOutput(originalName, result.data);
+          if (charts.length > 0) agent_blocks.push(...charts);
         }
-        artifacts.push(result.data);
+
+        if (result?.citations) citations.push(...result.citations);
+
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: block.id,
+          content: JSON.stringify(result?.data ?? { ok: false }),
+        });
       }
 
-      // 📊 charts (NUEVO)
-      const charts = extractChartBlocksFromToolOutput(step.tool, result.data);
-      if (Array.isArray(charts) && charts.length > 0) {
-        agent_blocks.push(...charts);
+      // Devolver resultados de herramientas a Claude para próxima iteración
+      if (toolResults.length > 0) {
+        loopMessages.push({ role: 'user', content: toolResults });
       }
     }
-
-    if (result.citations) citations.push(...result.citations);
   }
 
+  /* ──────────────────────────────────────────────────────────────────── */
+  /* Fallback PDF si el usuario pidió uno y no se generó en el loop       */
+  /* ──────────────────────────────────────────────────────────────────── */
   if (asksPdfNow && artifacts.length === 0) {
     try {
       const fallbackArtifact = await runReportAgent({
@@ -1495,6 +1519,12 @@ export async function runCoreAgent(
       if (forced?.citations) citations.push(...forced.citations);
     }
   }
+
+  // Construir plan compatible con el campo react de la respuesta
+  const plan = {
+    objective: planObjective,
+    steps: reactSteps,
+  };
 
   /* ────────────────────────────── */
   /* Documentos adjuntos            */
@@ -1719,11 +1749,7 @@ Reglas:
     tool_calls,
     react: {
       objective: plan.objective,
-      steps: plan.steps.map((s, i) => ({
-        step: i,
-        goal: s.goal,
-        decision: s.tool ?? 'none',
-      })),
+      steps: plan.steps,
     },
     agent_blocks,
     artifacts,

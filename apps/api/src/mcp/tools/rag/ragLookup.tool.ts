@@ -3,6 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import type { MCPTool } from '../types';
 
+// __dirname = apps/api/src/mcp/tools/rag/
+// rag_data  = apps/rag_data/
+const RAG_DATA_DIR = path.resolve(__dirname, '../../../../../rag_data');
+const MCP_DIR = path.resolve(__dirname, '../../');
+
 function collectFiles(root: string): string[] {
   if (!fs.existsSync(root)) return [];
   const out: string[] = [];
@@ -19,10 +24,48 @@ function readSafe(p: string): string {
   try { return fs.readFileSync(p, 'utf-8'); } catch { return ''; }
 }
 
+/** Extract frontmatter title (--- titulo: ... ---) or fall back to filename */
+function extractTitle(content: string, filePath: string): string {
+  const m = content.match(/^---[\s\S]*?titulo:\s*(.+?)[\r\n]/m);
+  if (m) return m[1].trim();
+  const m2 = content.match(/^#\s+(.+)/m);
+  if (m2) return m2[1].trim();
+  return path.basename(filePath, path.extname(filePath)).replace(/[-_]/g, ' ');
+}
+
+/** Score a document against query terms; returns hits count + best snippet */
+function scoreAndSnippet(
+  content: string,
+  terms: string[],
+): { score: number; snippets: string[] } {
+  const low = content.toLowerCase();
+  let score = 0;
+  const snippets: string[] = [];
+
+  for (const term of terms) {
+    let pos = 0;
+    let termHits = 0;
+    while ((pos = low.indexOf(term, pos)) !== -1) {
+      score += 1;
+      termHits++;
+      if (termHits <= 2) {
+        const start = Math.max(0, pos - 120);
+        const end = Math.min(content.length, pos + 200);
+        snippets.push(content.slice(start, end).replace(/\s+/g, ' ').trim());
+      }
+      pos += term.length;
+    }
+  }
+
+  return { score, snippets };
+}
+
 export const ragLookupTool: MCPTool = {
   name: 'rag.lookup',
   description:
-    'Local RAG over apps/api/src/mcp/{knowledge,guides,contracts,examples}. Returns citations with snippets.',
+    'Busca información financiera en el corpus RAG local (CMF, normativa, mercado, papers académicos). ' +
+    'Retorna citas con fragmentos relevantes. Úsalo para preguntas sobre regulación, productos bancarios, ' +
+    'APV, fondos mutuos, seguros, tasas de crédito, leyes Fintech o conceptos del sistema financiero chileno.',
   argsSchema: z.object({
     query: z.string().min(1),
     limit: z.number().optional(),
@@ -36,46 +79,69 @@ export const ragLookupTool: MCPTool = {
     required: ['query'],
   },
   run: async (args) => {
-    const query = String(args.query).toLowerCase();
-    const limit = Math.max(1, Math.min(8, Math.floor(Number(args.limit ?? 5))));
+    const rawQuery = String(args.query);
+    const limit = Math.max(1, Math.min(10, Math.floor(Number(args.limit ?? 5))));
 
-    const base = path.join(process.cwd(), 'apps', 'api', 'src', 'mcp');
-    const files = [
-      ...collectFiles(path.join(base, 'knowledge')),
-      ...collectFiles(path.join(base, 'guides')),
-      ...collectFiles(path.join(base, 'contracts')),
-      ...collectFiles(path.join(base, 'examples')),
+    // Split query into meaningful terms (≥3 chars)
+    const terms = rawQuery
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length >= 3);
+    if (terms.length === 0) terms.push(rawQuery.toLowerCase());
+
+    // Primary corpus: rag_data (all subdirs)
+    const primaryFiles = collectFiles(RAG_DATA_DIR);
+
+    // Secondary corpus: legacy mcp knowledge/guides dirs
+    const secondaryFiles = [
+      ...collectFiles(path.join(MCP_DIR, 'knowledge')),
+      ...collectFiles(path.join(MCP_DIR, 'guides')),
+      ...collectFiles(path.join(MCP_DIR, 'contracts')),
+      ...collectFiles(path.join(MCP_DIR, 'examples')),
     ];
 
-    const hits: Array<{ file: string; idx: number; snippet: string }> = [];
+    const allFiles = [...primaryFiles, ...secondaryFiles];
 
-    for (const f of files) {
-      const txt = readSafe(f);
-      if (!txt) continue;
+    type Hit = {
+      file: string;
+      title: string;
+      score: number;
+      snippets: string[];
+      isPrimary: boolean;
+    };
 
-      const low = txt.toLowerCase();
-      const idx = low.indexOf(query);
-      if (idx === -1) continue;
+    const hits: Hit[] = [];
 
-      const start = Math.max(0, idx - 160);
-      const end = Math.min(txt.length, idx + 240);
-      const snippet = txt.slice(start, end).replace(/\s+/g, ' ').trim();
+    for (const f of allFiles) {
+      const content = readSafe(f);
+      if (!content) continue;
 
-      hits.push({ file: f, idx, snippet });
+      const { score, snippets } = scoreAndSnippet(content, terms);
+      if (score === 0) continue;
+
+      hits.push({
+        file: f,
+        title: extractTitle(content, f),
+        score: score + (primaryFiles.includes(f) ? 0.5 : 0), // boost primary corpus
+        snippets,
+        isPrimary: primaryFiles.includes(f),
+      });
     }
 
-    hits.sort((a, b) => a.idx - b.idx);
+    hits.sort((a, b) => b.score - a.score);
     const top = hits.slice(0, limit);
 
-    const citations = top.map((h, i) => ({
-      doc_id: h.file,
-      doc_title: path.basename(h.file),
-      chunk_id: `local_${i}`,
-      supporting_span: h.snippet,
-      supports: 'claim' as const,
-      confidence: 0.75,
-      url: undefined,
-    }));
+    const citations = top.flatMap((h, i) =>
+      h.snippets.slice(0, 2).map((snippet, j) => ({
+        doc_id: h.file,
+        doc_title: h.title,
+        chunk_id: `rag_${i}_${j}`,
+        supporting_span: snippet,
+        supports: 'claim' as const,
+        confidence: Math.min(0.95, 0.6 + h.score * 0.04),
+        url: undefined,
+      })),
+    );
 
     return {
       tool_call: { tool: 'rag.lookup', args, status: 'success', result: { found: citations.length } },
