@@ -148,7 +148,15 @@ export default function DiagnosisPage() {
 
               <button
                 className="button-primary"
-                onClick={() => router.push('/followup')}
+                onClick={() => {
+                  try {
+                    localStorage.setItem(
+                      'agent.prefill_prompt',
+                      'Quiero profundizar mi diagnóstico financiero. Ayúdame a conectar tensiones, hipótesis y próximos pasos concretos.'
+                    );
+                  } catch {}
+                  router.push('/agent');
+                }}
               >
                 Profundizar diagnóstico
               </button>

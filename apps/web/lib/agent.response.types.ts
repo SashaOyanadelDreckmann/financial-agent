@@ -20,9 +20,9 @@ export type ToolCall = {
 };
 
 export type Citation = {
-  id: string;
-  title: string;
-  url: string;
+  id?: string;
+  title?: string;
+  url?: string;
   source: string;
 };
 
@@ -62,6 +62,12 @@ export type AgentResponse = {
     amount: number;
     category?: string;
   }>;
+  knowledge_score?: number;
+  knowledge_event_detected?: boolean;
+  milestone_unlocked?: {
+    threshold: number;
+    feature: string;
+  };
 };
 
 export type ChatItem =
@@ -111,9 +117,29 @@ export function toChatItemsFromAgentResponse(res: AgentResponse): ChatItem[] {
   }
 
   if (Array.isArray(res?.citations)) {
-    for (const c of res.citations) {
-      if (!c?.url) continue;
-      items.push({ type: 'citation', role: 'assistant', citation: c });
+    for (const c of res.citations as Array<Record<string, unknown>>) {
+      const url = typeof c.url === 'string' ? c.url : undefined;
+      const source =
+        typeof c.doc_title === 'string'
+          ? c.doc_title
+          : typeof c.doc_id === 'string'
+          ? c.doc_id
+          : 'Fuente';
+      items.push({
+        type: 'citation',
+        role: 'assistant',
+        citation: {
+          id: typeof c.chunk_id === 'string' ? c.chunk_id : undefined,
+          title:
+            typeof c.doc_title === 'string'
+              ? c.doc_title
+              : typeof c.supporting_span === 'string'
+              ? c.supporting_span
+              : undefined,
+          url,
+          source,
+        },
+      });
     }
   }
 

@@ -8,6 +8,9 @@ export const UserSchema = z.object({
   passwordHash: z.string(),
   injectedProfile: z.any().optional(),
   injectedIntake: z.any().optional(),
+  latestDiagnosticProfileId: z.string().optional(),
+  latestDiagnosticCompletedAt: z.string().optional(),
+  panelState: z.any().optional(),
   // PHASE 9.2: Knowledge tracking with persistent memory
   knowledgeBaseScore: z.number().min(0).max(100).default(0),
   knowledgeScore: z.number().min(0).max(100).default(0),
@@ -30,4 +33,7 @@ export type User = z.infer<typeof UserSchema> & {
     intake: any;
     llmSummary?: any;
   };
+  latestDiagnosticProfileId?: string;
+  latestDiagnosticCompletedAt?: string;
+  panelState?: unknown;
 };

@@ -11,9 +11,13 @@ export function CitationBubble({ citation }: { citation: Citation }) {
         <span className="citation-source">{citation.source}</span>
       </div>
 
-      <a className="citation-link" href={citation.url} target="_blank" rel="noreferrer">
-        {citation.title || citation.url}
-      </a>
+      {citation.url ? (
+        <a className="citation-link" href={citation.url} target="_blank" rel="noreferrer">
+          {citation.title || citation.url}
+        </a>
+      ) : (
+        <div className="citation-link">{citation.title || citation.source}</div>
+      )}
     </div>
   );
 }

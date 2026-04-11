@@ -3,7 +3,8 @@ import { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-q
 import { analyzeIntake } from '../agents/intake/intake-analyzer';
 import { buildIntakeContext } from '../services/intake-context.service';
 import { loadSession } from '../services/session.service';
-import { attachIntakeToUser, loadUserById } from '../services/user.service';
+import { attachIntakeToUser } from '../services/user.service';
+import { synchronizeKnowledgeFromIntake, recordKnowledgeEvent } from '../services/knowledge.service';
 
 export async function submitIntake(req: Request, res: Response) {
   const intake = req.body as IntakeQuestionnaire;
@@ -36,6 +37,13 @@ export async function submitIntake(req: Request, res: Response) {
       const session = loadSession(token);
       if (session?.userId) {
         attachIntakeToUser(session.userId, { intake, llmSummary, intakeContext } as any);
+        await synchronizeKnowledgeFromIntake(session.userId, intake);
+        await recordKnowledgeEvent(
+          session.userId,
+          'completed_intake',
+          'User completed financial intake questionnaire',
+          { source: 'intake_submit' }
+        );
       }
     }
   } catch (err) {

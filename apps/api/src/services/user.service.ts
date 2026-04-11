@@ -244,6 +244,38 @@ export type StoredSheet = {
   completedAt?: string;
 };
 
+export type StoredReport = {
+  id: string;
+  title: string;
+  group: 'plan_action' | 'simulation' | 'budget' | 'diagnosis' | 'other';
+  fileUrl: string;
+  createdAt: string;
+};
+
+export type StoredUploadedDocument = {
+  name: string;
+  text: string;
+};
+
+export type StoredPanelState = {
+  budgetRows: Array<{
+    id: string;
+    category: string;
+    type: 'income' | 'expense';
+    amount: number;
+    note: string;
+  }>;
+  bankSimulation: {
+    username: string;
+    connected: boolean;
+    randomMode: boolean;
+    uploadedFiles: string[];
+    parsedDocuments: StoredUploadedDocument[];
+  };
+  savedReports: StoredReport[];
+  updatedAt: string;
+};
+
 export function saveUserSheets(userId: string, sheets: StoredSheet[]): boolean {
   ensureUsersDir();
   const filePath = path.join(USERS_DIR, `${userId}.json`);
@@ -266,4 +298,61 @@ export function loadUserSheets(userId: string): StoredSheet[] | null {
   const user = safeReadUserFile(filePath);
   if (!user) return null;
   return (user as any).sheets ?? null;
+}
+
+export function attachDiagnosticProfileToUser(
+  userId: string,
+  profileId: string
+): boolean {
+  ensureUsersDir();
+
+  const filePath = path.join(USERS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+
+  const user = safeReadUserFile(filePath);
+  if (!user) return false;
+
+  (user as any).latestDiagnosticProfileId = profileId;
+  (user as any).latestDiagnosticCompletedAt = new Date().toISOString();
+
+  try {
+    atomicWriteJson(filePath, user);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function saveUserPanelState(
+  userId: string,
+  panelState: StoredPanelState
+): boolean {
+  ensureUsersDir();
+
+  const filePath = path.join(USERS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+
+  const user = safeReadUserFile(filePath);
+  if (!user) return false;
+
+  (user as any).panelState = panelState;
+
+  try {
+    atomicWriteJson(filePath, user);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function loadUserPanelState(userId: string): StoredPanelState | null {
+  ensureUsersDir();
+
+  const filePath = path.join(USERS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return null;
+
+  const user = safeReadUserFile(filePath);
+  if (!user) return null;
+
+  return ((user as any).panelState ?? null) as StoredPanelState | null;
 }

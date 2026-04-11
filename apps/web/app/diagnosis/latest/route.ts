@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getApiBaseUrl } from '@/lib/apiBase';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const cookie = request.headers.get('cookie');
     const res = await fetch(
       `${getApiBaseUrl()}/diagnosis/latest`,
       {
         cache: 'no-store',
-        credentials: 'include',
+        headers: cookie ? { cookie } : undefined,
       }
     );
 

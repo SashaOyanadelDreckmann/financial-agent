@@ -33,7 +33,10 @@ export async function registerUser(payload: {
     throw new Error('Error registrando usuario');
   }
 
-  return res.json();
+  return res.json() as Promise<{
+    ok: boolean;
+    user?: { id: string; name: string; email: string };
+  }>;
 }
 
 export async function loginUser(payload: { email: string; password: string }) {
@@ -49,7 +52,10 @@ export async function loginUser(payload: { email: string; password: string }) {
     throw new Error('Error iniciando sesión');
   }
 
-  return res.json();
+  return res.json() as Promise<{
+    ok: boolean;
+    user?: { id: string; name: string; email: string };
+  }>;
 }
 
 export async function logoutUser() {
@@ -160,6 +166,28 @@ export async function saveSheets(sheets: any[]) {
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({ sheets }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function loadPanelState() {
+  const API_URL = getApiBaseUrl();
+  const res = await fetch(`${API_URL}/api/panel-state`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+  if (!res.ok) return null;
+  return res.json() as Promise<{ panelState: any | null }>;
+}
+
+export async function savePanelState(panelState: any) {
+  const API_URL = getApiBaseUrl();
+  const res = await fetch(`${API_URL}/api/panel-state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ panelState }),
   });
   if (!res.ok) return null;
   return res.json();

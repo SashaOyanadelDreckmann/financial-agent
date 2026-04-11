@@ -10,6 +10,8 @@ import {
   removeInjectedIntakeFromUser,
   saveUserSheets,
   loadUserSheets,
+  loadUserPanelState,
+  saveUserPanelState,
 } from '../services/user.service';
 import { loadSession } from '../services/session.service';
 import { complete } from '../services/llm.service';
@@ -132,6 +134,24 @@ router.post('/sheets', (req, res) => {
   return res.json({ ok });
 });
 
+router.get('/panel-state', (req, res) => {
+  const user = getAuthedUser(req);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+  const panelState = loadUserPanelState(user.id);
+  return res.json({ panelState });
+});
+
+router.post('/panel-state', (req, res) => {
+  const user = getAuthedUser(req);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+  const { panelState } = req.body ?? {};
+  if (!panelState || typeof panelState !== 'object') {
+    return res.status(400).json({ error: 'Invalid panelState payload' });
+  }
+  const ok = saveUserPanelState(user.id, panelState);
+  return res.json({ ok });
+});
+
 /* ──────────────────────────────────── */
 /* Welcome message — personalizado      */
 /* ──────────────────────────────────── */
@@ -226,10 +246,27 @@ router.get('/session', (req, res) => {
   const user = getAuthedUser(req);
   if (!user) return res.status(401).json({ error: 'Invalid session' });
 
-  // Omitir passwordHash
-  const { passwordHash, ...rest } = user as any;
+  const injectedIntake = (user as any).injectedIntake
+    ? {
+        intake: (user as any).injectedIntake.intake,
+        intakeContext: (user as any).injectedIntake.intakeContext,
+      }
+    : undefined;
 
-  return res.json(rest);
+  const payload = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    injectedProfile: (user as any).injectedProfile,
+    injectedIntake,
+    latestDiagnosticProfileId: (user as any).latestDiagnosticProfileId,
+    latestDiagnosticCompletedAt: (user as any).latestDiagnosticCompletedAt,
+    knowledgeBaseScore: (user as any).knowledgeBaseScore ?? 0,
+    knowledgeScore: (user as any).knowledgeScore ?? 0,
+    knowledgeLastUpdated: (user as any).knowledgeLastUpdated,
+  };
+
+  return res.json(payload);
 });
 
 router.post('/agent', async (req, res) => {
@@ -269,6 +306,9 @@ router.post('/agent', async (req, res) => {
       const authed = getAuthedUser(req);
       if (authed) {
         const user = authed;
+        normalizedInput.user_id = user.id;
+        normalizedInput.user_name = normalizedInput.user_name ?? user.name;
+
         if (user && (user as any).injectedProfile) {
           normalizedInput.context = {
             ...(normalizedInput.context ?? {}),
@@ -345,7 +385,19 @@ router.post('/agent', async (req, res) => {
           );
 
           const currentSheets = loadUserSheets(authed.id) ?? [];
-          const activeSheet = currentSheets[0];
+          const activeSheetId =
+            typeof input.ui_state?.active_chat === 'object' &&
+            input.ui_state?.active_chat &&
+            typeof (input.ui_state.active_chat as Record<string, unknown>).id === 'string'
+              ? ((input.ui_state.active_chat as Record<string, unknown>).id as string)
+              : undefined;
+
+          const activeSheet =
+            (activeSheetId
+              ? currentSheets.find((sheet) => sheet.id === activeSheetId)
+              : undefined) ??
+            currentSheets.find((sheet) => sheet.status === 'active') ??
+            currentSheets[0];
 
           if (activeSheet) {
             // Apply budget updates to the active sheet
@@ -374,7 +426,11 @@ router.post('/agent', async (req, res) => {
               updatedAt: new Date().toISOString(),
             };
 
-            saveUserSheets(authed.id, [updatedSheet, ...currentSheets.slice(1)]);
+            const nextSheets = currentSheets.map((sheet) =>
+              sheet.id === updatedSheet.id ? updatedSheet : sheet
+            );
+
+            saveUserSheets(authed.id, nextSheets);
 
             // Enhance response with persistence metadata
             (response as any).persistence_status = {

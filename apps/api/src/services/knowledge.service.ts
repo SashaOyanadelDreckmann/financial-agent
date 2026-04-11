@@ -9,6 +9,7 @@
 import path from 'path';
 import { promises as fs } from 'fs';
 import { getLogger } from '../logger';
+import type { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
 
 export interface KnowledgeTracker {
   userId: string;
@@ -48,6 +49,17 @@ export type KnowledgeAction =
   | 'ignored_warning' // -8 — Ignored coherence warning from agent
   | 'session_reset' // -5 — Requested reset/undo of understanding;
 
+export const KNOWLEDGE_MILESTONES = [
+  { threshold: 0, feature: 'Acceso básico (chat educativo)' },
+  { threshold: 20, feature: 'Cuestionario y perfil financiero' },
+  { threshold: 40, feature: 'Presupuesto personalizado' },
+  { threshold: 55, feature: '📊 Módulo PRESUPUESTO (panel)' },
+  { threshold: 70, feature: 'Análisis de deuda' },
+  { threshold: 74, feature: '💳 Módulo CARTOLAS (panel)' },
+  { threshold: 85, feature: 'Estrategias avanzadas' },
+  { threshold: 100, feature: '🏆 Experto financiero (badge)' },
+] as const;
+
 const DATA_DIR = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
   : path.join(process.cwd(), 'data');
@@ -62,6 +74,36 @@ function getUserDataPath(userId: string): string {
 
 function sumHistoryPoints(history: KnowledgeEvent[]): number {
   return history.reduce((sum, event) => sum + event.points, 0);
+}
+
+function hasRecordedAction(history: KnowledgeEvent[], action: KnowledgeAction): boolean {
+  return history.some((event) => event.action === action);
+}
+
+function estimateBaseKnowledgeScore(intake: IntakeQuestionnaire): number {
+  let score = 5;
+
+  score += Math.max(0, Math.min(10, intake.selfRatedUnderstanding ?? 0)) * 6;
+
+  const productsCount = Array.isArray(intake.financialProducts)
+    ? intake.financialProducts.filter((product) => product?.product).length
+    : 0;
+  score += Math.min(productsCount * 3, 15);
+
+  if (intake.financialKnowledge) {
+    const knownTopics = Object.values(intake.financialKnowledge).filter(Boolean).length;
+    score += Math.min(knownTopics * 2, 20);
+  }
+
+  if (intake.hasSavingsOrInvestments) {
+    score += 5;
+  }
+
+  if (intake.tracksExpenses === 'yes') {
+    score += 5;
+  }
+
+  return clampScore(score);
 }
 
 function deriveBaseScore(userData: Record<string, any>, totalGains: number): number {
@@ -156,6 +198,16 @@ export async function recordKnowledgeEvent(
 ): Promise<{ newScore: number; points: number }> {
   const tracker = await getKnowledgeTracker(userId);
 
+  if (
+    (action === 'completed_intake' || action === 'completed_profile') &&
+    hasRecordedAction(tracker.history, action)
+  ) {
+    return {
+      newScore: clampScore(tracker.baseScore + tracker.totalGains),
+      points: 0,
+    };
+  }
+
   // Point values for each action
   const pointsMap: Record<KnowledgeAction, number> = {
     'completed_intake': 20,
@@ -202,6 +254,21 @@ export async function recordKnowledgeEvent(
   return {
     newScore: finalScore,
     points,
+  };
+}
+
+export async function synchronizeKnowledgeFromIntake(
+  userId: string,
+  intake: IntakeQuestionnaire
+): Promise<{ score: number; baseScore: number }> {
+  const tracker = await getKnowledgeTracker(userId);
+  tracker.baseScore = estimateBaseKnowledgeScore(intake);
+  tracker.lastUpdated = new Date().toISOString();
+  await persistKnowledgeTracker(userId, tracker);
+
+  return {
+    score: clampScore(tracker.baseScore + tracker.totalGains),
+    baseScore: tracker.baseScore,
   };
 }
 
@@ -363,22 +430,11 @@ export function getMilestones(score: number): {
   unlocked: string[];
   next: { threshold: number; feature: string };
 } {
-  const milestones = [
-    { threshold: 0, feature: 'Acceso básico (chat educativo)' },
-    { threshold: 20, feature: 'Cuestionario y perfil financiero' },
-    { threshold: 40, feature: 'Presupuesto personalizado' },
-    { threshold: 55, feature: '📊 Módulo PRESUPUESTO (panel)' },
-    { threshold: 70, feature: 'Análisis de deuda' },
-    { threshold: 74, feature: '💳 Módulo CARTOLAS (panel)' },
-    { threshold: 85, feature: 'Estrategias avanzadas' },
-    { threshold: 100, feature: '🏆 Experto financiero (badge)' },
-  ];
-
-  const unlocked = milestones
+  const unlocked = KNOWLEDGE_MILESTONES
     .filter((m) => m.threshold <= score)
     .map((m) => m.feature);
 
-  const nextMilestone = milestones.find((m) => m.threshold > score);
+  const nextMilestone = KNOWLEDGE_MILESTONES.find((m) => m.threshold > score);
 
   return {
     unlocked,

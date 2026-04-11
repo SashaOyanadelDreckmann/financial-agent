@@ -17,9 +17,10 @@ import {
 } from '../schemas/profile.schema';
 
 import { saveProfile } from '../services/storage.service';
-import { loadUserById } from '../services/user.service';
+import { attachDiagnosticProfileToUser, loadUserById } from '../services/user.service';
 import { loadSession } from '../services/session.service';
 import { appendMemoryTimelineNote } from '../services/memory.service';
+import { recordKnowledgeEvent } from '../services/knowledge.service';
 
 const agent = new InterviewerAgent();
 
@@ -103,7 +104,14 @@ export async function conversationNextCore(
     });
 
     // 💾 Persistir
-    saveProfile(diagnosticProfile);
+    const { profileId } = saveProfile(diagnosticProfile);
+    attachDiagnosticProfileToUser(user.id, profileId);
+    await recordKnowledgeEvent(
+      user.id,
+      'completed_profile',
+      'Financial diagnostic profile completed',
+      { source: 'interview_complete', profile_id: profileId }
+    );
     appendMemoryTimelineNote({
       userId: user.id,
       chatId: interviewChatId,

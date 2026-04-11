@@ -31,31 +31,6 @@ export function detectKnowledgeEvent(params: {
   const normalizedUserMessage = userMessage.toLowerCase();
   const normalizedAgentResponse = agentResponse.toLowerCase();
 
-  // Check for completed intake
-  if (
-    /finalizad|terminad|complet(?:é|e|ado)?.*(intake|cuestionario)|cuestionario completado/i.test(normalizedUserMessage) ||
-    /(intake|cuestionario).*(complet|listo)|perfil financiero listo|diagn[oó]stico completado/i.test(normalizedAgentResponse)
-  ) {
-    return {
-      detected: true,
-      action: 'completed_intake',
-      confidence: 0.9,
-      rationale: 'User completed financial intake questionnaire',
-    };
-  }
-
-  // Check for profile completion
-  if (
-    /perfil.*listo|profile.*complete|diagn[oó]stico.*complet/i.test(normalizedAgentResponse)
-  ) {
-    return {
-      detected: true,
-      action: 'completed_profile',
-      confidence: 0.85,
-      rationale: 'Financial diagnostic profile completed',
-    };
-  }
-
   // Check for budget analysis
   if (
     toolsUsed.includes('finance.budget_analyzer') &&
@@ -74,7 +49,11 @@ export function detectKnowledgeEvent(params: {
     toolsUsed.includes('finance.simulate') ||
     toolsUsed.includes('finance.simulate_montecarlo') ||
     toolsUsed.includes('finance.scenario_projection') ||
-    /simulat|escenario|proyect|scenario/i.test(normalizedUserMessage)
+    (
+      mode === 'simulation' &&
+      /simulat|escenario|proyect|scenario/i.test(normalizedUserMessage) &&
+      /[\$]?\d{3,}|\b\d+\s*(mes|meses|años|anos|%)\b/i.test(normalizedUserMessage)
+    )
   ) {
     return {
       detected: true,

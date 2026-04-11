@@ -5,7 +5,19 @@
  * Validates at startup to fail fast on misconfiguration.
  */
 
+import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 import { z, ZodError } from 'zod';
+
+let envPath = path.resolve(__dirname, '../.env');
+if (!fs.existsSync(envPath)) {
+  envPath = path.resolve(process.cwd(), '.env');
+}
+if (!fs.existsSync(envPath)) {
+  envPath = path.resolve(process.cwd(), 'apps/api/.env');
+}
+dotenv.config({ path: envPath });
 
 const configSchema = z.object({
   // LLM
@@ -23,12 +35,12 @@ const configSchema = z.object({
   // Web Server
   PORT: z
     .string()
-    .default('3000')
+    .default('3001')
     .transform((v) => Number(v))
     .describe('Server port'),
   WEB_ORIGIN: z
     .string()
-    .default('http://localhost:3001')
+    .default('http://localhost:3000')
     .describe('Frontend origin for CORS'),
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
@@ -83,7 +95,7 @@ export function getConfig(): Config {
   } catch (err) {
     if (err instanceof ZodError) {
       console.error('❌ Configuration validation failed:');
-      err.errors.forEach((e: any) => {
+      err.issues.forEach((e: any) => {
         const path = e.path.join('.');
         console.error(`  • ${path}: ${e.message}`);
       });

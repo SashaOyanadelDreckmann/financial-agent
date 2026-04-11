@@ -33,6 +33,7 @@ import {
   detectKnowledgeEvent,
 } from './knowledge-detector';
 import {
+  KNOWLEDGE_MILESTONES,
   getMilestones,
   recordKnowledgeEvent,
 } from '../../services/knowledge.service';
@@ -1924,7 +1925,16 @@ Reglas:
       );
 
       if (newUnlocks.length > 0) {
-        milestone_unlocked = milestones.next;
+        const unlockedFeature = newUnlocks[0];
+        const unlockedMilestone = KNOWLEDGE_MILESTONES.find(
+          (milestone) => milestone.feature === unlockedFeature
+        );
+        if (unlockedMilestone) {
+          milestone_unlocked = {
+            threshold: unlockedMilestone.threshold,
+            feature: unlockedMilestone.feature,
+          };
+        }
       }
 
       getLogger().info({
