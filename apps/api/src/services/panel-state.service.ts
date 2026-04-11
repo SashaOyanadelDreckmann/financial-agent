@@ -65,7 +65,7 @@ export function validateRecommendation(
     confidence -= 0.15;
   }
 
-  if (intake.riskReaction === 'sell' && /buy|invest|risk/i.test(recommendation)) {
+  if (intake.riskReaction === 'sell' && /buy|invest|risk|opciones|leverage|alto riesgo/i.test(recommendation)) {
     conflicts.push('User history shows risk-averse behavior (sells when stressed)');
     confidence -= 0.2;
   }
@@ -74,7 +74,10 @@ export function validateRecommendation(
   const amountMatch = recommendation.match(/\$?([\d,]+(?:\.\d{2})?)/);
   if (amountMatch && annualIncome > 0) {
     const recommendedAmount = parseFloat(amountMatch[1].replace(/,/g, ''));
-    const percentOfIncome = (recommendedAmount / annualIncome) * 100;
+    const isMonthlyRecommendation =
+      /\b(mensual|mensualmente|al mes|por mes|mes)\b/i.test(recommendation);
+    const comparableIncome = isMonthlyRecommendation && monthlyIncome > 0 ? monthlyIncome : annualIncome;
+    const percentOfIncome = (recommendedAmount / comparableIncome) * 100;
 
     // Red flags
     if (percentOfIncome > 50) {
@@ -119,9 +122,9 @@ export function validateRecommendation(
   // Check 6: Time horizon alignment
   if (
     profile.timeHorizon === 'short_term' &&
-    /retirement|long.term|compound|decades/i.test(recommendation)
+    /retirement|long.term|compound|decades|retiro|20 años|30 años|largo plazo/i.test(recommendation)
   ) {
-    conflicts.push('Short-term user; long-term recommendations may not align');
+    conflicts.push('Time horizon mismatch: short-term user but recommendation implies a long horizon');
     confidence -= 0.15;
   }
 

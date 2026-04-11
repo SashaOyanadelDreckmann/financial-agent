@@ -13,7 +13,7 @@ describe('knowledge.service', () => {
     process.env.DATA_DIR = tmpRoot;
     process.env.ANTHROPIC_API_KEY = 'test-key';
     process.env.NODE_ENV = 'test';
-    process.env.LOG_LEVEL = 'silent';
+    process.env.LOG_LEVEL = 'error';
     await fs.mkdir(userDir, { recursive: true });
     await fs.writeFile(
       userPath,

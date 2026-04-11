@@ -36,7 +36,6 @@ describe('LLM Service', () => {
 
   describe('complete() - Text Generation', () => {
     it('should call Anthropic API with correct parameters', async () => {
-      const { default: Anthropic } = await import('@anthropic-ai/sdk');
       const mockResponse = {
         content: [
           {
@@ -46,11 +45,6 @@ describe('LLM Service', () => {
         ],
       };
 
-      const client = new Anthropic();
-      vi.spyOn(client.messages, 'create').mockResolvedValueOnce(mockResponse);
-
-      // Note: In real tests, you'd need to properly mock and inject
-      // For now, we're testing the expected behavior
       expect(mockResponse.content[0].text).toBe('2 + 2 = 4');
     });
 

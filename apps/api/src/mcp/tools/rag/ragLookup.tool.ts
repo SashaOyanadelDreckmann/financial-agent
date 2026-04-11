@@ -141,7 +141,7 @@ export const ragLookupTool: MCPTool = {
         confidence: Math.min(0.95, 0.6 + h.score * 0.04),
         url: undefined,
       })),
-    );
+    ).slice(0, limit);
 
     return {
       tool_call: { tool: 'rag.lookup', args, status: 'success', result: { found: citations.length } },

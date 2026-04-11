@@ -6,7 +6,7 @@ const router = Router();
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
-router.get('/diagnosis/latest', (_req, res) => {
+router.get('/diagnosis/latest', (req, res) => {
   try {
     const files = fs
       .readdirSync(DATA_DIR)

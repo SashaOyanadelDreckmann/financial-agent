@@ -42,7 +42,7 @@ export function errorHandlerMiddleware(
     statusCode = 400;
     errorCode = 'VALIDATION_ERROR';
     message = 'Request validation failed';
-    details = err.errors.map((e: any) => ({
+    details = err.issues.map((e: any) => ({
       path: e.path.join('.'),
       message: e.message,
     }));

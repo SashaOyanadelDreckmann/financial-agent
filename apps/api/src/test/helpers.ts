@@ -6,13 +6,18 @@
 
 import fs from 'fs';
 import path from 'path';
+import { vi } from 'vitest';
 
 /**
  * Create a temporary test directory that cleans up automatically.
  * Returns the path and a cleanup function.
  */
 export function createTempTestDir(): { dir: string; cleanup: () => void } {
-  const dir = fs.mkdtempSync(path.join(__dirname, '../../.test-'), { recursive: true });
+  const baseDir = path.join(__dirname, '../../.test-tmp');
+  if (!fs.existsSync(baseDir)) {
+    fs.mkdirSync(baseDir, { recursive: true });
+  }
+  const dir = fs.mkdtempSync(path.join(baseDir, 'run-'));
 
   return {
     dir,

@@ -89,6 +89,11 @@ export function validateAgentDecision(
   warnings.push(...emergencyWarnings.warnings);
   score *= emergencyWarnings.score;
 
+  // Check 8: Time horizon alignment
+  const horizonWarnings = checkTimeHorizonAlignment(decision, profile);
+  warnings.push(...horizonWarnings.warnings);
+  score *= horizonWarnings.score;
+
   // Normalize score
   score = Math.max(0, Math.min(1, score));
 
@@ -118,8 +123,12 @@ function checkHistoryConsistency(
   // Look for conflicting keywords
   const conflictPairs = [
     ['conservative', 'aggressive'],
+    ['conservador', 'alto riesgo'],
+    ['seguro', 'riesgo'],
     ['safe', 'risky'],
     ['short-term', 'long-term'],
+    ['corto plazo', '20 años'],
+    ['corto plazo', 'largo plazo'],
     ['stable', 'volatile'],
   ];
 
@@ -128,8 +137,8 @@ function checkHistoryConsistency(
     const hasKeyword2 = new RegExp(`\\b${keyword2}\\b`, 'i').test(decision);
 
     if (hasKeyword1 && hasKeyword2) {
-      warnings.push(`Potential contradiction: recent history mentions "${keyword1}" but decision suggests "${keyword2}"`);
-      score -= 0.1;
+      warnings.push(`Potential contradiction with recent history: "${keyword1}" vs "${keyword2}"`);
+      score -= 0.18;
     }
   }
 
@@ -142,6 +151,7 @@ function checkIncomeProportionality(
 ): { warnings: string[]; score: number } {
   const warnings: string[] = [];
   let score = 1.0;
+  const monthlyIncome = annualIncome / 12;
 
   if (annualIncome <= 0) {
     return { warnings: [], score: 0.9 };
@@ -153,14 +163,18 @@ function checkIncomeProportionality(
   }
 
   const recommendedAmount = parseFloat(amountMatch[1].replace(/,/g, ''));
-  const percentOfIncome = (recommendedAmount / annualIncome) * 100;
+  const isMonthlyRecommendation =
+    /\b(mensual|mensualmente|al mes|por mes|mes)\b/i.test(decision);
+  const comparableIncome = isMonthlyRecommendation && monthlyIncome > 0 ? monthlyIncome : annualIncome;
+  const incomeLabel = isMonthlyRecommendation ? 'monthly income' : 'income';
+  const percentOfIncome = (recommendedAmount / comparableIncome) * 100;
 
   if (percentOfIncome > 100) {
-    warnings.push(`Recommendation (${percentOfIncome.toFixed(0)}% of income) exceeds annual income`);
-    score -= 0.25;
+    warnings.push(`Recommendation (${percentOfIncome.toFixed(0)}% of ${incomeLabel}) exceeds available income`);
+    score -= 0.45;
   } else if (percentOfIncome > 50) {
-    warnings.push(`High recommendation (${percentOfIncome.toFixed(0)}% of annual income)`);
-    score -= 0.1;
+    warnings.push(`High recommendation (${percentOfIncome.toFixed(0)}% of ${incomeLabel})`);
+    score -= 0.22;
   } else if (percentOfIncome < 1 && recommendedAmount > 1000) {
     // Reasonable small percentage
     score += 0.05;
@@ -181,15 +195,15 @@ function checkRiskToleranceAlignment(
   const isRiskAverse = intake.riskReaction === 'sell' || intake.riskReaction === 'never_invest';
   const isAnxious = profile.profile.emotionalPattern === 'anxious';
 
-  if ((isRiskAverse || isAnxious) && /aggressive|growth|leverage|margin/i.test(decision)) {
+  if ((isRiskAverse || isAnxious) && /aggressive|growth|leverage|margin|opciones|alto riesgo|startups|5x/i.test(decision)) {
     warnings.push('Risk-averse profile but decision suggests aggressive approach');
-    score -= 0.2;
+    score -= 0.28;
     suggestions.push('Consider more conservative alternatives for this user');
   }
 
-  if (intake.riskReaction === 'buy_more' && /safe|conservative|stable/i.test(decision)) {
+  if (intake.riskReaction === 'buy_more' && /safe|conservative|stable|renta fija|100% del portafolio/i.test(decision)) {
     warnings.push('Risk-tolerant profile but decision is overly conservative');
-    score -= 0.1;
+    score -= 0.22;
     suggestions.push('User may be frustrated with too-conservative recommendations');
   }
 
@@ -208,11 +222,13 @@ function checkFinancialKnowledgeAlignment(
     'derivative',
     'hedge',
     'options',
+    'opciones',
     'leverage',
     'arbitrage',
     'structured',
     'synthetic',
     'correlation',
+    'collar',
     'volatility smile',
   ];
 
@@ -223,7 +239,7 @@ function checkFinancialKnowledgeAlignment(
     score -= 0.15;
   }
 
-  if (knowledge < 3 && /option|future|derivative/i.test(decision)) {
+  if (knowledge < 3 && /option|future|derivative|opciones|futuros/i.test(decision)) {
     warnings.push('Derivatives/advanced products recommended to novice investor');
     score -= 0.25;
   }
@@ -239,26 +255,27 @@ function checkDebtAlignment(
   const warnings: string[] = [];
   let score = 1.0;
 
-  if (!intake.hasDebt) {
+  const debtToIncome = budget.debt_to_income_pct ?? 0;
+  const hasDebt = intake.hasDebt || debtToIncome > 0;
+
+  if (!hasDebt) {
     return { warnings: [], score: 1.0 }; // No debt, no problem
   }
 
-  const debtToIncome = budget.debt_to_income_pct ?? 0;
-
   // User has debt
-  if (/invest|growth|market|equity/i.test(decision)) {
+  if (/invest|growth|market|equity|crypto|startups|fondos accionarios/i.test(decision)) {
     if (debtToIncome > 30) {
       warnings.push('High debt-to-income ratio; should focus on debt reduction before investing');
-      score -= 0.15;
+      score -= 0.22;
     } else if (debtToIncome > 20) {
       warnings.push('Moderate debt; consider debt reduction alongside investing');
       score -= 0.08;
     }
   }
 
-  if (debtToIncome > 50 && /speculative|risky|high.return/i.test(decision)) {
+  if (debtToIncome > 50 && /speculative|risky|high.return|alto riesgo|startups|crypto/i.test(decision)) {
     warnings.push('Very high debt ratio; speculative investments not recommended');
-    score -= 0.3;
+    score -= 0.4;
   }
 
   return { warnings, score: Math.max(0.2, score) };
@@ -272,17 +289,16 @@ function checkEmergencyFundAlignment(
   let score = 1.0;
 
   const emergencyMonths = budget.emergency_fund_months ?? 0;
-  const monthlyExpenses = budget.expenses ?? 0;
 
   if (emergencyMonths < 1) {
-    if (/invest|growth|market/i.test(decision)) {
+    if (/invest|growth|market|fondos accionarios|portfolio/i.test(decision)) {
       warnings.push('No emergency fund; should build one before investing');
-      score -= 0.2;
+      score -= 0.4;
     }
   } else if (emergencyMonths < 3) {
-    if (/aggressive|speculative/i.test(decision)) {
+    if (/aggressive|speculative|fondos accionarios|alto riesgo/i.test(decision)) {
       warnings.push('Emergency fund below 3 months; recommend conservative approach');
-      score -= 0.1;
+      score -= 0.22;
     }
   }
 
@@ -291,6 +307,24 @@ function checkEmergencyFundAlignment(
   }
 
   return { warnings, score: Math.max(0.1, score) };
+}
+
+function checkTimeHorizonAlignment(
+  decision: string,
+  profile: FinancialDiagnosticProfile
+): { warnings: string[]; score: number } {
+  const warnings: string[] = [];
+  let score = 1.0;
+
+  if (
+    profile.profile.timeHorizon === 'short_term' &&
+    /retirement|long.term|compound|decades|retiro|20 años|30 años|largo plazo/i.test(decision)
+  ) {
+    warnings.push('Time horizon mismatch: short-term profile but decision implies a long horizon');
+    score -= 0.22;
+  }
+
+  return { warnings, score: Math.max(0.3, score) };
 }
 
 /**

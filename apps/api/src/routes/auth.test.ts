@@ -11,6 +11,8 @@ beforeAll(() => {
   process.env.DATA_DIR = dataDir;
   process.env.NODE_ENV = 'test';
   process.env.WEB_ORIGIN = 'http://localhost:3001';
+  process.env.ANTHROPIC_API_KEY = 'test-key';
+  process.env.LOG_LEVEL = 'error';
 });
 
 afterAll(() => {
@@ -62,4 +64,3 @@ describe('auth + session', () => {
     expect(bad.status).toBe(401);
   });
 });
-
