@@ -28,3 +28,5 @@ storage/
 *_dump.txt
 procesozombi.txt
 recopilar.todo.txt
+.claude/worktrees/
+/financial-agent/
