@@ -12,6 +12,7 @@ import { InterviewBlockId } from '../../orchestrator/interview.flow';
 import { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-questionnaire.types';
 
 import { complete } from '../../services/llm.service';
+import { getLogger } from '../../logger';
 
 /* ────────────────────────────── */
 /* Input del agente diagnóstico   */
@@ -85,10 +86,11 @@ export async function runDiagnosticAgent(
       JSON.parse(raw)
     );
   } catch (err) {
-    console.error(
-      '[DiagnosticAgent] Invalid LLM response',
-      raw
-    );
+    getLogger().error({
+      msg: '[DiagnosticAgent] Invalid LLM response',
+      raw,
+      error: err,
+    });
     throw new Error(
       'Respuesta inválida del agente diagnóstico'
     );

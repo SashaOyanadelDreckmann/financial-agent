@@ -1,31 +1,40 @@
 import { Router } from 'express';
-import fs from 'fs';
-import path from 'path';
+import { loadProfile } from '../services/storage.service';
+import { loadSession } from '../services/session.service';
+import { loadUserById } from '../services/user.service';
 
 const router = Router();
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-
-router.get('/diagnosis/latest', (_req, res) => {
+router.get('/diagnosis/latest', (req, res) => {
   try {
-    const files = fs
-      .readdirSync(DATA_DIR)
-      .filter((f) => f.startsWith('financial_profile_'))
-      .sort()
-      .reverse();
-
-    if (files.length === 0) {
-      return res.status(404).json({ error: 'No diagnosis found' });
+    const token = req.cookies?.session;
+    if (!token) {
+      return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const latestPath = path.join(DATA_DIR, files[0]);
-    const raw = fs.readFileSync(latestPath, 'utf-8');
+    const session = loadSession(token);
+    if (!session?.userId) {
+      return res.status(401).json({ error: 'Invalid session' });
+    }
 
-    const parsed = JSON.parse(raw); // 👈 CLAVE
+    const user = loadUserById(session.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-    return res.json(parsed); // 👈 SOLO UNA RESPUESTA
+    const latestProfileId = (user as any).latestDiagnosticProfileId;
+    if (!latestProfileId) {
+      return res.status(404).json({ error: 'No diagnosis found for this user' });
+    }
+
+    const profile = loadProfile(latestProfileId);
+    if (!profile) {
+      return res.status(404).json({ error: 'Stored diagnosis could not be loaded' });
+    }
+
+    return res.json(profile);
   } catch (err) {
-    console.error(err);
+    (req as any).logger?.error({ msg: 'Failed to load diagnosis', error: err });
     return res.status(500).json({
       error: 'Failed to load diagnosis',
     });

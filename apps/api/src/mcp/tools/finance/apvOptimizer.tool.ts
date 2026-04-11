@@ -7,7 +7,11 @@
  */
 
 import { z } from 'zod';
-import type { MCPTool } from '../types';
+import type { MCPTool, ToolContext } from '../types';
+import { checkRateLimit } from '../rate-limiter';
+import { validateNumericRange } from '../input-sanitizer';
+import { createMetricsCollector, recordToolMetrics } from '../telemetry';
+import { wrapError } from '../error';
 
 function normRate(x: number) {
   return x > 1 ? x / 100 : x;
@@ -61,10 +65,25 @@ export const apvOptimizerTool: MCPTool = {
     annualReturnRate:    z.number().optional(),             // rendimiento anual esperado (ej: 5 o 0.05)
     currentApvBalance:   z.number().min(0).optional(),     // saldo APV actual
   }),
-  run: async (args) => {
-    const monthlyIncome   = Number(args.monthlyIncome);
-    const monthlyContrib  = Number(args.monthlyContribution);
-    const years           = Math.max(1, Math.min(40, Math.floor(Number(args.years))));
+  run: async (args, ctx?: ToolContext) => {
+    const metrics = createMetricsCollector('finance.apv_optimizer');
+
+    try {
+      // 1. Rate limit check
+      await checkRateLimit('finance.apv_optimizer', ctx);
+
+      // 2. Input validation
+      validateNumericRange(Number(args.monthlyIncome), 500000, 100000000, 'monthlyIncome', 'finance.apv_optimizer');
+      validateNumericRange(Number(args.monthlyContribution), 10000, 5000000, 'monthlyContribution', 'finance.apv_optimizer');
+      validateNumericRange(Number(args.years), 1, 40, 'years', 'finance.apv_optimizer');
+
+      if (args.currentApvBalance !== undefined) {
+        validateNumericRange(Number(args.currentApvBalance), 0, 100000000, 'currentApvBalance', 'finance.apv_optimizer');
+      }
+
+      const monthlyIncome   = Number(args.monthlyIncome);
+      const monthlyContrib  = Number(args.monthlyContribution);
+      const years           = Math.max(1, Math.min(40, Math.floor(Number(args.years))));
     const annualReturn    = normRate(Number(args.annualReturnRate ?? 5.5));
     const currentBalance  = Number(args.currentApvBalance ?? 0);
 
@@ -161,73 +180,87 @@ export const apvOptimizerTool: MCPTool = {
         : `Para tu nivel de ingresos, Régimen B proyecta un saldo final superior al cabo de ${years} años.`;
     }
 
-    // Si la diferencia es pequeña, sugiere combinar
-    if (Math.abs(finalA - finalB) / Math.max(finalA, finalB) < 0.05) {
-      recommended = 'ambos';
-      recommendation_reason =
-        'Ambos regímenes proyectan resultados similares. Puedes diversificar: Régimen A para el primer tramo (hasta 600 UF) y Régimen B para el resto.';
-    }
+      // Si la diferencia es pequeña, sugiere combinar
+      if (Math.abs(finalA - finalB) / Math.max(finalA, finalB) < 0.05) {
+        recommended = 'ambos';
+        recommendation_reason =
+          'Ambos regímenes proyectan resultados similares. Puedes diversificar: Régimen A para el primer tramo (hasta 600 UF) y Régimen B para el resto.';
+      }
 
-    // Puntos clave del resultado (para charts/tablas)
-    const keyYears = [1, 3, 5, 10, 15, 20, years].filter(
-      (y, i, arr) => y <= years && arr.indexOf(y) === i
-    );
-    const chartSeries = keyYears.map((y) => ({
-      year: y,
-      regimen_a:    seriesA.find((s) => s.year === y)?.balance ?? finalA,
-      regimen_b:    seriesB.find((s) => s.year === y)?.balance ?? finalB,
-      sin_apv:      seriesBase.find((s) => s.year === y)?.balance ?? finalBase,
-    }));
+      // Puntos clave del resultado (para charts/tablas)
+      const keyYears = [1, 3, 5, 10, 15, 20, years].filter(
+        (y, i, arr) => y <= years && arr.indexOf(y) === i
+      );
+      const chartSeries = keyYears.map((y) => ({
+        year: y,
+        regimen_a:    seriesA.find((s) => s.year === y)?.balance ?? finalA,
+        regimen_b:    seriesB.find((s) => s.year === y)?.balance ?? finalB,
+        sin_apv:      seriesBase.find((s) => s.year === y)?.balance ?? finalBase,
+      }));
 
-    const summary = {
-      // Perfil tributario
-      annual_income:          Math.round(annualIncome),
-      marginal_rate_pct:      Number((marginalRate * 100).toFixed(1)),
-      effective_rate_pct:     Number((effectiveRate * 100).toFixed(1)),
+      const summary = {
+        // Perfil tributario
+        annual_income:          Math.round(annualIncome),
+        marginal_rate_pct:      Number((marginalRate * 100).toFixed(1)),
+        effective_rate_pct:     Number((effectiveRate * 100).toFixed(1)),
 
-      // APV
-      monthly_contribution:   Math.round(monthlyContrib),
-      annual_contribution:    Math.round(annualContrib),
-      years,
+        // APV
+        monthly_contribution:   Math.round(monthlyContrib),
+        annual_contribution:    Math.round(annualContrib),
+        years,
 
-      // Régimen A
-      regime_a_annual_credit: Math.round(taxCreditA),
-      regime_a_monthly_credit: Math.round(monthlyTaxCreditA),
-      regime_a_final_balance:  finalA,
-      regime_a_total_tax_benefit: Math.round(totalTaxBenefitA),
+        // Régimen A
+        regime_a_annual_credit: Math.round(taxCreditA),
+        regime_a_monthly_credit: Math.round(monthlyTaxCreditA),
+        regime_a_final_balance:  finalA,
+        regime_a_total_tax_benefit: Math.round(totalTaxBenefitA),
 
-      // Régimen B
-      regime_b_annual_saving: Math.round(taxSavingBPerYear),
-      regime_b_monthly_saving: Math.round(monthlySavingB),
-      regime_b_final_balance:  finalB,
-      regime_b_total_tax_benefit: Math.round(totalTaxBenefitB),
+        // Régimen B
+        regime_b_annual_saving: Math.round(taxSavingBPerYear),
+        regime_b_monthly_saving: Math.round(monthlySavingB),
+        regime_b_final_balance:  finalB,
+        regime_b_total_tax_benefit: Math.round(totalTaxBenefitB),
 
-      // Sin APV
-      no_apv_final_balance: finalBase,
-      apv_total_advantage:  Math.round(Math.max(finalA, finalB) - finalBase),
+        // Sin APV
+        no_apv_final_balance: finalBase,
+        apv_total_advantage:  Math.round(Math.max(finalA, finalB) - finalBase),
 
-      // Recomendación
-      recommended,
-      recommendation_reason,
+        // Recomendación
+        recommended,
+        recommendation_reason,
 
-      // Datos para gráfico
-      chart_series: chartSeries,
-    };
+        // Datos para gráfico
+        chart_series: chartSeries,
+      };
 
-    return {
-      tool_call: {
-        tool: 'finance.apv_optimizer',
-        args,
-        status: 'success',
-        result: {
-          recommended,
-          regime_a_final: finalA,
-          regime_b_final: finalB,
-          no_apv_final:   finalBase,
-          advantage:      summary.apv_total_advantage,
+      // 3. Record success metrics
+      const toolMetrics = metrics.recordSuccess(ctx);
+      recordToolMetrics(toolMetrics);
+
+      return {
+        tool_call: {
+          tool: 'finance.apv_optimizer',
+          args,
+          status: 'success',
+          result: {
+            recommended,
+            regime_a_final: finalA,
+            regime_b_final: finalB,
+            no_apv_final:   finalBase,
+            advantage:      summary.apv_total_advantage,
+          },
         },
-      },
-      data: { summary, chart_series: chartSeries },
-    };
+        data: { summary, chart_series: chartSeries },
+      };
+    } catch (error) {
+      // 4. Error handling with standardized codes
+      let toolError = wrapError(error, 'finance.apv_optimizer');
+
+      // Record error metrics
+      const toolMetrics = metrics.recordError(toolError.code, ctx);
+      recordToolMetrics(toolMetrics);
+
+      throw toolError;
+    }
   },
 };

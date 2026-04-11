@@ -17,8 +17,10 @@ import {
 } from '../schemas/profile.schema';
 
 import { saveProfile } from '../services/storage.service';
-import { loadUserById } from '../services/user.service';
+import { attachDiagnosticProfileToUser, loadUserById } from '../services/user.service';
 import { loadSession } from '../services/session.service';
+import { appendMemoryTimelineNote } from '../services/memory.service';
+import { recordKnowledgeEvent } from '../services/knowledge.service';
 
 const agent = new InterviewerAgent();
 
@@ -90,6 +92,8 @@ export async function conversationNextCore(
       (b) => !completedBlockIds.includes(b)
     ) ??
     null;
+  const interviewChatId = `interview:${user.id}`;
+  const joinedAnswers = answersInCurrentBlock.join(' | ');
 
   /* ───────────── FIN ENTREVISTA ───────────── */
   if (!currentBlockId) {
@@ -100,7 +104,36 @@ export async function conversationNextCore(
     });
 
     // 💾 Persistir
-    saveProfile(diagnosticProfile);
+    const { profileId } = saveProfile(diagnosticProfile);
+    attachDiagnosticProfileToUser(user.id, profileId);
+    await recordKnowledgeEvent(
+      user.id,
+      'completed_profile',
+      'Financial diagnostic profile completed',
+      { source: 'interview_complete', profile_id: profileId }
+    );
+    appendMemoryTimelineNote({
+      userId: user.id,
+      chatId: interviewChatId,
+      userMessage: joinedAnswers || 'Entrevista financiera completada',
+      agentMessage: diagnosticProfile.diagnosticNarrative,
+      mode: 'diagnostic_interview',
+      summary: 'Entrevista completada y perfil diagnóstico persistido.',
+      facts: [
+        {
+          type: 'decision',
+          key: 'diagnostic_profile',
+          value: diagnosticProfile.diagnosticNarrative,
+          confidence: 0.95,
+        },
+        {
+          type: 'risk_profile',
+          key: 'time_horizon',
+          value: diagnosticProfile.profile.timeHorizon,
+          confidence: 0.85,
+        },
+      ],
+    });
 
     return res.json({
       type: 'interview_complete',
@@ -111,6 +144,14 @@ export async function conversationNextCore(
   /* ───────────── WARMUP ───────────── */
   if (currentBlockId === 'warmup') {
     if (answersInCurrentBlock.length >= 1) {
+      appendMemoryTimelineNote({
+        userId: user.id,
+        chatId: interviewChatId,
+        userMessage: joinedAnswers || 'Warmup de entrevista',
+        agentMessage: 'Warmup completado',
+        mode: 'diagnostic_interview',
+        summary: 'Warmup de entrevista financiera completado.',
+      });
       return res.json({
         type: 'block_completed',
         blockId: 'warmup',
@@ -131,6 +172,14 @@ export async function conversationNextCore(
   /* ───────────── VALIDACIÓN ───────────── */
   if (summaryValidation && currentBlockId !== 'warmup') {
     if (!summaryValidation.accepted) {
+      appendMemoryTimelineNote({
+        userId: user.id,
+        chatId: interviewChatId,
+        userMessage: summaryValidation.comment ?? 'Solicitud de revisión de bloque',
+        agentMessage: `Bloque ${currentBlockId} marcado para revisión`,
+        mode: 'diagnostic_interview',
+        summary: `Usuario pidió revisar el bloque ${currentBlockId}.`,
+      });
       return res.json({
         type: 'block_revision',
         blockId: currentBlockId,
@@ -140,6 +189,14 @@ export async function conversationNextCore(
 
     const prev = completedBlocks[currentBlockId];
 
+    appendMemoryTimelineNote({
+      userId: user.id,
+      chatId: interviewChatId,
+      userMessage: joinedAnswers || `Validación del bloque ${currentBlockId}`,
+      agentMessage: `Bloque ${currentBlockId} validado`,
+      mode: 'diagnostic_interview',
+      summary: `Bloque ${currentBlockId} validado por el usuario.`,
+    });
     return res.json({
       type: 'block_completed',
       blockId: currentBlockId,
@@ -165,6 +222,14 @@ export async function conversationNextCore(
   });
 
   if (nextQuestion) {
+    appendMemoryTimelineNote({
+      userId: user.id,
+      chatId: interviewChatId,
+      userMessage: joinedAnswers || `Continuar bloque ${currentBlockId}`,
+      agentMessage: nextQuestion,
+      mode: 'diagnostic_interview',
+      summary: `Nueva pregunta generada para el bloque ${currentBlockId}.`,
+    });
     return res.json({
       type: 'question',
       blockId: currentBlockId,
@@ -179,6 +244,15 @@ export async function conversationNextCore(
     answersInCurrentBlock,
     user
   );
+
+  appendMemoryTimelineNote({
+    userId: user.id,
+    chatId: interviewChatId,
+    userMessage: joinedAnswers || `Resumen bloque ${currentBlockId}`,
+    agentMessage: summary,
+    mode: 'diagnostic_interview',
+    summary: `Resumen generado para el bloque ${currentBlockId}.`,
+  });
 
   return res.json({
     type: 'block_summary',
@@ -208,7 +282,7 @@ export default async function conversationNext(
       }
     );
   } catch (err) {
-    console.error('Error en /conversation/next', err);
+    (req as any).logger?.error({ msg: 'Error en /conversation/next', error: err });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

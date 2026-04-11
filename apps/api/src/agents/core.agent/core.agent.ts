@@ -16,15 +16,28 @@ import {
   ReasoningModeSchema,
 } from './chat.types';
 
-import { completeStructured, complete } from '../../services/llm.service';
+import { completeStructured, complete, getAnthropicClient } from '../../services/llm.service';
 import { runMCPTool } from '../../mcp/tools/runMCPTool';
+import { buildAnthropicTools, getOriginalToolName } from '../../mcp/anthropic-bridge';
 import { randomUUID } from 'crypto';
+import type Anthropic from '@anthropic-ai/sdk';
+import { getLogger } from '../../logger';
 
 import {
   CORE_CLASSIFIER_SYSTEM,
   CORE_RESPONSE_SYSTEM,
-  CORE_PLANNER_SYSTEM,
+  CORE_TOOL_AGENT_SYSTEM,
 } from './system.prompts';
+
+import {
+  detectKnowledgeEvent,
+} from './knowledge-detector';
+import {
+  KNOWLEDGE_MILESTONES,
+  getMilestones,
+  recordKnowledgeEvent,
+} from '../../services/knowledge.service';
+import { validateAgentDecision } from './coherence-validator';
 
 type LLMMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
@@ -1246,63 +1259,6 @@ export async function runCoreAgent(
   }
 
   /* ────────────────────────────── */
-  /* Planning                       */
-  /* ────────────────────────────── */
-  const plan = classification.requires_tools
-    ? await completeStructured<{
-        objective: string;
-        steps: Array<{ goal: string; tool?: string; args?: any }>;
-      }>({
-        system: CORE_PLANNER_SYSTEM,
-        user: JSON.stringify({
-          message: text,
-          intent: classification.intent,
-          mode,
-          inferred_user_model: inferredUserModel,
-          ui_state: input.ui_state ?? {},
-          preferences: input.preferences ?? {},
-        }),
-      })
-    : { objective: 'respond', steps: [] };
-
-  if (isConceptualPdfRequest(input, mode)) {
-    const category = classifyReportCategory(input, mode, classification.intent, false);
-    plan.steps = plan.steps.map((s) =>
-      s.tool === 'pdf.generate_simulation'
-        ? {
-            ...s,
-            tool: 'pdf.generate_report',
-            args: {
-              title: `${category.titlePrefix} · ${classification.intent.slice(0, 52)}`,
-              subtitle: 'Documento narrativo personalizado al contexto del usuario',
-              source: 'analysis',
-              style: 'corporativo',
-              sections: buildNarrativeSections(input, classification.intent),
-              tables: buildBudgetReportTables(input),
-              charts: pickContextReportCharts(input),
-            },
-          }
-        : s
-    );
-  }
-
-  const asksPdfNow = /\b(pdf|reporte|informe|documento|descargar|archivo)\b/i.test(text);
-  const hasPdfStep = plan.steps.some(
-    (s) => s.tool === 'pdf.generate_simulation' || s.tool === 'pdf.generate_report'
-  );
-  if (asksPdfNow && !hasPdfStep) {
-    plan.steps.push(buildFallbackPdfStep(input, mode, classification.intent, inferredUserModel));
-  }
-
-  plan.steps = enrichPlanSteps(
-    plan.steps,
-    input,
-    mode,
-    classification.intent,
-    inferredUserModel
-  );
-
-  /* ────────────────────────────── */
   /* Contexto compartido para PDFs  */
   /* ────────────────────────────── */
   const _uiState = (input.ui_state ?? {}) as Record<string, any>;
@@ -1314,132 +1270,282 @@ export async function runCoreAgent(
     : [];
   const _budgetSummary = _uiState.budget_summary ?? {};
 
-  /* ────────────────────────────── */
-  /* Ejecutar tools                 */
-  /* ────────────────────────────── */
-  for (const step of plan.steps) {
-    if (!step.tool) continue;
+  /* ──────────────────────────────────────────────────────────────────── */
+  /* ReAct loop — Anthropic tool_use nativo (MCP SDK oficial)             */
+  /*                                                                       */
+  /* Reemplaza el planner JSON + ejecución secuencial por el paradigma    */
+  /* ReAct real: Claude decide qué herramientas invocar, en qué orden,    */
+  /* observa los resultados y decide si necesita más datos antes de        */
+  /* terminar. Esto implementa directamente el Model Context Protocol      */
+  /* (MCP) conforme al SDK oficial de Anthropic.                           */
+  /* ──────────────────────────────────────────────────────────────────── */
 
-    // ── Informe narrativo: delegar al agente director de informes ──────────
-    if (step.tool === 'pdf.generate_report') {
-      try {
-        const uiState = _uiState;
-        const ctx = _ctx;
-        const budgetRows = _budgetRows;
-        const budgetSummary = _budgetSummary;
+  const reactSteps: Array<{ step: number; goal: string; decision: string }> = [];
+  const planObjective = classification.intent;
+  const asksPdfNow = /\b(pdf|reporte|informe|documento|descargar|archivo)\b/i.test(text);
 
-        const reportArtifact = await runReportAgent({
-          user_message: text,
+  if (classification.requires_tools) {
+    const anthropic = getAnthropicClient();
+    const anthropicTools = buildAnthropicTools();
+    const model = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6';
+
+    // Mensaje inicial para el loop: contexto enriquecido del usuario
+    // PHASE 9: Full context injection - Pass COMPLETE user information, not just booleans
+    const fullProfile = (_ctx.injected_profile as any)?.profile;
+    const fullIntake = (_ctx.injected_intake as any)?.intake;
+    const budgetSummaryData = _budgetSummary as any;
+
+    const context_summary = {
+      // Full profile details (NOT just booleans)
+      profile: fullProfile ? {
+        financialClarity: fullProfile.financialClarity,
+        decisionStyle: fullProfile.decisionStyle,
+        timeHorizon: fullProfile.timeHorizon,
+        financialPressure: fullProfile.financialPressure,
+        emotionalPattern: fullProfile.emotionalPattern,
+        coherenceScore: fullProfile.coherenceScore,
+      } : null,
+
+      // Full intake details (NOT just presence flags)
+      intake: fullIntake ? {
+        age: fullIntake.age,
+        employmentStatus: fullIntake.employmentStatus,
+        incomeBand: fullIntake.incomeBand,
+        exactMonthlyIncome: fullIntake.exactMonthlyIncome,
+        expensesCoverage: fullIntake.expensesCoverage,
+        hasSavingsOrInvestments: fullIntake.hasSavingsOrInvestments,
+        exactSavingsAmount: fullIntake.exactSavingsAmount,
+        hasDebt: fullIntake.hasDebt,
+        riskReaction: fullIntake.riskReaction,
+        selfRatedUnderstanding: fullIntake.selfRatedUnderstanding,
+        moneyStressLevel: fullIntake.moneyStressLevel,
+      } : null,
+
+      // Complete budget state (NOT just count)
+      budget: {
+        rows: _budgetRows,
+        summary: {
+          income: budgetSummaryData.income ?? 0,
+          expenses: budgetSummaryData.expenses ?? 0,
+          balance: budgetSummaryData.balance ?? 0,
+          savings_rate: budgetSummaryData.savings_rate,
+          debt_to_income_pct: budgetSummaryData.debt_to_income_pct,
+          emergency_fund_months: budgetSummaryData.emergency_fund_months,
+        },
+        contextScore: _uiState.knowledge_score ?? 0,
+      },
+
+      // Legacy fields for backward compatibility
+      has_profile: Boolean(_ctx.injected_profile ?? _ctx.profile),
+      has_intake: Boolean(_ctx.injected_intake ?? _ctx.intake_context),
+      budget_rows_count: _budgetRows.length,
+      recent_artifacts: Array.isArray(_ctx.recent_artifacts) ? _ctx.recent_artifacts.length : 0,
+      persistent_memory: _ctx.persistent_memory
+        ? {
+            profile_summary: _ctx.persistent_memory.profile_summary,
+            key_facts: Array.isArray(_ctx.persistent_memory.key_facts)
+              ? _ctx.persistent_memory.key_facts.slice(-8)
+              : [],
+            recent_timeline: Array.isArray(_ctx.persistent_memory.recent_timeline)
+              ? _ctx.persistent_memory.recent_timeline.slice(-5)
+              : [],
+          }
+        : null,
+      system_memory: _ctx.system_memory
+        ? {
+            capabilities: Array.isArray(_ctx.system_memory.capabilities)
+              ? _ctx.system_memory.capabilities
+              : [],
+            modules: Array.isArray(_ctx.system_memory.modules)
+              ? _ctx.system_memory.modules
+              : [],
+            tools: Array.isArray(_ctx.system_memory.tools)
+              ? _ctx.system_memory.tools.slice(0, 40)
+              : [],
+          }
+        : null,
+    };
+
+    const loopMessages: Anthropic.MessageParam[] = [
+      {
+        role: 'user',
+        content: JSON.stringify({
+          message: text,
           intent: classification.intent,
           mode,
-          style: step.args?.style ?? 'corporativo',
-          source: isDiagnosticReportRequest(input, classification.intent)
-            ? 'diagnostic'
-            : (step.args?.source ?? 'analysis'),
-          history: (input.history ?? []).slice(-14),
-          user_profile: ctx.injected_profile ?? undefined,
-          injected_intake: ctx.injected_intake ?? undefined,
-          budget: {
-            income: Number(budgetSummary.income ?? 0),
-            expenses: Number(budgetSummary.expenses ?? 0),
-            balance: Number(budgetSummary.balance ?? 0),
-            rows: budgetRows,
-          },
-          recent_charts: Array.isArray(ctx.recent_chart_summaries)
-            ? ctx.recent_chart_summaries
-            : undefined,
-          recent_artifacts: Array.isArray(ctx.recent_artifacts)
-            ? ctx.recent_artifacts
-            : undefined,
-          knowledge_score: typeof uiState.knowledge_score === 'number'
-            ? uiState.knowledge_score
-            : undefined,
-          milestones: Array.isArray(uiState.milestone_details)
-            ? uiState.milestone_details
-            : undefined,
+          inferred_user_model: inferredUserModel,
+          ui_state: input.ui_state ?? {},
+          preferences: input.preferences ?? {},
+          context_summary,
+        }),
+      },
+    ];
+
+    const MAX_TOOL_LOOPS = 8;
+    let loopCount = 0;
+
+    while (loopCount < MAX_TOOL_LOOPS) {
+      loopCount++;
+
+      const response = await anthropic.messages.create({
+        model,
+        max_tokens: 4096,
+        system: CORE_TOOL_AGENT_SYSTEM,
+        tools: anthropicTools,
+        messages: loopMessages,
+      });
+
+      // Anexar respuesta del asistente al historial del loop
+      loopMessages.push({ role: 'assistant', content: response.content });
+
+      // Si Claude decidió terminar sin más tools, salir del loop
+      if (response.stop_reason === 'end_turn') break;
+      if (response.stop_reason !== 'tool_use') break;
+
+      // ── Procesar bloques tool_use ────────────────────────────────────
+      const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+      for (const block of response.content) {
+        if (block.type !== 'tool_use') continue;
+
+        const originalName = getOriginalToolName(block.name);
+        const toolArgs = (block.input ?? {}) as Record<string, any>;
+
+        reactSteps.push({
+          step: reactSteps.length,
+          goal: `Ejecutar ${originalName}`,
+          decision: originalName,
         });
 
-        if (reportArtifact) {
-          if (isDiagnosticReportRequest(input, classification.intent)) {
-            (reportArtifact as any).source = 'diagnostic';
-            (reportArtifact as any).meta = {
-              ...((reportArtifact as any).meta ?? {}),
-              report_kind: 'diagnostic_integral',
-              generated_by: 'report_agent',
-            };
-          } else {
-            (reportArtifact as any).meta = {
-              ...((reportArtifact as any).meta ?? {}),
-              generated_by: 'report_agent',
-            };
+        // ── Caso especial: informe narrativo → delegar a RunReportAgent ──
+        if (originalName === 'pdf.generate_report') {
+          let toolResultContent: string;
+          try {
+            const reportArtifact = await runReportAgent({
+              user_message: text,
+              intent: classification.intent,
+              mode,
+              style: toolArgs.style ?? 'corporativo',
+              source: isDiagnosticReportRequest(input, classification.intent)
+                ? 'diagnostic'
+                : (toolArgs.source ?? 'analysis'),
+              history: (input.history ?? []).slice(-14),
+              user_profile: _ctx.injected_profile ?? undefined,
+              injected_intake: _ctx.injected_intake ?? undefined,
+              budget: {
+                income: Number(_budgetSummary.income ?? 0),
+                expenses: Number(_budgetSummary.expenses ?? 0),
+                balance: Number(_budgetSummary.balance ?? 0),
+                rows: _budgetRows,
+              },
+              recent_charts: Array.isArray(_ctx.recent_chart_summaries)
+                ? _ctx.recent_chart_summaries
+                : undefined,
+              recent_artifacts: Array.isArray(_ctx.recent_artifacts)
+                ? _ctx.recent_artifacts
+                : undefined,
+              knowledge_score:
+                typeof _uiState.knowledge_score === 'number'
+                  ? _uiState.knowledge_score
+                  : undefined,
+              milestones: Array.isArray(_uiState.milestone_details)
+                ? _uiState.milestone_details
+                : undefined,
+            });
+
+            if (reportArtifact) {
+              if (isDiagnosticReportRequest(input, classification.intent)) {
+                (reportArtifact as any).source = 'diagnostic';
+                (reportArtifact as any).meta = {
+                  ...((reportArtifact as any).meta ?? {}),
+                  report_kind: 'diagnostic_integral',
+                  generated_by: 'report_agent',
+                };
+              } else {
+                (reportArtifact as any).meta = {
+                  ...((reportArtifact as any).meta ?? {}),
+                  generated_by: 'report_agent',
+                };
+              }
+              artifacts.push(reportArtifact);
+              tool_calls.push({
+                tool: 'pdf.generate_report',
+                args: toolArgs,
+                status: 'success',
+                result: { artifact_id: (reportArtifact as any).id },
+              } as ToolCall);
+              toolResultContent = JSON.stringify({
+                success: true,
+                artifact_id: (reportArtifact as any).id,
+                type: 'pdf',
+              });
+            } else {
+              toolResultContent = JSON.stringify({ success: false, error: 'report_empty' });
+            }
+          } catch (reportErr) {
+            getLogger().error({ msg: '[ReportAgent] Error en tool_use loop', error: reportErr });
+            toolResultContent = JSON.stringify({ success: false, error: String(reportErr) });
           }
-          artifacts.push(reportArtifact);
-          tool_calls.push({
-            tool: 'pdf.generate_report',
-            args: step.args ?? {},
-            status: 'success',
-            result: { artifact_id: (reportArtifact as any).id },
-          } as ToolCall);
+
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: toolResultContent,
+          });
+          continue;
         }
-      } catch (reportErr) {
-        console.error('[ReportAgent] Error generating deep report, falling back to standard tool:', reportErr);
-        // Fall through to standard tool execution
+
+        // ── Caso general: ejecutar herramienta MCP ──────────────────────
         const result = await runMCPTool({
-          tool: step.tool,
-          args: step.args ?? {},
+          tool: originalName,
+          args: toolArgs,
           turn_id: turnId,
           user_id: input.user_id,
           ctx: { mode, intent: classification.intent },
         });
+
         if (result?.tool_call) tool_calls.push(result.tool_call);
-        if (result?.data && isArtifactLike(result.data)) artifacts.push(result.data);
-        if (result?.citations) citations.push(...result.citations);
-      }
-      continue;
-    }
-    // ──────────────────────────────────────────────────────────────────────
 
-    const result = await runMCPTool({
-      tool: step.tool,
-      args: step.args ?? {},
-      turn_id: turnId,
-      user_id: input.user_id,
-      ctx: { mode, intent: classification.intent },
-    });
+        if (result?.data) {
+          tool_outputs.push({ tool: originalName, data: result.data });
 
-    if (!result?.tool_call) continue;
+          // Artefactos (PDFs, etc.)
+          if (isArtifactLike(result.data)) {
+            if (result.data.type === 'pdf' && isDiagnosticReportRequest(input, classification.intent)) {
+              result.data.source = 'diagnostic';
+              result.data.meta = {
+                ...(result.data.meta ?? {}),
+                report_kind: 'diagnostic_integral',
+                context_scope: 'chat_charts_uploads_profile',
+              };
+            }
+            artifacts.push(result.data);
+          }
 
-    tool_calls.push(result.tool_call);
-
-    if (result.data) {
-      tool_outputs.push({ tool: step.tool, data: result.data });
-
-      // 📦 artifacts
-      if (isArtifactLike(result.data)) {
-        if (
-          result.data.type === 'pdf' &&
-          isDiagnosticReportRequest(input, classification.intent)
-        ) {
-          result.data.source = 'diagnostic';
-          result.data.meta = {
-            ...(result.data.meta ?? {}),
-            report_kind: 'diagnostic_integral',
-            context_scope: 'chat_charts_uploads_profile',
-          };
+          // Gráficos extraídos del output de la tool
+          const charts = extractChartBlocksFromToolOutput(originalName, result.data);
+          if (charts.length > 0) agent_blocks.push(...charts);
         }
-        artifacts.push(result.data);
+
+        if (result?.citations) citations.push(...result.citations);
+
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: block.id,
+          content: JSON.stringify(result?.data ?? { ok: false }),
+        });
       }
 
-      // 📊 charts (NUEVO)
-      const charts = extractChartBlocksFromToolOutput(step.tool, result.data);
-      if (Array.isArray(charts) && charts.length > 0) {
-        agent_blocks.push(...charts);
+      // Devolver resultados de herramientas a Claude para próxima iteración
+      if (toolResults.length > 0) {
+        loopMessages.push({ role: 'user', content: toolResults });
       }
     }
-
-    if (result.citations) citations.push(...result.citations);
   }
 
+  /* ──────────────────────────────────────────────────────────────────── */
+  /* Fallback PDF si el usuario pidió uno y no se generó en el loop       */
+  /* ──────────────────────────────────────────────────────────────────── */
   if (asksPdfNow && artifacts.length === 0) {
     try {
       const fallbackArtifact = await runReportAgent({
@@ -1478,7 +1584,7 @@ export async function runCoreAgent(
         } as ToolCall);
       }
     } catch (fallbackErr) {
-      console.error('[ReportAgent] Fallback report failed, using standard MCP tool:', fallbackErr);
+      getLogger().error({ msg: '[ReportAgent] Fallback report failed, using standard MCP tool', error: fallbackErr });
       const fallbackStep = buildFallbackPdfStep(input, mode, classification.intent, inferredUserModel);
       const forced = await runMCPTool({
         tool: fallbackStep.tool,
@@ -1495,6 +1601,12 @@ export async function runCoreAgent(
       if (forced?.citations) citations.push(...forced.citations);
     }
   }
+
+  // Construir plan compatible con el campo react de la respuesta
+  const plan = {
+    objective: planObjective,
+    steps: reactSteps,
+  };
 
   /* ────────────────────────────── */
   /* Documentos adjuntos            */
@@ -1710,6 +1822,138 @@ Reglas:
     }
   }
 
+  const shouldValidateCoherence =
+    ['decision_support', 'planification', 'simulation', 'budgeting', 'comparison'].includes(mode) ||
+    Boolean(budget_updates && budget_updates.length > 0);
+
+  let coherenceValidation:
+    | {
+        isCoherent: boolean;
+        score: number;
+        warnings: string[];
+        suggestions: string[];
+      }
+    | undefined;
+
+  if (shouldValidateCoherence) {
+    try {
+      const profileForCoherence = (_ctx.injected_profile ?? _ctx.profile ?? null) as any;
+      const intakeForCoherence = (
+        (_ctx.injected_intake as Record<string, any> | undefined)?.intake ??
+        _ctx.intake ??
+        _ctx.intake_context ??
+        null
+      ) as any;
+
+      coherenceValidation = validateAgentDecision(message, {
+        profile: profileForCoherence,
+        intake: intakeForCoherence,
+        budget: {
+          income: Number(_budgetSummary.income ?? 0),
+          expenses: Number(_budgetSummary.expenses ?? 0),
+          balance: Number(_budgetSummary.balance ?? 0),
+          savings_rate: Number(_budgetSummary.savings_rate ?? 0),
+          debt_to_income_pct: Number(_budgetSummary.debt_to_income_pct ?? 0),
+          emergency_fund_months: Number(_budgetSummary.emergency_fund_months ?? 0),
+        },
+        history: Array.isArray(input.history) ? input.history : [],
+      });
+
+      if (!coherenceValidation.isCoherent) {
+        const warningSummary = coherenceValidation.warnings.slice(0, 2).join(' ');
+        message = [
+          `Advertencia de coherencia: esta respuesta no calza del todo con tu perfil actual (${Math.round(
+            coherenceValidation.score * 100
+          )}% de coherencia).`,
+          warningSummary,
+          message,
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        budget_updates = undefined;
+      }
+    } catch (coherenceErr) {
+      getLogger().warn({
+        msg: '[Coherence] Validation failed (non-blocking)',
+        error: coherenceErr,
+      });
+    }
+  }
+
+  /* ────────────────────────────── */
+  /* PHASE 9.2: Knowledge Detection */
+  /* ────────────────────────────── */
+  let knowledge_score = _uiState.knowledge_score ?? 0;
+  let knowledge_event_detected = false;
+  let milestone_unlocked: { threshold: number; feature: string } | undefined;
+
+  try {
+    // Detect learning event from agent interaction
+    const detection = detectKnowledgeEvent({
+      userMessage: text,
+      agentResponse: message,
+      toolsUsed: tool_calls.map(tc => tc.tool),
+      mode,
+      previousScore: knowledge_score,
+      userProfile: _ctx.injected_profile,
+    });
+
+    if (detection.detected && input.user_id) {
+      knowledge_event_detected = true;
+
+      // Record the knowledge event in persistent storage
+      const { newScore, points } = await recordKnowledgeEvent(
+        input.user_id,
+        detection.action!,
+        detection.rationale,
+        {
+          confidence: detection.confidence,
+          tools_used: tool_calls.map(tc => tc.tool),
+          mode,
+        }
+      );
+
+      knowledge_score = newScore;
+
+      // Check if new score unlocked a milestone
+      const milestones = getMilestones(knowledge_score);
+      const previousMilestones = getMilestones(_uiState.knowledge_score ?? 0);
+
+      const newUnlocks = milestones.unlocked.filter(
+        m => !previousMilestones.unlocked.includes(m)
+      );
+
+      if (newUnlocks.length > 0) {
+        const unlockedFeature = newUnlocks[0];
+        const unlockedMilestone = KNOWLEDGE_MILESTONES.find(
+          (milestone) => milestone.feature === unlockedFeature
+        );
+        if (unlockedMilestone) {
+          milestone_unlocked = {
+            threshold: unlockedMilestone.threshold,
+            feature: unlockedMilestone.feature,
+          };
+        }
+      }
+
+      getLogger().info({
+        msg: '[Knowledge] Event detected and recorded',
+        userId: input.user_id,
+        action: detection.action,
+        points,
+        newScore,
+        milestoneUnlocked: newUnlocks.length > 0,
+      });
+    }
+  } catch (knowledgeErr) {
+    getLogger().warn({
+      msg: '[Knowledge] Error detecting/recording event (non-blocking)',
+      error: knowledgeErr,
+    });
+    // Continue without blocking response
+  }
+
   /* ────────────────────────────── */
   /* Response canónica              */
   /* ────────────────────────────── */
@@ -1719,11 +1963,7 @@ Reglas:
     tool_calls,
     react: {
       objective: plan.objective,
-      steps: plan.steps.map((s, i) => ({
-        step: i,
-        goal: s.goal,
-        decision: s.tool ?? 'none',
-      })),
+      steps: plan.steps,
     },
     agent_blocks,
     artifacts,
@@ -1734,18 +1974,30 @@ Reglas:
       includes_recommendation: mode === 'decision_support',
       includes_simulation: mode === 'simulation',
       includes_regulation: mode === 'regulation',
-      risk_score: 1 - confidence,
+      risk_score: Math.max(1 - confidence, coherenceValidation ? 1 - coherenceValidation.score : 0),
       missing_information: [],
-      disclaimers_shown: [],
-      blocked: { is_blocked: false },
+      disclaimers_shown: coherenceValidation && !coherenceValidation.isCoherent ? ['coherence_warning'] : [],
+      blocked:
+        coherenceValidation && !coherenceValidation.isCoherent && coherenceValidation.score < 0.45
+          ? {
+              is_blocked: true,
+              reason:
+                coherenceValidation.warnings[0] ??
+                'La recomendación no es coherente con el perfil financiero actual.',
+            }
+          : { is_blocked: false },
     },
     state_updates: {
       inferred_user_model: inferredUserModel,
+      coherence_validation: coherenceValidation,
     },
     suggested_replies,
     panel_action,
     context_score,
     budget_updates,
+    knowledge_score,
+    knowledge_event_detected,
+    milestone_unlocked,
     meta: {
       turn_id: turnId,
       latency_ms: Date.now() - startedAt,

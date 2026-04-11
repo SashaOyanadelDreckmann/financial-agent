@@ -4,16 +4,23 @@ import type { AgentBlock } from './types/chat';
 /* UI CHAT ITEMS                   */
 /* =============================== */
 
+export type ArtifactLike = {
+  id?: string;
+  type?: string;
+  title?: string;
+  [key: string]: unknown;
+};
+
 export type ChatItem =
   | { kind: 'text'; content: string }
-  | { kind: 'block'; block: AgentBlock }      // document | chart | question | summary
-  | { kind: 'artifact'; artifact: any };      // pdf | chart-image | future exports
+  | { kind: 'block'; block: AgentBlock }
+  | { kind: 'artifact'; artifact: ArtifactLike };
 
 /* =============================== */
 /* RESPONSE → CHAT ITEMS MAPPER    */
 /* =============================== */
 
-export function toChatItems(res: any): ChatItem[] {
+export function toChatItems(res: Record<string, unknown>): ChatItem[] {
   const items: ChatItem[] = [];
 
   /* ────────────────────────────── */

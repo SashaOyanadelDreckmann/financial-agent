@@ -21,7 +21,11 @@ export default function LoginPage() {
     try {
       setLoading(true);
       setError(null);
-      await loginUser(form);
+      const res = await loginUser(form);
+      try {
+        if (res?.user?.name) localStorage.setItem('user_name', res.user.name);
+        if (res?.user?.id) localStorage.setItem('user_id', res.user.id);
+      } catch {}
       setAuthenticated();
       router.push('/agent');
     } catch (e: any) {

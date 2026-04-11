@@ -11,7 +11,11 @@
  */
 
 import { z } from 'zod';
-import type { MCPTool } from '../types';
+import type { MCPTool, ToolContext } from '../types';
+import { checkRateLimit } from '../rate-limiter';
+import { validateNumericRange, validateArrayLength } from '../input-sanitizer';
+import { createMetricsCollector, recordToolMetrics } from '../telemetry';
+import { wrapError, validationError } from '../error';
 
 const ExpenseRow = z.object({
   category: z.string(),
@@ -34,8 +38,45 @@ export const budgetAnalyzerTool: MCPTool = {
     hasPension:             z.boolean().optional(),          // cotiza AFP/APV
     dependents:             z.number().int().min(0).optional(), // personas a cargo
   }),
-  run: async (args) => {
-    const income   = Number(args.monthlyIncome);
+  run: async (args, ctx?: ToolContext) => {
+    const metrics = createMetricsCollector('finance.budget_analyzer');
+
+    try {
+      // 1. Rate limit check
+      await checkRateLimit('finance.budget_analyzer', ctx);
+
+      // 2. Input validation
+      validateNumericRange(Number(args.monthlyIncome), 1, 100000000, 'monthlyIncome', 'finance.budget_analyzer');
+
+      if (args.expenses && Array.isArray(args.expenses)) {
+        validateArrayLength(args.expenses, 0, 100, 'expenses', 'finance.budget_analyzer');
+      }
+
+      if (args.totalFixedExpenses !== undefined) {
+        validateNumericRange(Number(args.totalFixedExpenses), 0, 100000000, 'totalFixedExpenses', 'finance.budget_analyzer');
+      }
+
+      if (args.totalVariableExpenses !== undefined) {
+        validateNumericRange(Number(args.totalVariableExpenses), 0, 100000000, 'totalVariableExpenses', 'finance.budget_analyzer');
+      }
+
+      if (args.totalDebtPayments !== undefined) {
+        validateNumericRange(Number(args.totalDebtPayments), 0, 100000000, 'totalDebtPayments', 'finance.budget_analyzer');
+      }
+
+      if (args.currentSavings !== undefined) {
+        validateNumericRange(Number(args.currentSavings), 0, 100000000, 'currentSavings', 'finance.budget_analyzer');
+      }
+
+      if (args.emergencyFund !== undefined) {
+        validateNumericRange(Number(args.emergencyFund), 0, 100000000, 'emergencyFund', 'finance.budget_analyzer');
+      }
+
+      if (args.dependents !== undefined) {
+        validateNumericRange(Number(args.dependents), 0, 50, 'dependents', 'finance.budget_analyzer');
+      }
+
+      const income   = Number(args.monthlyIncome);
     const deps     = Number(args.dependents ?? 0);
 
     // ── Calcular totales desde el array o desde los campos directos ─
@@ -184,6 +225,10 @@ export const budgetAnalyzerTool: MCPTool = {
 
     recommendations.sort((a, b) => a.priority - b.priority);
 
+      // 3. Record success metrics
+      const toolMetrics = metrics.recordSuccess(ctx);
+      recordToolMetrics(toolMetrics);
+
     const summary = {
       income: Math.round(income),
       total_expenses: Math.round(totalExpenses),
@@ -227,20 +272,30 @@ export const budgetAnalyzerTool: MCPTool = {
       recommendations: recommendations.slice(0, 5),
     };
 
-    return {
-      tool_call: {
-        tool: 'finance.budget_analyzer',
-        args,
-        status: 'success',
-        result: {
-          health_score:  score,
-          health_level:  healthLevel,
-          savings_rate:  Number(savingsRate.toFixed(1)),
-          debt_ratio:    Number(debtToIncome.toFixed(1)),
-          balance:       Math.round(balance),
+      return {
+        tool_call: {
+          tool: 'finance.budget_analyzer',
+          args,
+          status: 'success',
+          result: {
+            health_score:  score,
+            health_level:  healthLevel,
+            savings_rate:  Number(savingsRate.toFixed(1)),
+            debt_ratio:    Number(debtToIncome.toFixed(1)),
+            balance:       Math.round(balance),
+          },
         },
-      },
-      data: { summary },
-    };
+        data: { summary },
+      };
+    } catch (error) {
+      // 4. Error handling with standardized codes
+      let toolError = wrapError(error, 'finance.budget_analyzer');
+
+      // Record error metrics
+      const toolMetrics = metrics.recordError(toolError.code, ctx);
+      recordToolMetrics(toolMetrics);
+
+      throw toolError;
+    }
   },
 };

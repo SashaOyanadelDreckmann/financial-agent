@@ -10,9 +10,12 @@ import {
   removeInjectedIntakeFromUser,
   saveUserSheets,
   loadUserSheets,
+  loadUserPanelState,
+  saveUserPanelState,
 } from '../services/user.service';
 import { loadSession } from '../services/session.service';
 import { complete } from '../services/llm.service';
+import { appendTurnToMemory, buildAgentMemoryContext } from '../services/memory.service';
 
 const router = Router();
 
@@ -131,6 +134,24 @@ router.post('/sheets', (req, res) => {
   return res.json({ ok });
 });
 
+router.get('/panel-state', (req, res) => {
+  const user = getAuthedUser(req);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+  const panelState = loadUserPanelState(user.id);
+  return res.json({ panelState });
+});
+
+router.post('/panel-state', (req, res) => {
+  const user = getAuthedUser(req);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+  const { panelState } = req.body ?? {};
+  if (!panelState || typeof panelState !== 'object') {
+    return res.status(400).json({ error: 'Invalid panelState payload' });
+  }
+  const ok = saveUserPanelState(user.id, panelState);
+  return res.json({ ok });
+});
+
 /* ──────────────────────────────────── */
 /* Welcome message — personalizado      */
 /* ──────────────────────────────────── */
@@ -212,7 +233,7 @@ Devuelve SOLO el mensaje, sin comillas ni texto extra.`;
         `${userName}, tu perfil está cargado. Puedo simular escenarios de inversión, analizar tu presupuesto y generar informes PDF. El panel tiene herramientas que se desbloquean con la conversación. ¿Quieres que empecemos simulando tus ahorros actuales?`,
     });
   } catch (err) {
-    console.error('Welcome message error:', err);
+    (req as any).logger?.warn({ msg: 'Welcome message error', error: err });
     const userName2 = user.name?.split(' ')[0] ?? 'amigo';
     return res.json({
       message: `${userName2}, tu perfil financiero está listo. Puedo simular proyecciones, analizar tu presupuesto y generar informes PDF. El panel se desbloquea conforme avanzamos. ¿Por dónde empezamos?`,
@@ -225,10 +246,27 @@ router.get('/session', (req, res) => {
   const user = getAuthedUser(req);
   if (!user) return res.status(401).json({ error: 'Invalid session' });
 
-  // Omitir passwordHash
-  const { passwordHash, ...rest } = user as any;
+  const injectedIntake = (user as any).injectedIntake
+    ? {
+        intake: (user as any).injectedIntake.intake,
+        intakeContext: (user as any).injectedIntake.intakeContext,
+      }
+    : undefined;
 
-  return res.json(rest);
+  const payload = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    injectedProfile: (user as any).injectedProfile,
+    injectedIntake,
+    latestDiagnosticProfileId: (user as any).latestDiagnosticProfileId,
+    latestDiagnosticCompletedAt: (user as any).latestDiagnosticCompletedAt,
+    knowledgeBaseScore: (user as any).knowledgeBaseScore ?? 0,
+    knowledgeScore: (user as any).knowledgeScore ?? 0,
+    knowledgeLastUpdated: (user as any).knowledgeLastUpdated,
+  };
+
+  return res.json(payload);
 });
 
 router.post('/agent', async (req, res) => {
@@ -238,12 +276,12 @@ router.post('/agent', async (req, res) => {
     /* ────────────────────────────── */
     if (process.env.NODE_ENV !== 'production') {
       try {
-        console.debug(
-          '[API /agent] received body:',
-          JSON.stringify(req.body, null, 2)
-        );
+        (req as any).logger?.debug({
+          msg: '[API /agent] received body',
+          body: req.body,
+        });
       } catch {
-        console.debug('[API /agent] received body (non-serializable)');
+        (req as any).logger?.debug({ msg: '[API /agent] received body (non-serializable)' });
       }
     }
 
@@ -268,6 +306,9 @@ router.post('/agent', async (req, res) => {
       const authed = getAuthedUser(req);
       if (authed) {
         const user = authed;
+        normalizedInput.user_id = user.id;
+        normalizedInput.user_name = normalizedInput.user_name ?? user.name;
+
         if (user && (user as any).injectedProfile) {
           normalizedInput.context = {
             ...(normalizedInput.context ?? {}),
@@ -282,10 +323,36 @@ router.post('/agent', async (req, res) => {
           };
         }
 
+        // PHASE 9.2: Load knowledge_score from user profile
+        if (user && typeof (user as any).knowledgeScore === 'number') {
+          normalizedInput.ui_state = {
+            ...(normalizedInput.ui_state ?? {}),
+            knowledge_score: (user as any).knowledgeScore,
+          };
+        }
       }
     } catch (err) {
       // no romper si falla
-      console.warn('Error reading injected context', err);
+      (req as any).logger?.warn({ msg: 'Error reading injected context', error: err });
+    }
+
+    try {
+      if (normalizedInput.user_id) {
+        const memoryContext = buildAgentMemoryContext(normalizedInput.user_id);
+        normalizedInput.context = {
+          ...(normalizedInput.context ?? {}),
+          persistent_memory: memoryContext.user_memory,
+          system_memory: memoryContext.system_memory,
+        };
+
+        normalizedInput.ui_state = {
+          ...(normalizedInput.ui_state ?? {}),
+          memory_profile_summary: memoryContext.user_memory.profile_summary,
+          memory_timeline_count: memoryContext.user_memory.recent_timeline.length,
+        };
+      }
+    } catch (memoryErr) {
+      (req as any).logger?.warn({ msg: 'Error loading persistent memory', error: memoryErr });
     }
 
     /* ────────────────────────────── */
@@ -298,9 +365,94 @@ router.post('/agent', async (req, res) => {
     /* ────────────────────────────── */
     const response = await runCoreAgent(input);
 
+    try {
+      appendTurnToMemory({
+        input,
+        response,
+        authenticatedUser: getAuthedUser(req) as any,
+      });
+    } catch (memoryErr) {
+      (req as any).logger?.warn({ msg: 'Error persisting turn memory', error: memoryErr });
+    }
+
+    // PHASE 9: Auto-persist budget_updates if agent proposes changes
+    if (response.budget_updates && response.budget_updates.length > 0 && input.user_id) {
+      try {
+        const authed = getAuthedUser(req);
+        if (authed) {
+          const { saveUserSheets, loadUserSheets } = await import(
+            '../services/user.service'
+          );
+
+          const currentSheets = loadUserSheets(authed.id) ?? [];
+          const activeSheetId =
+            typeof input.ui_state?.active_chat === 'object' &&
+            input.ui_state?.active_chat &&
+            typeof (input.ui_state.active_chat as Record<string, unknown>).id === 'string'
+              ? ((input.ui_state.active_chat as Record<string, unknown>).id as string)
+              : undefined;
+
+          const activeSheet =
+            (activeSheetId
+              ? currentSheets.find((sheet) => sheet.id === activeSheetId)
+              : undefined) ??
+            currentSheets.find((sheet) => sheet.status === 'active') ??
+            currentSheets[0];
+
+          if (activeSheet) {
+            // Apply budget updates to the active sheet
+            const updatedItems = activeSheet.items?.map((item: any) => {
+              const update = response.budget_updates?.find(
+                (u: any) => u.label === item.label
+              );
+              return update ? { ...item, amount: update.amount } : item;
+            }) ?? [];
+
+            // Add new items that weren't in the sheet before
+            const newItems = response.budget_updates?.filter(
+              (u: any) =>
+                !activeSheet.items?.some(
+                  (item: any) => item.label === u.label
+                )
+            ) ?? [];
+
+            updatedItems.push(...newItems);
+
+            // Persist updated sheet
+            const updatedSheet = {
+              ...activeSheet,
+              items: updatedItems,
+              draft: response.message ?? activeSheet.draft,
+              updatedAt: new Date().toISOString(),
+            };
+
+            const nextSheets = currentSheets.map((sheet) =>
+              sheet.id === updatedSheet.id ? updatedSheet : sheet
+            );
+
+            saveUserSheets(authed.id, nextSheets);
+
+            // Enhance response with persistence metadata
+            (response as any).persistence_status = {
+              persisted: true,
+              timestamp: new Date().toISOString(),
+              affected_sheet_id: activeSheet.id,
+              items_modified: updatedItems.length,
+            };
+          }
+        }
+      } catch (persistErr) {
+        (req as any).logger?.warn({
+          msg: 'Budget persistence failed (non-blocking)',
+          error: persistErr,
+        });
+        // Don't fail the request if persistence fails
+      }
+    }
+
     return res.json(response);
   } catch (err: any) {
-    console.error('[AGENT ERROR]', err);
+    (req as any).logger?.error({ msg: '[AGENT ERROR]', error: err });
 
     return res.status(400).json({
       error: 'Invalid agent request',

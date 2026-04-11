@@ -13,7 +13,10 @@ import {
   removeInjectedProfile,
   loadSheets,
   saveSheets,
+  loadPanelState,
+  savePanelState,
   getWelcomeMessage,
+  parseDocuments,
 } from '@/lib/api';
 
 import PanelCard from '../../components/PanelCard';
@@ -58,6 +61,7 @@ type BankSimulation = {
   connected: boolean;
   randomMode: boolean;
   uploadedFiles: string[];
+  parsedDocuments: Array<{ name: string; text: string }>;
 };
 
 type DocFlight = {
@@ -87,6 +91,70 @@ type ChatThread = {
 
 const CHAT_GAME_INSTRUCTION =
   'Para aprovechar al maximo este juego: 1) define un objetivo financiero concreto, 2) usa los 3 chats en paralelo para explorar escenarios, 3) pide primero grafico o simulacion y luego informe PDF, 4) guarda documentos clave para compararlos, 5) ajusta riesgo, plazo y aporte en cada iteracion para subir tu nivel de conocimiento.';
+
+const DEFAULT_BUDGET_ROWS: BudgetRow[] = [
+  {
+    id: 'income-salary',
+    category: 'Sueldo liquido',
+    type: 'income',
+    amount: 0,
+    note: '',
+  },
+  {
+    id: 'income-extra',
+    category: 'Ingresos extra',
+    type: 'income',
+    amount: 0,
+    note: '',
+  },
+  {
+    id: 'expense-rent',
+    category: 'Vivienda / arriendo',
+    type: 'expense',
+    amount: 0,
+    note: '',
+  },
+  {
+    id: 'expense-food',
+    category: 'Alimentacion',
+    type: 'expense',
+    amount: 0,
+    note: '',
+  },
+  {
+    id: 'expense-transport',
+    category: 'Transporte',
+    type: 'expense',
+    amount: 0,
+    note: '',
+  },
+  {
+    id: 'expense-debt',
+    category: 'Deuda financiera',
+    type: 'expense',
+    amount: 0,
+    note: '',
+  },
+];
+
+const DEFAULT_BANK_SIMULATION: BankSimulation = {
+  username: '',
+  password: '',
+  connected: false,
+  randomMode: false,
+  uploadedFiles: [],
+  parsedDocuments: [],
+};
+
+const KNOWLEDGE_MILESTONE_DEFS = [
+  { id: 'intake', label: 'Cuestionario y perfil base', threshold: 20 },
+  { id: 'budget_base', label: 'Presupuesto personalizado', threshold: 40 },
+  { id: 'budget_panel', label: 'Panel de presupuesto', threshold: 55 },
+  { id: 'debt_analysis', label: 'Análisis de deuda', threshold: 70 },
+  { id: 'transactions_panel', label: 'Panel de cartolas', threshold: 74 },
+  { id: 'advanced', label: 'Estrategias avanzadas', threshold: 85 },
+  { id: 'expert', label: 'Nivel experto', threshold: 100 },
+] as const;
 
 export default function AgentPage() {
   const router = useRouter();
@@ -173,57 +241,8 @@ export default function AgentPage() {
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [isTransactionsModalOpen, setIsTransactionsModalOpen] = useState(false);
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
-  const [budgetRows, setBudgetRows] = useState<BudgetRow[]>([
-    {
-      id: 'income-salary',
-      category: 'Sueldo liquido',
-      type: 'income',
-      amount: 1450000,
-      note: 'Ingreso principal',
-    },
-    {
-      id: 'income-extra',
-      category: 'Ingresos extra',
-      type: 'income',
-      amount: 220000,
-      note: 'Freelance',
-    },
-    {
-      id: 'expense-rent',
-      category: 'Vivienda / arriendo',
-      type: 'expense',
-      amount: 470000,
-      note: 'Pago mensual',
-    },
-    {
-      id: 'expense-food',
-      category: 'Alimentacion',
-      type: 'expense',
-      amount: 210000,
-      note: 'Supermercado',
-    },
-    {
-      id: 'expense-transport',
-      category: 'Transporte',
-      type: 'expense',
-      amount: 95000,
-      note: 'Metro + apps',
-    },
-    {
-      id: 'expense-debt',
-      category: 'Deuda financiera',
-      type: 'expense',
-      amount: 180000,
-      note: 'Tarjeta + credito',
-    },
-  ]);
-  const [bankSimulation, setBankSimulation] = useState<BankSimulation>({
-    username: '',
-    password: '',
-    connected: false,
-    randomMode: false,
-    uploadedFiles: [],
-  });
+  const [budgetRows, setBudgetRows] = useState<BudgetRow[]>(DEFAULT_BUDGET_ROWS);
+  const [bankSimulation, setBankSimulation] = useState<BankSimulation>(DEFAULT_BANK_SIMULATION);
   const [docFlight, setDocFlight] = useState<DocFlight | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isRealtimeOpen, setIsRealtimeOpen] = useState(false);
@@ -235,8 +254,12 @@ export default function AgentPage() {
   const [bubblePos, setBubblePos] = useState({ x: 0, y: 0 });
   const bubblePosInitRef = useRef(false);
   const bubbleDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const panelSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [sessionInfo, setSessionInfo] = useState<any>(null);
+  const [panelStateLoaded, setPanelStateLoaded] = useState(false);
+  const [persistentKnowledgeScore, setPersistentKnowledgeScore] = useState<number | null>(null);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
   const agentMetaRef = useRef<AgentMeta>({});
   const [, forceRender] = useState(0);
   const [chatSlideDir, setChatSlideDir] = useState<'left' | 'right' | null>(null);
@@ -273,7 +296,7 @@ export default function AgentPage() {
   const items = activeThread?.items ?? [];
   const input = activeThread?.draft ?? '';
 
-  const PAGE_SIZE = 4;
+  const PAGE_SIZE = 2;
   const msgPages = useMemo(() => {
     const pages: ChatItem[][] = [];
     for (let i = 0; i < items.length; i += PAGE_SIZE) {
@@ -285,6 +308,71 @@ export default function AgentPage() {
 
   // Mark as mounted so portals can render (prevents hydration mismatch)
   useEffect(() => { setMounted(true); }, []);
+
+  // Bloquear TODO scroll/bounce/swipe/zoom en la pagina del agente
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+
+    // Estilos para bloquear scroll y bounce
+    html.style.overflow = 'hidden';
+    html.style.position = 'fixed';
+    html.style.inset = '0';
+    html.style.width = '100%';
+    html.style.height = '100%';
+    html.style.overscrollBehavior = 'none';
+    body.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.inset = '0';
+    body.style.width = '100%';
+    body.style.height = '100%';
+    body.style.overscrollBehavior = 'none';
+
+    // Prevenir touchmove en el document (el bounce de iOS)
+    // Solo permite scroll dentro de elementos que tienen overflow scroll
+    const preventBounce = (e: TouchEvent) => {
+      let target = e.target as HTMLElement | null;
+      while (target && target !== document.body) {
+        const style = window.getComputedStyle(target);
+        const overflowY = style.overflowY;
+        const overflowX = style.overflowX;
+        if (overflowY === 'auto' || overflowY === 'scroll' ||
+            overflowX === 'auto' || overflowX === 'scroll') {
+          // Permitir scroll dentro de este elemento
+          return;
+        }
+        target = target.parentElement;
+      }
+      e.preventDefault();
+    };
+
+    // Prevenir gesture zoom (pinch)
+    const preventGesture = (e: Event) => e.preventDefault();
+
+    document.addEventListener('touchmove', preventBounce, { passive: false });
+    document.addEventListener('gesturestart', preventGesture, { passive: false } as any);
+    document.addEventListener('gesturechange', preventGesture, { passive: false } as any);
+    document.addEventListener('gestureend', preventGesture, { passive: false } as any);
+
+    return () => {
+      html.style.overflow = '';
+      html.style.position = '';
+      html.style.inset = '';
+      html.style.width = '';
+      html.style.height = '';
+      html.style.overscrollBehavior = '';
+      body.style.overflow = '';
+      body.style.position = '';
+      body.style.inset = '';
+      body.style.width = '';
+      body.style.height = '';
+      body.style.overscrollBehavior = '';
+      document.removeEventListener('touchmove', preventBounce);
+      document.removeEventListener('gesturestart', preventGesture);
+      document.removeEventListener('gesturechange', preventGesture);
+      document.removeEventListener('gestureend', preventGesture);
+    };
+  }, []);
 
   // Fix teclado virtual iOS/Android: ajusta --visual-vh al viewport visible real
   useEffect(() => {
@@ -308,7 +396,7 @@ export default function AgentPage() {
     const panel = panelScrollRef.current;
     if (!handle || !panel) return;
 
-    const SNAP_CLOSED = 128;
+    const SNAP_CLOSED = 92;
     const SNAP_OPEN = Math.round(window.innerHeight * 0.52);
 
     const onTouchStart = (e: TouchEvent) => {
@@ -660,7 +748,19 @@ export default function AgentPage() {
     diagnosisReportsCount,
   ]);
 
-  const knowledgeScore = progressBreakdown.total;
+  const engagementScore = progressBreakdown.total;
+  const knowledgeScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        persistentKnowledgeScore ??
+          (typeof sessionInfo?.knowledgeScore === 'number'
+            ? sessionInfo.knowledgeScore
+            : 0)
+      )
+    )
+  );
 
   // Sheet-based progress: 3 base sheets × 50 msgs each = 100%
   const sheetProgress = useMemo(() => {
@@ -680,58 +780,12 @@ export default function AgentPage() {
   }, [knowledgeScore]);
 
   const milestones = useMemo(
-    () => [
-      {
-        id: 'base',
-        label: 'Contexto base',
-        done: Boolean(sessionInfo?.name) || totalUserMessagesCount >= 3,
-      },
-      {
-        id: 'objective',
-        label: 'Objetivo detectado',
-        done: Boolean(agentMetaRef.current.objective),
-      },
-      {
-        id: 'mode',
-        label: 'Modo cognitivo',
-        done: Boolean(agentMetaRef.current.mode),
-      },
-      {
-        id: 'evidence',
-        label: 'Evidencia y resultados',
-        done:
-          citationsCount + artifactsCount + allAssistantBlocksCount > 2,
-      },
-      {
-        id: 'profile',
-        label: 'Perfil financiero',
-        done: Boolean(sessionInfo?.injectedProfile || profile),
-      },
-      {
-        id: 'multi_chat',
-        label: '3 chats con contexto',
-        done: engagedChatsCount >= 3,
-      },
-      {
-        id: 'diagnosis',
-        label: 'Entrevista y diagnostico',
-        done:
-          Boolean(sessionInfo?.injectedIntake) ||
-          diagnosisReportsCount > 0,
-      },
-    ],
-    [
-      sessionInfo?.name,
-      sessionInfo?.injectedIntake,
-      sessionInfo?.injectedProfile,
-      totalUserMessagesCount,
-      citationsCount,
-      artifactsCount,
-      allAssistantBlocksCount,
-      profile,
-      engagedChatsCount,
-      diagnosisReportsCount,
-    ]
+    () =>
+      KNOWLEDGE_MILESTONE_DEFS.map((milestone) => ({
+        ...milestone,
+        done: knowledgeScore >= milestone.threshold,
+      })),
+    [knowledgeScore]
   );
 
   const completedMilestones = milestones.filter((m) => m.done).length;
@@ -740,6 +794,7 @@ export default function AgentPage() {
   const unlockedPanelBlocks = useMemo(() => {
     const budgetUnlocked =
       knowledgeScore >= 55 ||
+      budgetRows.some((row) => row.amount > 0) ||
       allItems.some(
         (it) =>
           it.type === 'message' &&
@@ -749,6 +804,8 @@ export default function AgentPage() {
 
     const transactionsUnlocked =
       knowledgeScore >= 74 ||
+      bankSimulation.uploadedFiles.length > 0 ||
+      bankSimulation.parsedDocuments.length > 0 ||
       allItems.some(
         (it) =>
           it.type === 'message' &&
@@ -757,7 +814,13 @@ export default function AgentPage() {
       );
 
     return { budgetUnlocked, transactionsUnlocked };
-  }, [knowledgeScore, allItems]);
+  }, [
+    knowledgeScore,
+    allItems,
+    budgetRows,
+    bankSimulation.uploadedFiles.length,
+    bankSimulation.parsedDocuments.length,
+  ]);
 
   const budgetTotals = useMemo(() => {
     const income = budgetRows
@@ -796,6 +859,9 @@ export default function AgentPage() {
   );
 
   const coachHint = useMemo(() => {
+    if (knowledgeScore < 20) {
+      return 'Tip: completa tu intake para calibrar lenguaje, riesgo y desbloqueos del panel.';
+    }
     if (engagedChatsCount < 3) {
       return `Tip: activa los 3 chats (actual ${engagedChatsCount}/3) para sumar progreso real.`;
     }
@@ -805,15 +871,15 @@ export default function AgentPage() {
     if (!unlockedPanelBlocks.transactionsUnlocked) {
       return 'Tip: habla de cartolas, cuentas o banco para desbloquear Transacciones.';
     }
-    if (progressBreakdown.interviewDiagnosis < 8) {
-      return 'Tip: completa entrevista/diagnostico para acercarte al tramo final.';
+    if (knowledgeScore < 85) {
+      return 'Tip: usa presupuesto, deuda, simulaciones o APV para seguir subiendo tu barra de conocimiento.';
     }
-    return 'Sigue aportando evidencia y profundidad para llegar al 100%.';
+    return 'Tu barra ya refleja aprendizaje avanzado. Ahora conviene consolidar evidencia y planes accionables.';
   }, [
+    knowledgeScore,
     engagedChatsCount,
     unlockedPanelBlocks.budgetUnlocked,
     unlockedPanelBlocks.transactionsUnlocked,
-    progressBreakdown.interviewDiagnosis,
   ]);
 
   const isPanelCollapsed = panelStage === 3;
@@ -838,38 +904,6 @@ export default function AgentPage() {
     try {
       const raw = localStorage.getItem('agent.ui.monochrome.v1');
       if (raw === '1') setIsMonochrome(true);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('agent.chat.threads.v1');
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<ChatThread>[];
-      if (!Array.isArray(parsed)) return;
-      const sanitized: ChatThread[] = parsed.map((thread, idx) => ({
-        id: thread.id || `chat-${idx + 1}`,
-        label: thread.label || String(idx + 1),
-        name: typeof thread.name === 'string' && thread.name.trim().length > 0 ? thread.name : `Chat ${idx + 1}`,
-        autoNamed: Boolean(thread.autoNamed),
-        items: Array.isArray(thread.items) ? thread.items : [],
-        draft: typeof thread.draft === 'string' ? thread.draft : '',
-        status: thread.status ?? 'active',
-        contextScore: thread.contextScore ?? 0,
-        userMessageCount: thread.userMessageCount ?? 0,
-        createdAt: thread.createdAt ?? new Date().toISOString(),
-        completedAt: thread.completedAt,
-      }));
-      setChatThreads(sanitized);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('agent.saved.reports.v1');
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as SavedReport[];
-      if (Array.isArray(parsed)) setSavedReports(parsed);
     } catch {}
   }, []);
 
@@ -972,15 +1006,6 @@ export default function AgentPage() {
   }, [isMonochrome]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        'agent.chat.threads.v1',
-        JSON.stringify(chatThreads)
-      );
-    } catch {}
-  }, [chatThreads]);
-
-  useEffect(() => {
     const monoClass = 'agent-monochrome-bg';
     const normalClass = 'agent-normal-matte-bg';
     if (isMonochrome) {
@@ -996,14 +1021,73 @@ export default function AgentPage() {
     };
   }, [isMonochrome]);
 
+
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        'agent.saved.reports.v1',
-        JSON.stringify(savedReports)
-      );
-    } catch {}
-  }, [savedReports]);
+    let alive = true;
+
+    loadPanelState()
+      .then((data) => {
+        if (!alive) return;
+        const panelState = data?.panelState;
+        if (panelState && typeof panelState === 'object') {
+          if (Array.isArray(panelState.budgetRows) && panelState.budgetRows.length > 0) {
+            setBudgetRows(panelState.budgetRows);
+          }
+          if (Array.isArray(panelState.savedReports)) {
+            setSavedReports(panelState.savedReports);
+          }
+          if (panelState.bankSimulation && typeof panelState.bankSimulation === 'object') {
+            setBankSimulation((prev) => ({
+              ...prev,
+              username:
+                typeof panelState.bankSimulation.username === 'string'
+                  ? panelState.bankSimulation.username
+                  : prev.username,
+              connected: Boolean(panelState.bankSimulation.connected),
+              randomMode: Boolean(panelState.bankSimulation.randomMode),
+              uploadedFiles: Array.isArray(panelState.bankSimulation.uploadedFiles)
+                ? panelState.bankSimulation.uploadedFiles
+                : prev.uploadedFiles,
+              parsedDocuments: Array.isArray(panelState.bankSimulation.parsedDocuments)
+                ? panelState.bankSimulation.parsedDocuments
+                : prev.parsedDocuments,
+            }));
+          }
+        }
+        setPanelStateLoaded(true);
+      })
+      .catch(() => {
+        if (alive) setPanelStateLoaded(true);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!panelStateLoaded) return;
+    if (panelSaveTimerRef.current) clearTimeout(panelSaveTimerRef.current);
+
+    panelSaveTimerRef.current = setTimeout(() => {
+      savePanelState({
+        budgetRows,
+        bankSimulation: {
+          username: bankSimulation.username,
+          connected: bankSimulation.connected,
+          randomMode: bankSimulation.randomMode,
+          uploadedFiles: bankSimulation.uploadedFiles,
+          parsedDocuments: bankSimulation.parsedDocuments,
+        },
+        savedReports,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+    }, 1200);
+
+    return () => {
+      if (panelSaveTimerRef.current) clearTimeout(panelSaveTimerRef.current);
+    };
+  }, [budgetRows, bankSimulation, savedReports, panelStateLoaded]);
 
   useEffect(() => {
     const prevScore = previousKnowledgeScoreRef.current;
@@ -1057,8 +1141,51 @@ export default function AgentPage() {
   }, []);
 
   useEffect(() => {
+    if (typeof sessionInfo?.knowledgeScore === 'number') {
+      setPersistentKnowledgeScore(sessionInfo.knowledgeScore);
+    }
+  }, [sessionInfo?.knowledgeScore]);
+
+  useEffect(() => {
+    const intake = sessionInfo?.injectedIntake?.intake;
+    if (!panelStateLoaded || !intake) return;
+    if (budgetRows.some((row) => row.amount > 0)) return;
+
+    const monthlyIncome = Number(intake.exactMonthlyIncome ?? 0);
+    if (!Number.isFinite(monthlyIncome) || monthlyIncome <= 0) return;
+
+    setBudgetRows((prev) =>
+      prev.map((row) => {
+        if (row.id === 'income-salary') {
+          return {
+            ...row,
+            amount: monthlyIncome,
+            note: intake.profession ? `Ingreso declarado por ${intake.profession}` : 'Ingreso declarado en intake',
+          };
+        }
+        if (row.id === 'expense-debt' && intake.hasDebt) {
+          return {
+            ...row,
+            note: 'Deuda declarada en intake',
+          };
+        }
+        return row;
+      })
+    );
+  }, [panelStateLoaded, sessionInfo?.injectedIntake, budgetRows]);
+
+  useEffect(() => {
     loadProfileIfNeeded().catch(() => {});
   }, [loadProfileIfNeeded]);
+
+  useEffect(() => {
+    try {
+      const prefill = localStorage.getItem('agent.prefill_prompt');
+      if (!prefill) return;
+      setDraftForActive(prefill);
+      localStorage.removeItem('agent.prefill_prompt');
+    } catch {}
+  }, [activeChatId]);
 
   // Haptic feedback — usa Vibration API si esta disponible (Android/algunos iOS PWA)
   function haptic(pattern: number | number[] = 10) {
@@ -1067,11 +1194,12 @@ export default function AgentPage() {
     }
   }
 
-  async function onSend() {
-    if (!input.trim() || loading) return;
+  async function onSend(messageOverride?: string) {
+    const outgoingText = (messageOverride ?? input).trim();
+    if (!outgoingText || loading) return;
     haptic(8); // feedback al enviar mensaje
 
-    const userMessage = input.trim();
+    const userMessage = outgoingText;
     setDraftForActive('');
     setLoading(true);
 
@@ -1144,6 +1272,14 @@ export default function AgentPage() {
         context: {
           recent_artifacts: recentArtifacts,
           recent_chart_summaries: recentChartSummaries,
+          uploaded_documents: bankSimulation.parsedDocuments.slice(-3),
+          uploaded_evidence_files: bankSimulation.uploadedFiles.slice(-6),
+          consolidated_context: {
+            transactions: {
+              connected: bankSimulation.connected,
+              uploadedFiles: bankSimulation.uploadedFiles.slice(-6),
+            },
+          },
         },
         ui_state: {
           panel_stage: panelStage,
@@ -1158,6 +1294,7 @@ export default function AgentPage() {
             transactions: unlockedPanelBlocks.transactionsUnlocked,
           },
           knowledge_score: knowledgeScore,
+          engagement_score: engagementScore,
           completed_milestones: completedMilestones,
           total_milestones: milestones.length,
           milestone_details: milestones.map((m) => ({ id: m.id, label: m.label, done: m.done })),
@@ -1180,6 +1317,12 @@ export default function AgentPage() {
       agentMetaRef.current.objective =
         res?.react?.objective ?? agentMetaRef.current.objective;
       agentMetaRef.current.mode = res?.mode ?? agentMetaRef.current.mode;
+      if (typeof res?.knowledge_score === 'number') {
+        setPersistentKnowledgeScore(res.knowledge_score);
+      }
+      if (res?.milestone_unlocked?.feature) {
+        setLevelUpText(`Hito desbloqueado: ${res.milestone_unlocked.feature}`);
+      }
       forceRender((x) => x + 1);
 
       // Handle panel action from agent
@@ -1312,8 +1455,8 @@ export default function AgentPage() {
     const message = `Actualiza mi presupuesto con esta tabla y entregame un diagnostico financiero profesional por categorias. Datos: ${JSON.stringify(
       budgetSummary
     )}`;
-    setDraftForActive(message);
     setIsBudgetModalOpen(false);
+    void onSend(message);
   }
 
   function simulateBankLogin(randomMode = false) {
@@ -1335,13 +1478,72 @@ export default function AgentPage() {
     }));
   }
 
-  function onUploadStatement(files: FileList | null) {
+  async function onUploadStatement(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const names = Array.from(files).map((f) => f.name);
-    setBankSimulation((prev) => ({
-      ...prev,
-      uploadedFiles: [...prev.uploadedFiles, ...names],
+
+    const selectedFiles = Array.from(files);
+    const names = selectedFiles.map((f) => f.name);
+    setDocumentsLoading(true);
+
+    try {
+      const encodedFiles = await Promise.all(
+        selectedFiles.map(
+          (file) =>
+            new Promise<{ name: string; base64: string }>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const raw = typeof reader.result === 'string' ? reader.result : '';
+                const base64 = raw.includes(',') ? raw.split(',')[1] ?? '' : raw;
+                resolve({ name: file.name, base64 });
+              };
+              reader.onerror = () => reject(reader.error ?? new Error('No se pudo leer el archivo'));
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+
+      const parsed = await parseDocuments(encodedFiles);
+      setBankSimulation((prev) => {
+        const nextDocs = [...prev.parsedDocuments];
+        for (const doc of parsed.documents ?? []) {
+          const existingIdx = nextDocs.findIndex((existing) => existing.name === doc.name);
+          if (existingIdx >= 0) {
+            nextDocs[existingIdx] = doc;
+          } else {
+            nextDocs.push(doc);
+          }
+        }
+
+        return {
+          ...prev,
+          uploadedFiles: Array.from(new Set([...prev.uploadedFiles, ...names])),
+          parsedDocuments: nextDocs,
+        };
+      });
+    } catch {
+      setBankSimulation((prev) => ({
+        ...prev,
+        uploadedFiles: Array.from(new Set([...prev.uploadedFiles, ...names])),
+      }));
+    } finally {
+      setDocumentsLoading(false);
+    }
+  }
+
+  function sendTransactionsToAgent() {
+    if (bankSimulation.parsedDocuments.length === 0) return;
+
+    const documentsSummary = bankSimulation.parsedDocuments.map((doc) => ({
+      name: doc.name,
+      preview: doc.text.slice(0, 600),
     }));
+
+    const message = `Analiza mis cartolas y movimientos cargados. Quiero patrones de gasto, alertas, flujo mensual y hallazgos accionables. Documentos: ${JSON.stringify(
+      documentsSummary
+    )}`;
+
+    setIsTransactionsModalOpen(false);
+    void onSend(message);
   }
 
   function launchDocToLibraryAnimation(
@@ -2042,43 +2244,93 @@ export default function AgentPage() {
           )}
           </div>
 
-          <div className="agent-input">
-            <textarea
-              placeholder="Escribe tu mensaje y moldea el campo a tu estilo..."
-              value={input}
-              onChange={(e) => setDraftForActive(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  onSend();
-                }
-              }}
-            />
+          <div className={`agent-input${isRealtimeOpen ? ' is-realtime' : ''}`}>
+            {isRealtimeOpen ? (
+              <>
+                {/* Modo voz inline — reemplaza el textarea */}
+                <div className="realtime-inline">
+                  <div className="realtime-inline-row">
+                    <div className={`voice-status-dot${realtimeListening ? ' is-listening' : realtimeSpeaking ? ' is-speaking' : ''}`} />
+                    <span className="realtime-inline-status">
+                      {realtimeListening ? 'Escuchando...' : realtimeSpeaking ? 'Respondiendo...' : 'Listo para hablar'}
+                    </span>
+                    <button
+                      type="button"
+                      className={`voice-mic-btn${realtimeListening ? ' is-active' : ''}`}
+                      onClick={startRealtimeListen}
+                      aria-label={realtimeListening ? 'Detener' : 'Hablar'}
+                    >
+                      <div className="voice-mic-ring" />
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        {realtimeListening ? (
+                          <rect x="6" y="6" width="12" height="12" rx="2" />
+                        ) : (
+                          <>
+                            <path d="M12 1a3 3 0 0 1 3 3v8a3 3 0 0 1-6 0V4a3 3 0 0 1 3-3z" />
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                            <line x1="12" y1="19" x2="12" y2="23" />
+                            <line x1="8" y1="23" x2="16" y2="23" />
+                          </>
+                        )}
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="realtime-inline-close"
+                      onClick={closeRealtimeMode}
+                      aria-label="Cerrar modo voz"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {/* Waveform */}
+                  <div className={`voice-waveform${realtimeListening ? ' is-listening' : ''}${realtimeSpeaking ? ' is-speaking' : ''}`} aria-hidden="true">
+                    {Array.from({ length: 10 }).map((_, i) => (
+                      <div key={i} className="voice-waveform-bar" />
+                    ))}
+                  </div>
+                  {/* Transcript en vivo */}
+                  {realtimeListening && realtimeTranscript && (
+                    <div className="realtime-inline-transcript">{realtimeTranscript}</div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <textarea
+                  placeholder="Escribe tu mensaje..."
+                  value={input}
+                  onChange={(e) => setDraftForActive(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      onSend();
+                    }
+                  }}
+                />
 
-            <div className="controls">
-              <button
-                type="button"
-                className="continue-button realtime-btn"
-                onClick={openRealtimeMode}
-                title="Abrir modo conversación en tiempo real"
-              >
-                Hablar en tiempo real
-              </button>
+                <div className="controls">
+                  <button
+                    type="button"
+                    className="continue-button realtime-btn"
+                    onClick={openRealtimeMode}
+                    title="Abrir modo conversación en tiempo real"
+                  >
+                    Hablar en tiempo real
+                  </button>
 
-              <div style={{ flex: 1 }} />
+                  <div style={{ flex: 1 }} />
 
-              <button
-                type="button"
-                className="continue-button"
-                onClick={onSend}
-              >
-                Enviar
-              </button>
-            </div>
-
-            <div className="hint">
-              Presiona <span>Enter</span> para enviar. {coachHint}
-            </div>
+                  <button
+                    type="button"
+                    className="continue-button"
+                    onClick={onSend}
+                  >
+                    Enviar
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -2153,7 +2405,7 @@ export default function AgentPage() {
               onClick={() => setKnowledgePopupOpen(false)}
             />
             <div className="knowledge-popup" role="dialog" aria-label="Mapa de conocimiento">
-              <div className="knowledge-popup-header">
+            <div className="knowledge-popup-header">
                 <div className="knowledge-popup-score">
                   <span className="knowledge-popup-pct">{knowledgeScore}%</span>
                   <span className="knowledge-popup-stage">{knowledgeStage}</span>
@@ -2168,6 +2420,7 @@ export default function AgentPage() {
                   {completedMilestones}/{milestones.length}<br />hitos
                 </span>
               </div>
+              <p className="panel-inline-hint">{coachHint}</p>
               <div className="knowledge-popup-milestones">
                 {milestones.map((milestone) => (
                   <div
@@ -2195,7 +2448,7 @@ export default function AgentPage() {
             {sessionInfo?.name?.split(' ')[0] ?? 'Financieramente'}
           </span>
           <span className="mobile-rail-subtitle-badge">{knowledgeStage}</span>
-          {sessionInfo?.hasIntake && (
+          {sessionInfo?.injectedIntake && (
             <span className="mobile-rail-subtitle-memory">● perfil activo</span>
           )}
         </div>
@@ -2316,8 +2569,22 @@ export default function AgentPage() {
               bgPosition="40% 40%"
             >
               {nextMilestone
-                ? `Responde para completar: ${nextMilestone.label}.`
+                ? `Te faltan ${Math.max(0, nextMilestone.threshold - knowledgeScore)} pts para desbloquear: ${nextMilestone.label}.`
                 : 'Mapa completo. Ya tenemos una lectura avanzada de tu perfil.'}
+            </PanelCard>
+          </div>
+
+          <div className="mob-col">
+            <PanelCard
+              label="Continuidad"
+              value={`${engagementScore}% operativa`}
+              className="panel-flow-gradient"
+              bgImage="/fondo8.png"
+              overlayColor="154,148,148"
+              overlayOpacity={0.2}
+              bgScale={1.08}
+            >
+              {`Cobertura de chats: ${sheetProgress}%. ${coachHint}`}
             </PanelCard>
           </div>
 
@@ -2728,6 +2995,18 @@ export default function AgentPage() {
               <button type="button" className="button-primary" onClick={() => simulateBankLogin(false)}>
                 Simular login
               </button>
+              <button
+                type="button"
+                className="button-primary"
+                onClick={sendTransactionsToAgent}
+                disabled={documentsLoading || bankSimulation.parsedDocuments.length === 0}
+              >
+                {documentsLoading
+                  ? 'Procesando cartolas…'
+                  : bankSimulation.parsedDocuments.length > 0
+                  ? 'Analizar con el agente'
+                  : 'Carga cartolas para analizar'}
+              </button>
             </div>
 
             <div className="bank-sim-status">
@@ -2750,6 +3029,9 @@ export default function AgentPage() {
                 />
               </label>
               <div className="upload-files">
+                {documentsLoading && (
+                  <span>Extrayendo texto y estructura de tus documentos…</span>
+                )}
                 {bankSimulation.uploadedFiles.length === 0 && (
                   <span>Aun no hay cartolas cargadas.</span>
                 )}
@@ -2759,82 +3041,17 @@ export default function AgentPage() {
                   </span>
                 ))}
               </div>
+              {bankSimulation.parsedDocuments.length > 0 && (
+                <div className="upload-files">
+                  <span>{bankSimulation.parsedDocuments.length} documento(s) listo(s) para análisis contextual.</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Floating voice bubble — only renders when open */}
-      {mounted && isRealtimeOpen && createPortal(
-        <div
-          className={`voice-bubble is-open${realtimeListening ? ' is-listening' : ''}${realtimeSpeaking ? ' is-speaking' : ''}`}
-          role="dialog"
-          aria-label="Llamada en tiempo real"
-          style={{ left: bubblePos.x, top: bubblePos.y }}
-          onMouseDown={onBubbleMouseDown}
-        >
-          <div className="voice-bubble-inner">
-            {/* Drag handle area — subtle grip indicator */}
-            <div className="voice-bubble-drag-handle" />
-
-            {/* Close */}
-            <button className="voice-bubble-close" onClick={closeRealtimeMode} aria-label="Cerrar">✕</button>
-
-            {/* Status row */}
-            <div className="voice-bubble-status">
-              <div className={`voice-status-dot${realtimeListening ? ' is-listening' : realtimeSpeaking ? ' is-speaking' : ''}`} />
-              <span className="voice-status-text">
-                {realtimeListening ? 'Escuchando...' : realtimeSpeaking ? 'Respondiendo...' : 'Listo para hablar'}
-              </span>
-              {/* Mic button inline in status row */}
-              <button
-                type="button"
-                className={`voice-mic-btn${realtimeListening ? ' is-active' : ''}`}
-                onClick={startRealtimeListen}
-                aria-label={realtimeListening ? 'Detener' : 'Hablar'}
-              >
-                <div className="voice-mic-ring" />
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  {realtimeListening ? (
-                    <rect x="6" y="6" width="12" height="12" rx="2" />
-                  ) : (
-                    <>
-                      <path d="M12 1a3 3 0 0 1 3 3v8a3 3 0 0 1-6 0V4a3 3 0 0 1 3-3z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                      <line x1="12" y1="19" x2="12" y2="23" />
-                      <line x1="8" y1="23" x2="16" y2="23" />
-                    </>
-                  )}
-                </svg>
-              </button>
-            </div>
-
-            {/* Waveform visual — siempre presente, visible cuando escucha/habla */}
-            <div className="voice-waveform" aria-hidden="true">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="voice-waveform-bar" />
-              ))}
-            </div>
-
-            {/* Live transcript */}
-            {(realtimeHistory.length > 0 || realtimeListening) && (
-              <div className="voice-bubble-transcript">
-                {realtimeHistory.slice(-4).map((h, idx) => (
-                  <div key={idx} className={`voice-transcript-line voice-transcript-${h.role}`}>
-                    {h.text}
-                  </div>
-                ))}
-                {realtimeListening && realtimeTranscript && (
-                  <div className="voice-transcript-line voice-transcript-user is-interim">
-                    {realtimeTranscript}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
+      {/* Voice bubble eliminada — ahora el modo voz es inline en el agent-input */}
 
       {/* Mobile preview overlay — desktop only, portaled to body to escape overflow:hidden */}
       {isMobilePreview && mounted && createPortal(

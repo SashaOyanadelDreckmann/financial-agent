@@ -23,7 +23,7 @@ export default function RegisterPage() {
       setError(null);
       const res = await registerUser(form);
       try {
-        if (form.name) localStorage.setItem('user_name', form.name);
+        if (res?.user?.name || form.name) localStorage.setItem('user_name', res?.user?.name ?? form.name);
         if (res?.user?.id) localStorage.setItem('user_id', res.user.id);
       } catch {}
       setAuthenticated();

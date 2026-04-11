@@ -47,6 +47,7 @@ export async function sendToAgent(payload: {
 
   const body = {
     user_id: userId,
+    user_name: resolvedUserInfo?.name,
     ...rest,
     history: safeHistory,
     context: {

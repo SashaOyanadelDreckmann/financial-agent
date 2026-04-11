@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import type { MCPTool } from '../types';
+import type { MCPTool, ToolContext } from '../types';
+import { checkRateLimit } from '../rate-limiter';
+import { sanitizeSearchQuery, sanitizeLargeText } from '../input-sanitizer';
+import { createMetricsCollector, recordToolMetrics } from '../telemetry';
+import { wrapError, timeoutError } from '../error';
 
 type SearchHit = {
   title: string;
@@ -77,46 +81,83 @@ export const webSearchTool: MCPTool = {
     },
     required: ['query'],
   },
-  run: async (args) => {
-    const query = String(args.query);
-    const limit = Number(args.limit ?? 5);
-    const endpoint = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    const res = await fetch(endpoint, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; FinancialAgent/1.0)',
-      },
-    });
+  run: async (args, ctx?: ToolContext) => {
+    const metrics = createMetricsCollector('web.search');
 
-    const html = await res.text();
-    if (!res.ok) {
-      throw new Error(`web.search failed (${res.status})`);
-    }
+    try {
+      // 1. Input validation
+      const query = sanitizeSearchQuery(String(args.query), 'web.search');
+      const limit = Math.min(Number(args.limit ?? 5), 10);
 
-    const results = parseSearchResults(html, limit);
+      // 2. Rate limit check
+      await checkRateLimit('web.search', ctx);
 
-    return {
-      tool_call: {
-        tool: 'web.search',
-        args,
-        status: 'success',
-        result: {
-          total: results.length,
-          query,
+      // 3. Execute with timeout (5 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const endpoint = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+      const res = await fetch(endpoint, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; FinancialAgent/1.0)',
         },
-      },
-      data: {
-        query,
-        total: results.length,
-        results,
-      },
-      citations: results.slice(0, 3).map((r) => ({
-        doc_id: r.url,
-        doc_title: r.title,
-        supporting_span: r.snippet ?? 'Resultado de busqueda web',
-        supports: 'claim' as const,
-        confidence: 0.65,
-        url: r.url,
-      })),
-    };
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      // 4. Parse response with size limit (1MB)
+      let html = await res.text();
+      html = sanitizeLargeText(html, 1024 * 1024, 'web.search');
+
+      const results = parseSearchResults(html, limit);
+
+      // 5. Record success metrics
+      const toolMetrics = metrics.recordSuccess(ctx);
+      recordToolMetrics(toolMetrics);
+
+      return {
+        tool_call: {
+          tool: 'web.search',
+          args,
+          status: 'success',
+          result: {
+            total: results.length,
+            query,
+          },
+        },
+        data: {
+          query,
+          total: results.length,
+          results,
+        },
+        citations: results.slice(0, 3).map((r) => ({
+          doc_id: r.url,
+          doc_title: r.title,
+          supporting_span: r.snippet ?? 'Resultado de busqueda web',
+          supports: 'claim' as const,
+          confidence: 0.65,
+          url: r.url,
+        })),
+      };
+    } catch (error) {
+      // 6. Error handling with standardized codes
+      let toolError = wrapError(error, 'web.search');
+
+      // Check if it's an abort (timeout)
+      if (error instanceof Error && error.name === 'AbortError') {
+        toolError = timeoutError('web.search', 5000);
+      }
+
+      // Record error metrics
+      const toolMetrics = metrics.recordError(toolError.code, ctx, toolError.code === 'timeout');
+      recordToolMetrics(toolMetrics);
+
+      throw toolError;
+    }
   },
 };

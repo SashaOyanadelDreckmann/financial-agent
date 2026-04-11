@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { FinancialDiagnosticProfile } from '../schemas/profile.schema';
+import { getLogger } from '../logger';
 
 /* ────────────────────────────── */
 /* Configuración base             */
@@ -106,10 +107,10 @@ export function loadProfile(
     return JSON.parse(raw) as FinancialDiagnosticProfile;
   } catch (err) {
     // Corrupción o formato inválido
-    console.error(
-      `[storage] Error parsing profile ${profileId}:`,
-      err
-    );
+    getLogger().error({
+      msg: `[storage] Error parsing profile ${profileId}`,
+      error: err,
+    });
     return null;
   }
 }

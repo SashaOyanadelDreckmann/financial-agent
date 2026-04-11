@@ -33,7 +33,7 @@ router.post('/parse', async (req: Request, res: Response) => {
 
     return res.json({ documents });
   } catch (err: any) {
-    console.error('[documents/parse]', err);
+    (req as any).logger?.error({ msg: '[documents/parse]', error: err });
     return res.status(500).json({ error: err?.message ?? 'Error al parsear documentos' });
   }
 });

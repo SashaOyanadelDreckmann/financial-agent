@@ -19,6 +19,12 @@ function generateUserId() {
   return `user_${crypto.randomUUID()}`;
 }
 
+/**
+ * Atomically write JSON file with temp file safety.
+ * Prevents data corruption from concurrent writes.
+ * @param filePath - Path to target file
+ * @param data - Data to write
+ */
 function atomicWriteJson(filePath: string, data: unknown) {
   const dir = path.dirname(filePath);
   const tmp = path.join(
@@ -31,6 +37,12 @@ function atomicWriteJson(filePath: string, data: unknown) {
   fs.renameSync(tmp, filePath);
 }
 
+/**
+ * Create a new user account.
+ * @param data - User creation data (name, email, passwordHash)
+ * @returns Created user with generated ID
+ * @throws Error if email already exists
+ */
 export function createUser(data: {
   name: string;
   email: string;
@@ -39,7 +51,14 @@ export function createUser(data: {
   ensureUsersDir();
 
   const id = generateUserId();
-  const user: User = { id, ...data };
+  const user: User = {
+    id,
+    ...data,
+    knowledgeBaseScore: 0,
+    knowledgeScore: 0,
+    knowledgeHistory: [],
+    knowledgeLastUpdated: new Date().toISOString(),
+  };
 
   atomicWriteJson(path.join(USERS_DIR, `${id}.json`), user);
   addToEmailIndex(data.email, id);
@@ -225,6 +244,38 @@ export type StoredSheet = {
   completedAt?: string;
 };
 
+export type StoredReport = {
+  id: string;
+  title: string;
+  group: 'plan_action' | 'simulation' | 'budget' | 'diagnosis' | 'other';
+  fileUrl: string;
+  createdAt: string;
+};
+
+export type StoredUploadedDocument = {
+  name: string;
+  text: string;
+};
+
+export type StoredPanelState = {
+  budgetRows: Array<{
+    id: string;
+    category: string;
+    type: 'income' | 'expense';
+    amount: number;
+    note: string;
+  }>;
+  bankSimulation: {
+    username: string;
+    connected: boolean;
+    randomMode: boolean;
+    uploadedFiles: string[];
+    parsedDocuments: StoredUploadedDocument[];
+  };
+  savedReports: StoredReport[];
+  updatedAt: string;
+};
+
 export function saveUserSheets(userId: string, sheets: StoredSheet[]): boolean {
   ensureUsersDir();
   const filePath = path.join(USERS_DIR, `${userId}.json`);
@@ -247,4 +298,61 @@ export function loadUserSheets(userId: string): StoredSheet[] | null {
   const user = safeReadUserFile(filePath);
   if (!user) return null;
   return (user as any).sheets ?? null;
+}
+
+export function attachDiagnosticProfileToUser(
+  userId: string,
+  profileId: string
+): boolean {
+  ensureUsersDir();
+
+  const filePath = path.join(USERS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+
+  const user = safeReadUserFile(filePath);
+  if (!user) return false;
+
+  (user as any).latestDiagnosticProfileId = profileId;
+  (user as any).latestDiagnosticCompletedAt = new Date().toISOString();
+
+  try {
+    atomicWriteJson(filePath, user);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function saveUserPanelState(
+  userId: string,
+  panelState: StoredPanelState
+): boolean {
+  ensureUsersDir();
+
+  const filePath = path.join(USERS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+
+  const user = safeReadUserFile(filePath);
+  if (!user) return false;
+
+  (user as any).panelState = panelState;
+
+  try {
+    atomicWriteJson(filePath, user);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function loadUserPanelState(userId: string): StoredPanelState | null {
+  ensureUsersDir();
+
+  const filePath = path.join(USERS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return null;
+
+  const user = safeReadUserFile(filePath);
+  if (!user) return null;
+
+  return ((user as any).panelState ?? null) as StoredPanelState | null;
 }

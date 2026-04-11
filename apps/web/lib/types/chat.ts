@@ -15,7 +15,7 @@ export type AgentBlock =
         subtitle?: string;
         xKey: string;
         yKey: string;
-        data: Array<Record<string, number>>;
+        data: Array<Record<string, number | string>>;
         format?: 'currency' | 'percentage' | 'number';
         currency?: string;
       };

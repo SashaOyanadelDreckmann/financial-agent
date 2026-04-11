@@ -3,7 +3,8 @@ import { IntakeQuestionnaire } from '@financial-agent/shared/src/intake/intake-q
 import { analyzeIntake } from '../agents/intake/intake-analyzer';
 import { buildIntakeContext } from '../services/intake-context.service';
 import { loadSession } from '../services/session.service';
-import { attachIntakeToUser, loadUserById } from '../services/user.service';
+import { attachIntakeToUser } from '../services/user.service';
+import { synchronizeKnowledgeFromIntake, recordKnowledgeEvent } from '../services/knowledge.service';
 
 export async function submitIntake(req: Request, res: Response) {
   const intake = req.body as IntakeQuestionnaire;
@@ -26,7 +27,7 @@ export async function submitIntake(req: Request, res: Response) {
     const { analyzeIntakeWithLLM } = await import('../agents/intake/intake-llm');
     llmSummary = await analyzeIntakeWithLLM(intake);
   } catch (err) {
-    console.error('LLM intake analysis failed:', err);
+    (req as any).logger?.warn({ msg: 'LLM intake analysis failed', error: err });
   }
 
   // Auto-inject intake to authenticated user
@@ -36,10 +37,17 @@ export async function submitIntake(req: Request, res: Response) {
       const session = loadSession(token);
       if (session?.userId) {
         attachIntakeToUser(session.userId, { intake, llmSummary, intakeContext } as any);
+        await synchronizeKnowledgeFromIntake(session.userId, intake);
+        await recordKnowledgeEvent(
+          session.userId,
+          'completed_intake',
+          'User completed financial intake questionnaire',
+          { source: 'intake_submit' }
+        );
       }
     }
   } catch (err) {
-    console.warn('Failed to auto-inject intake to user:', err);
+    (req as any).logger?.warn({ msg: 'Failed to auto-inject intake to user', error: err });
   }
 
   return res.json({

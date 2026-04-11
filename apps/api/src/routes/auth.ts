@@ -44,7 +44,14 @@ authRouter.post('/register', async (req, res) => {
   const session = createSession(user.id);
   res.cookie('session', session.token, getSessionCookieOptions());
 
-  return res.json({ ok: true });
+  return res.json({
+    ok: true,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    },
+  });
 });
 
 const LoginSchema = z.object({
@@ -70,7 +77,14 @@ authRouter.post('/login', async (req, res) => {
 
   const session = createSession(user.id);
   res.cookie('session', session.token, getSessionCookieOptions());
-  return res.json({ ok: true });
+  return res.json({
+    ok: true,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    },
+  });
 });
 
 authRouter.post('/logout', (req, res) => {

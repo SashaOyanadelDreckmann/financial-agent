@@ -6,7 +6,7 @@ import { AnimatedBackground } from '@/components/layout/AnimatedBackground';
 export const metadata = {
   title: 'Financiera Mente',
   description: 'Claridad financiera, antes de decidir.',
-  viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover',
 };
 
 export default function RootLayout({
@@ -17,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
         <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
         <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
