@@ -6,7 +6,11 @@
  */
 
 import { z } from 'zod';
-import type { MCPTool } from '../types';
+import type { MCPTool, ToolContext } from '../types';
+import { checkRateLimit } from '../rate-limiter';
+import { validateNumericRange } from '../input-sanitizer';
+import { createMetricsCollector, recordToolMetrics } from '../telemetry';
+import { wrapError } from '../error';
 
 function normRate(x: number) {
   return x > 1 ? x / 100 : x;
@@ -34,10 +38,25 @@ export const debtAnalyzerTool: MCPTool = {
     alreadyPaid:     z.number().int().min(0).optional(),   // cuotas ya pagadas
     type:            z.enum(['consumo','hipotecario','auto','cae','otro']).optional(),
   }),
-  run: async (args) => {
-    const principal    = Number(args.principal);
-    const annualRate   = normRate(Number(args.annualRate));
-    const totalMonths  = Math.max(1, Math.floor(Number(args.months)));
+  run: async (args, ctx?: ToolContext) => {
+    const metrics = createMetricsCollector('finance.debt_analyzer');
+
+    try {
+      // 1. Rate limit check
+      await checkRateLimit('finance.debt_analyzer', ctx);
+
+      // 2. Input validation
+      validateNumericRange(Number(args.principal), 1, 100000000, 'principal', 'finance.debt_analyzer');
+      validateNumericRange(Number(args.annualRate), 0.1, 100, 'annualRate', 'finance.debt_analyzer');
+      validateNumericRange(Number(args.months), 1, 1200, 'months', 'finance.debt_analyzer');
+
+      if (args.extraMonthly !== undefined) {
+        validateNumericRange(Number(args.extraMonthly), 0, 100000, 'extraMonthly', 'finance.debt_analyzer');
+      }
+
+      const principal    = Number(args.principal);
+      const annualRate   = normRate(Number(args.annualRate));
+      const totalMonths  = Math.max(1, Math.floor(Number(args.months)));
     const extra        = Number(args.extraMonthly ?? 0);
     const paid         = Math.max(0, Math.floor(Number(args.alreadyPaid ?? 0)));
     const type         = args.type ?? 'consumo';
@@ -128,28 +147,42 @@ export const debtAnalyzerTool: MCPTool = {
       total_paid:           roundCLP(basePayment * totalMonths),
       total_interest:       roundCLP(totalInterestBase),
       interest_ratio_pct:   Number(((totalInterestBase / principal) * 100).toFixed(1)),
-      cae_implicit_pct:     Number((caeImplicit * 100).toFixed(2)),
-      remaining_interest:   roundCLP(remainingInterest),
+        cae_implicit_pct:     Number((caeImplicit * 100).toFixed(2)),
+        remaining_interest:   roundCLP(remainingInterest),
 
-      // Con prepago
-      extra_monthly:        extra > 0 ? roundCLP(extra) : undefined,
-      months_saved:         extra > 0 ? monthsSaved : undefined,
-      interest_saved:       extra > 0 ? savingsWithExtra : undefined,
-      new_total_months:     extra > 0 ? monthsWithExtra : undefined,
-    };
+        // Con prepago
+        extra_monthly:        extra > 0 ? roundCLP(extra) : undefined,
+        months_saved:         extra > 0 ? monthsSaved : undefined,
+        interest_saved:       extra > 0 ? savingsWithExtra : undefined,
+        new_total_months:     extra > 0 ? monthsWithExtra : undefined,
+      };
 
-    return {
-      tool_call: {
-        tool: 'finance.debt_analyzer',
-        args,
-        status: 'success',
-        result: summary,
-      },
-      data: {
-        summary,
-        schedule: keySchedule,
-        full_schedule_length: schedule.length,
-      },
-    };
+      // 3. Record success metrics
+      const toolMetrics = metrics.recordSuccess(ctx);
+      recordToolMetrics(toolMetrics);
+
+      return {
+        tool_call: {
+          tool: 'finance.debt_analyzer',
+          args,
+          status: 'success',
+          result: summary,
+        },
+        data: {
+          summary,
+          schedule: keySchedule,
+          full_schedule_length: schedule.length,
+        },
+      };
+    } catch (error) {
+      // 4. Error handling with standardized codes
+      let toolError = wrapError(error, 'finance.debt_analyzer');
+
+      // Record error metrics
+      const toolMetrics = metrics.recordError(toolError.code, ctx);
+      recordToolMetrics(toolMetrics);
+
+      throw toolError;
+    }
   },
 };
