@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import type { MCPTool } from '../types';
+import type { MCPTool, ToolContext } from '../types';
+import { checkRateLimit } from '../rate-limiter';
+import { sanitizeSearchQuery } from '../input-sanitizer';
+import { createMetricsCollector, recordToolMetrics } from '../telemetry';
+import { wrapError, timeoutError } from '../error';
 
 type RegulatorySource = {
   title: string;
@@ -89,69 +93,102 @@ export const chileRegulatoryLookupTool: MCPTool = {
     },
     required: ['query'],
   },
-  run: async (args) => {
-    const query = String(args.query);
-    const limit = Number(args.limit ?? 4);
-    const tokens = tokenize(query);
+  run: async (args, ctx?: ToolContext) => {
+    const metrics = createMetricsCollector('regulatory.lookup_cl');
 
-    const hits: Array<{
-      title: string;
-      url: string;
-      snippet: string;
-      score: number;
-      tags: string[];
-    }> = [];
+    try {
+      // 1. Rate limit check
+      await checkRateLimit('regulatory.lookup_cl', ctx);
 
-    for (const source of REGULATORY_SOURCES) {
-      try {
-        const res = await fetch(source.url, {
-          headers: { 'User-Agent': 'FinancialAgent/1.0 (regulatory lookup)' },
-        });
-        if (!res.ok) continue;
-        const html = await res.text();
-        const text = stripHtml(html);
-        if (!text) continue;
+      // 2. Input validation
+      const query = sanitizeSearchQuery(String(args.query), 'regulatory.lookup_cl');
+      const limit = Number(args.limit ?? 4);
+      const tokens = tokenize(query);
 
-        const { snippet, score } = bestSnippet(text, tokens);
-        const baseScore = source.tags.some((t) => query.toLowerCase().includes(t)) ? 1 : 0;
-        hits.push({
-          title: source.title,
-          url: source.url,
-          snippet,
-          score: score + baseScore,
-          tags: source.tags,
-        });
-      } catch {
-        // Skip unreachable sources; keep best-effort behavior.
+      // 3. Fetch with timeout (10s for external regulatory sources)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const hits: Array<{
+        title: string;
+        url: string;
+        snippet: string;
+        score: number;
+        tags: string[];
+      }> = [];
+
+      for (const source of REGULATORY_SOURCES) {
+        try {
+          const res = await fetch(source.url, {
+            signal: controller.signal,
+            headers: { 'User-Agent': 'FinancialAgent/1.0 (regulatory lookup)' },
+          });
+          if (!res.ok) continue;
+          const html = await res.text();
+          const text = stripHtml(html);
+          if (!text) continue;
+
+          const { snippet, score } = bestSnippet(text, tokens);
+          const baseScore = source.tags.some((t) => query.toLowerCase().includes(t)) ? 1 : 0;
+          hits.push({
+            title: source.title,
+            url: source.url,
+            snippet,
+            score: score + baseScore,
+            tags: source.tags,
+          });
+        } catch {
+          // Skip unreachable sources; keep best-effort behavior.
+        }
       }
+
+      clearTimeout(timeoutId);
+
+      hits.sort((a, b) => b.score - a.score);
+      const top = hits.slice(0, limit);
+
+      const citations = top.map((h) => ({
+        doc_id: h.url,
+        doc_title: h.title,
+        supporting_span: h.snippet,
+        supports: 'definition' as const,
+        confidence: Math.min(0.9, 0.55 + h.score * 0.08),
+        url: h.url,
+      }));
+
+      // 4. Record success metrics
+      const toolMetrics = metrics.recordSuccess(ctx);
+      recordToolMetrics(toolMetrics);
+
+      return {
+        tool_call: {
+          tool: 'regulatory.lookup_cl',
+          args,
+          status: 'success',
+          result: { found: citations.length },
+        },
+        data: {
+          query,
+          found: citations.length,
+          results: top,
+        },
+        citations,
+      };
+    } catch (error) {
+      // 5. Error handling with standardized codes
+      let toolError = wrapError(error, 'regulatory.lookup_cl');
+
+      // Check if it's a timeout
+      if (error instanceof Error && error.name === 'AbortError') {
+        toolError = timeoutError('regulatory.lookup_cl', 10000);
+      }
+
+      // Record error metrics
+      const toolMetrics = metrics.recordError(toolError.code, ctx, toolError.code === 'timeout');
+      recordToolMetrics(toolMetrics);
+
+      throw toolError;
     }
-
-    hits.sort((a, b) => b.score - a.score);
-    const top = hits.slice(0, limit);
-
-    const citations = top.map((h) => ({
-      doc_id: h.url,
-      doc_title: h.title,
-      supporting_span: h.snippet,
-      supports: 'definition' as const,
-      confidence: Math.min(0.9, 0.55 + h.score * 0.08),
-      url: h.url,
-    }));
-
-    return {
-      tool_call: {
-        tool: 'regulatory.lookup_cl',
-        args,
-        status: 'success',
-        result: { found: citations.length },
-      },
-      data: {
-        query,
-        found: citations.length,
-        results: top,
-      },
-      citations,
-    };
   },
 };
 

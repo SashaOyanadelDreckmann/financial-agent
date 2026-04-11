@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
-import type { MCPTool } from '../types';
+import type { MCPTool, ToolContext } from '../types';
+import { sanitizeSearchQuery } from '../input-sanitizer';
+import { createMetricsCollector, recordToolMetrics } from '../telemetry';
+import { wrapError } from '../error';
 
 // __dirname = apps/api/src/mcp/tools/rag/
 // rag_data  = apps/rag_data/
@@ -78,75 +81,93 @@ export const ragLookupTool: MCPTool = {
     },
     required: ['query'],
   },
-  run: async (args) => {
-    const rawQuery = String(args.query);
-    const limit = Math.max(1, Math.min(10, Math.floor(Number(args.limit ?? 5))));
+  run: async (args, ctx?: ToolContext) => {
+    const metrics = createMetricsCollector('rag.lookup');
 
-    // Split query into meaningful terms (≥3 chars)
-    const terms = rawQuery
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((t) => t.length >= 3);
-    if (terms.length === 0) terms.push(rawQuery.toLowerCase());
+    try {
+      // 1. Input validation
+      const rawQuery = sanitizeSearchQuery(String(args.query), 'rag.lookup');
+      const limit = Math.max(1, Math.min(10, Math.floor(Number(args.limit ?? 5))));
 
-    // Primary corpus: rag_data (all subdirs)
-    const primaryFiles = collectFiles(RAG_DATA_DIR);
+      // 2. Split query into meaningful terms (≥3 chars)
+      const terms = rawQuery
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((t) => t.length >= 3);
+      if (terms.length === 0) terms.push(rawQuery.toLowerCase());
 
-    // Secondary corpus: legacy mcp knowledge/guides dirs
-    const secondaryFiles = [
-      ...collectFiles(path.join(MCP_DIR, 'knowledge')),
-      ...collectFiles(path.join(MCP_DIR, 'guides')),
-      ...collectFiles(path.join(MCP_DIR, 'contracts')),
-      ...collectFiles(path.join(MCP_DIR, 'examples')),
-    ];
+      // 3. Primary corpus: rag_data (all subdirs)
+      const primaryFiles = collectFiles(RAG_DATA_DIR);
 
-    const allFiles = [...primaryFiles, ...secondaryFiles];
+      // 4. Secondary corpus: legacy mcp knowledge/guides dirs
+      const secondaryFiles = [
+        ...collectFiles(path.join(MCP_DIR, 'knowledge')),
+        ...collectFiles(path.join(MCP_DIR, 'guides')),
+        ...collectFiles(path.join(MCP_DIR, 'contracts')),
+        ...collectFiles(path.join(MCP_DIR, 'examples')),
+      ];
 
-    type Hit = {
-      file: string;
-      title: string;
-      score: number;
-      snippets: string[];
-      isPrimary: boolean;
-    };
+      const allFiles = [...primaryFiles, ...secondaryFiles];
 
-    const hits: Hit[] = [];
+      type Hit = {
+        file: string;
+        title: string;
+        score: number;
+        snippets: string[];
+        isPrimary: boolean;
+      };
 
-    for (const f of allFiles) {
-      const content = readSafe(f);
-      if (!content) continue;
+      const hits: Hit[] = [];
 
-      const { score, snippets } = scoreAndSnippet(content, terms);
-      if (score === 0) continue;
+      for (const f of allFiles) {
+        const content = readSafe(f);
+        if (!content) continue;
 
-      hits.push({
-        file: f,
-        title: extractTitle(content, f),
-        score: score + (primaryFiles.includes(f) ? 0.5 : 0), // boost primary corpus
-        snippets,
-        isPrimary: primaryFiles.includes(f),
-      });
+        const { score, snippets } = scoreAndSnippet(content, terms);
+        if (score === 0) continue;
+
+        hits.push({
+          file: f,
+          title: extractTitle(content, f),
+          score: score + (primaryFiles.includes(f) ? 0.5 : 0), // boost primary corpus
+          snippets,
+          isPrimary: primaryFiles.includes(f),
+        });
+      }
+
+      hits.sort((a, b) => b.score - a.score);
+      const top = hits.slice(0, limit);
+
+      const citations = top.flatMap((h, i) =>
+        h.snippets.slice(0, 2).map((snippet, j) => ({
+          doc_id: h.file,
+          doc_title: h.title,
+          chunk_id: `rag_${i}_${j}`,
+          supporting_span: snippet,
+          supports: 'claim' as const,
+          confidence: Math.min(0.95, 0.6 + h.score * 0.04),
+          url: undefined,
+        })),
+      ).slice(0, limit);
+
+      // 5. Record success metrics
+      const toolMetrics = metrics.recordSuccess(ctx);
+      recordToolMetrics(toolMetrics);
+
+      return {
+        tool_call: { tool: 'rag.lookup', args, status: 'success', result: { found: citations.length } },
+        data: { found: citations.length, citations },
+        citations,
+      };
+    } catch (error) {
+      // 6. Error handling with standardized codes
+      let toolError = wrapError(error, 'rag.lookup');
+
+      // Record error metrics
+      const toolMetrics = metrics.recordError(toolError.code, ctx);
+      recordToolMetrics(toolMetrics);
+
+      throw toolError;
     }
-
-    hits.sort((a, b) => b.score - a.score);
-    const top = hits.slice(0, limit);
-
-    const citations = top.flatMap((h, i) =>
-      h.snippets.slice(0, 2).map((snippet, j) => ({
-        doc_id: h.file,
-        doc_title: h.title,
-        chunk_id: `rag_${i}_${j}`,
-        supporting_span: snippet,
-        supports: 'claim' as const,
-        confidence: Math.min(0.95, 0.6 + h.score * 0.04),
-        url: undefined,
-      })),
-    ).slice(0, limit);
-
-    return {
-      tool_call: { tool: 'rag.lookup', args, status: 'success', result: { found: citations.length } },
-      data: { found: citations.length, citations },
-      citations,
-    };
   },
 };
