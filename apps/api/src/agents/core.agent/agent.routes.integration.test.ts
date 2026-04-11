@@ -24,9 +24,11 @@ describe('Agent API Routes Integration', () => {
       user_id: 'test-user',
       user_message: 'Test question',
       history: [],
-      injected_profile: null,
-      injected_intake: null,
-      injected_budget: { income: 0, expenses: 0, balance: 0 },
+      context: {
+        injected_profile: null,
+        injected_intake: null,
+        injected_budget: { income: 0, expenses: 0, balance: 0 },
+      },
     };
 
     // Assertions on response structure:

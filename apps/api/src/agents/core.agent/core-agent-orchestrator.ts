@@ -165,7 +165,12 @@ export async function runCoreAgent(input: ChatAgentInput): Promise<ChatAgentResp
       tool_calls: ctx.execution_result.tool_calls,
       react: {
         objective: executeOutput.plan_objective || classifyOutput.classification.intent,
-        steps: ctx.execution_result.react_trace,
+        steps: ctx.execution_result.react_trace.map((step) => ({
+          step: step.iteration || 0,
+          goal: step.decision || '',
+          observation: step.result,
+          decision: step.decision,
+        })),
       },
       agent_blocks: ctx.formatted_response.agent_blocks,
       artifacts: ctx.formatted_response.artifacts,
@@ -176,6 +181,8 @@ export async function runCoreAgent(input: ChatAgentInput): Promise<ChatAgentResp
         includes_recommendation: classifyOutput.classification.mode === 'decision_support',
         includes_simulation: classifyOutput.classification.mode === 'simulation',
         includes_regulation: classifyOutput.classification.mode === 'regulation',
+        missing_information: [],
+        disclaimers_shown: [],
         risk_score: classifyOutput.classification.confidence,
         blocked: { is_blocked: false },
       },
@@ -183,9 +190,17 @@ export async function runCoreAgent(input: ChatAgentInput): Promise<ChatAgentResp
         inferred_user_model: classifyOutput.inferred_user_model,
         coherence_validation: ctx.coherence_check,
       },
-      suggested_replies: ctx.formatted_response.suggested_replies,
-      panel_action: ctx.formatted_response.panel_action,
-      budget_updates: ctx.formatted_response.budget_updates,
+      suggested_replies: ctx.formatted_response.suggested_replies ?? [],
+      panel_action: ctx.formatted_response.panel_action ? {
+        section: ctx.formatted_response.panel_action.section as 'budget' | 'transactions' | 'library' | 'recents' | 'profile' | 'news' | 'objective' | 'mode' | undefined,
+        message: ctx.formatted_response.panel_action.message,
+      } : undefined,
+      budget_updates: ctx.formatted_response.budget_updates?.map((update) => ({
+        label: update.label,
+        type: update.type as 'income' | 'expense',
+        amount: update.amount,
+        category: update.category,
+      })),
       knowledge_score: knowledge.knowledge_score,
       knowledge_event_detected: knowledge.knowledge_event_detected,
       milestone_unlocked: knowledge.milestone_unlocked,
@@ -210,7 +225,7 @@ export async function runCoreAgent(input: ChatAgentInput): Promise<ChatAgentResp
       turn_id,
       mode: response.mode,
       latency_ms,
-      suggested_replies: response.suggested_replies.length,
+      suggested_replies: response.suggested_replies?.length ?? 0,
     });
 
     return validated.data;
