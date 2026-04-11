@@ -13,6 +13,7 @@ import {
 } from '../services/user.service';
 import { loadSession } from '../services/session.service';
 import { complete } from '../services/llm.service';
+import { appendTurnToMemory, buildAgentMemoryContext } from '../services/memory.service';
 
 const router = Router();
 
@@ -282,10 +283,36 @@ router.post('/agent', async (req, res) => {
           };
         }
 
+        // PHASE 9.2: Load knowledge_score from user profile
+        if (user && typeof (user as any).knowledgeScore === 'number') {
+          normalizedInput.ui_state = {
+            ...(normalizedInput.ui_state ?? {}),
+            knowledge_score: (user as any).knowledgeScore,
+          };
+        }
       }
     } catch (err) {
       // no romper si falla
       (req as any).logger?.warn({ msg: 'Error reading injected context', error: err });
+    }
+
+    try {
+      if (normalizedInput.user_id) {
+        const memoryContext = buildAgentMemoryContext(normalizedInput.user_id);
+        normalizedInput.context = {
+          ...(normalizedInput.context ?? {}),
+          persistent_memory: memoryContext.user_memory,
+          system_memory: memoryContext.system_memory,
+        };
+
+        normalizedInput.ui_state = {
+          ...(normalizedInput.ui_state ?? {}),
+          memory_profile_summary: memoryContext.user_memory.profile_summary,
+          memory_timeline_count: memoryContext.user_memory.recent_timeline.length,
+        };
+      }
+    } catch (memoryErr) {
+      (req as any).logger?.warn({ msg: 'Error loading persistent memory', error: memoryErr });
     }
 
     /* ────────────────────────────── */
@@ -297,6 +324,75 @@ router.post('/agent', async (req, res) => {
     /* Ejecución core agent           */
     /* ────────────────────────────── */
     const response = await runCoreAgent(input);
+
+    try {
+      appendTurnToMemory({
+        input,
+        response,
+        authenticatedUser: getAuthedUser(req) as any,
+      });
+    } catch (memoryErr) {
+      (req as any).logger?.warn({ msg: 'Error persisting turn memory', error: memoryErr });
+    }
+
+    // PHASE 9: Auto-persist budget_updates if agent proposes changes
+    if (response.budget_updates && response.budget_updates.length > 0 && input.user_id) {
+      try {
+        const authed = getAuthedUser(req);
+        if (authed) {
+          const { saveUserSheets, loadUserSheets } = await import(
+            '../services/user.service'
+          );
+
+          const currentSheets = loadUserSheets(authed.id) ?? [];
+          const activeSheet = currentSheets[0];
+
+          if (activeSheet) {
+            // Apply budget updates to the active sheet
+            const updatedItems = activeSheet.items?.map((item: any) => {
+              const update = response.budget_updates?.find(
+                (u: any) => u.label === item.label
+              );
+              return update ? { ...item, amount: update.amount } : item;
+            }) ?? [];
+
+            // Add new items that weren't in the sheet before
+            const newItems = response.budget_updates?.filter(
+              (u: any) =>
+                !activeSheet.items?.some(
+                  (item: any) => item.label === u.label
+                )
+            ) ?? [];
+
+            updatedItems.push(...newItems);
+
+            // Persist updated sheet
+            const updatedSheet = {
+              ...activeSheet,
+              items: updatedItems,
+              draft: response.message ?? activeSheet.draft,
+              updatedAt: new Date().toISOString(),
+            };
+
+            saveUserSheets(authed.id, [updatedSheet, ...currentSheets.slice(1)]);
+
+            // Enhance response with persistence metadata
+            (response as any).persistence_status = {
+              persisted: true,
+              timestamp: new Date().toISOString(),
+              affected_sheet_id: activeSheet.id,
+              items_modified: updatedItems.length,
+            };
+          }
+        }
+      } catch (persistErr) {
+        (req as any).logger?.warn({
+          msg: 'Budget persistence failed (non-blocking)',
+          error: persistErr,
+        });
+        // Don't fail the request if persistence fails
+      }
+    }
 
     return res.json(response);
   } catch (err: any) {

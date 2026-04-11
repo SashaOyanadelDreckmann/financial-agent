@@ -29,6 +29,15 @@ import {
   CORE_TOOL_AGENT_SYSTEM,
 } from './system.prompts';
 
+import {
+  detectKnowledgeEvent,
+} from './knowledge-detector';
+import {
+  getMilestones,
+  recordKnowledgeEvent,
+} from '../../services/knowledge.service';
+import { validateAgentDecision } from './coherence-validator';
+
 type LLMMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 /* ────────────────────────────── */
@@ -1280,6 +1289,82 @@ export async function runCoreAgent(
     const model = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6';
 
     // Mensaje inicial para el loop: contexto enriquecido del usuario
+    // PHASE 9: Full context injection - Pass COMPLETE user information, not just booleans
+    const fullProfile = (_ctx.injected_profile as any)?.profile;
+    const fullIntake = (_ctx.injected_intake as any)?.intake;
+    const budgetSummaryData = _budgetSummary as any;
+
+    const context_summary = {
+      // Full profile details (NOT just booleans)
+      profile: fullProfile ? {
+        financialClarity: fullProfile.financialClarity,
+        decisionStyle: fullProfile.decisionStyle,
+        timeHorizon: fullProfile.timeHorizon,
+        financialPressure: fullProfile.financialPressure,
+        emotionalPattern: fullProfile.emotionalPattern,
+        coherenceScore: fullProfile.coherenceScore,
+      } : null,
+
+      // Full intake details (NOT just presence flags)
+      intake: fullIntake ? {
+        age: fullIntake.age,
+        employmentStatus: fullIntake.employmentStatus,
+        incomeBand: fullIntake.incomeBand,
+        exactMonthlyIncome: fullIntake.exactMonthlyIncome,
+        expensesCoverage: fullIntake.expensesCoverage,
+        hasSavingsOrInvestments: fullIntake.hasSavingsOrInvestments,
+        exactSavingsAmount: fullIntake.exactSavingsAmount,
+        hasDebt: fullIntake.hasDebt,
+        riskReaction: fullIntake.riskReaction,
+        selfRatedUnderstanding: fullIntake.selfRatedUnderstanding,
+        moneyStressLevel: fullIntake.moneyStressLevel,
+      } : null,
+
+      // Complete budget state (NOT just count)
+      budget: {
+        rows: _budgetRows,
+        summary: {
+          income: budgetSummaryData.income ?? 0,
+          expenses: budgetSummaryData.expenses ?? 0,
+          balance: budgetSummaryData.balance ?? 0,
+          savings_rate: budgetSummaryData.savings_rate,
+          debt_to_income_pct: budgetSummaryData.debt_to_income_pct,
+          emergency_fund_months: budgetSummaryData.emergency_fund_months,
+        },
+        contextScore: _uiState.knowledge_score ?? 0,
+      },
+
+      // Legacy fields for backward compatibility
+      has_profile: Boolean(_ctx.injected_profile ?? _ctx.profile),
+      has_intake: Boolean(_ctx.injected_intake ?? _ctx.intake_context),
+      budget_rows_count: _budgetRows.length,
+      recent_artifacts: Array.isArray(_ctx.recent_artifacts) ? _ctx.recent_artifacts.length : 0,
+      persistent_memory: _ctx.persistent_memory
+        ? {
+            profile_summary: _ctx.persistent_memory.profile_summary,
+            key_facts: Array.isArray(_ctx.persistent_memory.key_facts)
+              ? _ctx.persistent_memory.key_facts.slice(-8)
+              : [],
+            recent_timeline: Array.isArray(_ctx.persistent_memory.recent_timeline)
+              ? _ctx.persistent_memory.recent_timeline.slice(-5)
+              : [],
+          }
+        : null,
+      system_memory: _ctx.system_memory
+        ? {
+            capabilities: Array.isArray(_ctx.system_memory.capabilities)
+              ? _ctx.system_memory.capabilities
+              : [],
+            modules: Array.isArray(_ctx.system_memory.modules)
+              ? _ctx.system_memory.modules
+              : [],
+            tools: Array.isArray(_ctx.system_memory.tools)
+              ? _ctx.system_memory.tools.slice(0, 40)
+              : [],
+          }
+        : null,
+    };
+
     const loopMessages: Anthropic.MessageParam[] = [
       {
         role: 'user',
@@ -1290,12 +1375,7 @@ export async function runCoreAgent(
           inferred_user_model: inferredUserModel,
           ui_state: input.ui_state ?? {},
           preferences: input.preferences ?? {},
-          context_summary: {
-            has_profile: Boolean(_ctx.injected_profile ?? _ctx.profile),
-            has_intake: Boolean(_ctx.injected_intake ?? _ctx.intake_context),
-            budget_rows: _budgetRows.length,
-            recent_artifacts: Array.isArray(_ctx.recent_artifacts) ? _ctx.recent_artifacts.length : 0,
-          },
+          context_summary,
         }),
       },
     ];
@@ -1741,6 +1821,129 @@ Reglas:
     }
   }
 
+  const shouldValidateCoherence =
+    ['decision_support', 'planification', 'simulation', 'budgeting', 'comparison'].includes(mode) ||
+    Boolean(budget_updates && budget_updates.length > 0);
+
+  let coherenceValidation:
+    | {
+        isCoherent: boolean;
+        score: number;
+        warnings: string[];
+        suggestions: string[];
+      }
+    | undefined;
+
+  if (shouldValidateCoherence) {
+    try {
+      const profileForCoherence = (_ctx.injected_profile ?? _ctx.profile ?? null) as any;
+      const intakeForCoherence = (
+        (_ctx.injected_intake as Record<string, any> | undefined)?.intake ??
+        _ctx.intake ??
+        _ctx.intake_context ??
+        null
+      ) as any;
+
+      coherenceValidation = validateAgentDecision(message, {
+        profile: profileForCoherence,
+        intake: intakeForCoherence,
+        budget: {
+          income: Number(_budgetSummary.income ?? 0),
+          expenses: Number(_budgetSummary.expenses ?? 0),
+          balance: Number(_budgetSummary.balance ?? 0),
+          savings_rate: Number(_budgetSummary.savings_rate ?? 0),
+          debt_to_income_pct: Number(_budgetSummary.debt_to_income_pct ?? 0),
+          emergency_fund_months: Number(_budgetSummary.emergency_fund_months ?? 0),
+        },
+        history: Array.isArray(input.history) ? input.history : [],
+      });
+
+      if (!coherenceValidation.isCoherent) {
+        const warningSummary = coherenceValidation.warnings.slice(0, 2).join(' ');
+        message = [
+          `Advertencia de coherencia: esta respuesta no calza del todo con tu perfil actual (${Math.round(
+            coherenceValidation.score * 100
+          )}% de coherencia).`,
+          warningSummary,
+          message,
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        budget_updates = undefined;
+      }
+    } catch (coherenceErr) {
+      getLogger().warn({
+        msg: '[Coherence] Validation failed (non-blocking)',
+        error: coherenceErr,
+      });
+    }
+  }
+
+  /* ────────────────────────────── */
+  /* PHASE 9.2: Knowledge Detection */
+  /* ────────────────────────────── */
+  let knowledge_score = _uiState.knowledge_score ?? 0;
+  let knowledge_event_detected = false;
+  let milestone_unlocked: { threshold: number; feature: string } | undefined;
+
+  try {
+    // Detect learning event from agent interaction
+    const detection = detectKnowledgeEvent({
+      userMessage: text,
+      agentResponse: message,
+      toolsUsed: tool_calls.map(tc => tc.tool),
+      mode,
+      previousScore: knowledge_score,
+      userProfile: _ctx.injected_profile,
+    });
+
+    if (detection.detected && input.user_id) {
+      knowledge_event_detected = true;
+
+      // Record the knowledge event in persistent storage
+      const { newScore, points } = await recordKnowledgeEvent(
+        input.user_id,
+        detection.action!,
+        detection.rationale,
+        {
+          confidence: detection.confidence,
+          tools_used: tool_calls.map(tc => tc.tool),
+          mode,
+        }
+      );
+
+      knowledge_score = newScore;
+
+      // Check if new score unlocked a milestone
+      const milestones = getMilestones(knowledge_score);
+      const previousMilestones = getMilestones(_uiState.knowledge_score ?? 0);
+
+      const newUnlocks = milestones.unlocked.filter(
+        m => !previousMilestones.unlocked.includes(m)
+      );
+
+      if (newUnlocks.length > 0) {
+        milestone_unlocked = milestones.next;
+      }
+
+      getLogger().info({
+        msg: '[Knowledge] Event detected and recorded',
+        userId: input.user_id,
+        action: detection.action,
+        points,
+        newScore,
+        milestoneUnlocked: newUnlocks.length > 0,
+      });
+    }
+  } catch (knowledgeErr) {
+    getLogger().warn({
+      msg: '[Knowledge] Error detecting/recording event (non-blocking)',
+      error: knowledgeErr,
+    });
+    // Continue without blocking response
+  }
+
   /* ────────────────────────────── */
   /* Response canónica              */
   /* ────────────────────────────── */
@@ -1761,18 +1964,30 @@ Reglas:
       includes_recommendation: mode === 'decision_support',
       includes_simulation: mode === 'simulation',
       includes_regulation: mode === 'regulation',
-      risk_score: 1 - confidence,
+      risk_score: Math.max(1 - confidence, coherenceValidation ? 1 - coherenceValidation.score : 0),
       missing_information: [],
-      disclaimers_shown: [],
-      blocked: { is_blocked: false },
+      disclaimers_shown: coherenceValidation && !coherenceValidation.isCoherent ? ['coherence_warning'] : [],
+      blocked:
+        coherenceValidation && !coherenceValidation.isCoherent && coherenceValidation.score < 0.45
+          ? {
+              is_blocked: true,
+              reason:
+                coherenceValidation.warnings[0] ??
+                'La recomendación no es coherente con el perfil financiero actual.',
+            }
+          : { is_blocked: false },
     },
     state_updates: {
       inferred_user_model: inferredUserModel,
+      coherence_validation: coherenceValidation,
     },
     suggested_replies,
     panel_action,
     context_score,
     budget_updates,
+    knowledge_score,
+    knowledge_event_detected,
+    milestone_unlocked,
     meta: {
       turn_id: turnId,
       latency_ms: Date.now() - startedAt,

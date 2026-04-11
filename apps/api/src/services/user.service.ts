@@ -51,7 +51,14 @@ export function createUser(data: {
   ensureUsersDir();
 
   const id = generateUserId();
-  const user: User = { id, ...data };
+  const user: User = {
+    id,
+    ...data,
+    knowledgeBaseScore: 0,
+    knowledgeScore: 0,
+    knowledgeHistory: [],
+    knowledgeLastUpdated: new Date().toISOString(),
+  };
 
   atomicWriteJson(path.join(USERS_DIR, `${id}.json`), user);
   addToEmailIndex(data.email, id);

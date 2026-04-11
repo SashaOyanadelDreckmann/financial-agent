@@ -237,6 +237,14 @@ export const ChatAgentResponseSchema = z.object({
     amount: z.number(),
     category: z.string().optional(),
   })).optional(),
+
+  // PHASE 9.2: Knowledge tracking fields
+  knowledge_score: z.number().min(0).max(100).optional(),
+  knowledge_event_detected: z.boolean().optional(),
+  milestone_unlocked: z.object({
+    threshold: z.number(),
+    feature: z.string(),
+  }).optional(),
 });
 
 export type ChatAgentResponse = z.infer<typeof ChatAgentResponseSchema>;
