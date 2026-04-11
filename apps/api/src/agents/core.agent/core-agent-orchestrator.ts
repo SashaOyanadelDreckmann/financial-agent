@@ -26,15 +26,25 @@ export async function runCoreAgent(input: ChatAgentInput): Promise<ChatAgentResp
   const turn_id = randomUUID();
   const started_at = Date.now();
 
+  // Extract injected context from input.context (set by route handler)
+  const inputContext = input.context as Record<string, any> || {};
+  const inputUiState = input.ui_state as Record<string, any> || {};
+
   const ctx: CoreAgentContext = {
     input,
     turn_id,
     started_at,
-    injected_profile: input.injected_profile || null,
-    injected_intake: input.injected_intake || null,
-    injected_budget: input.injected_budget || { income: 0, expenses: 0, balance: 0 },
-    injected_memory: input.injected_memory,
-    injected_ui_state: input.injected_ui_state,
+    injected_profile: inputContext.injected_profile || null,
+    injected_intake: inputContext.injected_intake || null,
+    injected_budget: inputContext.injected_budget || { income: 0, expenses: 0, balance: 0 },
+    injected_memory: inputContext.persistent_memory || inputContext.system_memory ? {
+      persistent: inputContext.persistent_memory || [],
+      system: inputContext.system_memory || [],
+    } : undefined,
+    injected_ui_state: {
+      knowledge_score: inputUiState.knowledge_score,
+      context_score: inputUiState.context_score,
+    },
   };
 
   try {
@@ -67,8 +77,8 @@ export async function runCoreAgent(input: ChatAgentInput): Promise<ChatAgentResp
       profile: ctx.injected_profile,
       intake: ctx.injected_intake,
       budget: ctx.injected_budget,
-      persistent_memory: input.injected_memory?.persistent || [],
-      system_memory: input.injected_memory?.system || [],
+      persistent_memory: ctx.injected_memory?.persistent || [],
+      system_memory: ctx.injected_memory?.system || [],
     };
 
     // ────────────────────────────────────────────────
@@ -98,7 +108,7 @@ export async function runCoreAgent(input: ChatAgentInput): Promise<ChatAgentResp
       execution_result: executeOutput.execution_result,
       user_message: input.user_message,
       context_summary,
-      ui_state: input.injected_ui_state,
+      ui_state: input.ui_state,
       inferred_user_model: classifyOutput.inferred_user_model,
       injected_profile: ctx.injected_profile,
       injected_intake: ctx.injected_intake,
@@ -140,7 +150,7 @@ export async function runCoreAgent(input: ChatAgentInput): Promise<ChatAgentResp
       agent_response: ctx.formatted_response.message,
       tools_used: ctx.execution_result.tool_calls.map((tc) => tc.tool),
       mode: classifyOutput.classification.mode,
-      previous_score: input.injected_ui_state?.knowledge_score || 0,
+      previous_score: ctx.injected_ui_state?.knowledge_score || 0,
       user_profile: ctx.injected_profile,
     });
 

@@ -22,9 +22,11 @@ describe('Core Agent E2E Scenarios', () => {
       user_id: 'new-user-123',
       user_message: '¿Cómo debo empezar a invertir?',
       history: [],
-      injected_profile: null,
-      injected_intake: null,
-      injected_budget: { income: 0, expenses: 0, balance: 0 },
+      context: {
+        injected_profile: null,
+        injected_intake: null,
+        injected_budget: { income: 0, expenses: 0, balance: 0 },
+      },
     };
 
     // Would call real agent, which would:
@@ -34,17 +36,21 @@ describe('Core Agent E2E Scenarios', () => {
     // 4. Skip coherence validation (not a decision mode)
     // Expected behavior: receives general educational content
 
-    expect(input.injected_profile).toBeNull();
-    expect(input.injected_budget.income).toBe(0);
+    expect((input.context as any)?.injected_profile).toBeNull();
+    expect((input.context as any)?.injected_budget?.income).toBe(0);
   });
 
   it('E2E: User with profile gets personalized decision support', async () => {
     // Scenario: Existing user with complete profile asking for specific advice
     const profile = testUtils.createMockProfile({
-      current_savings: 100000,
-      monthly_contribution: 2000,
-      investment_horizon_months: 180,
-      risk_profile: 'balanced',
+      profile: {
+        financialClarity: 'high',
+        decisionStyle: 'analytical',
+        timeHorizon: 'long_term',
+        financialPressure: 'low',
+        emotionalPattern: 'neutral',
+        coherenceScore: 0.85,
+      },
     });
 
     const input: ChatAgentInput = {
@@ -56,25 +62,27 @@ describe('Core Agent E2E Scenarios', () => {
           content: 'He estado ahorrando durante 5 años',
         },
       ],
-      injected_profile: profile,
-      injected_intake: null,
-      injected_budget: testUtils.createMockBudget({
-        income: 8000,
-        expenses: 4000,
-        balance: 4000,
-      }),
+      context: {
+        injected_profile: profile,
+        injected_intake: null,
+        injected_budget: testUtils.createMockBudget({
+          income: 8000,
+          expenses: 4000,
+          balance: 4000,
+        }),
+      },
     };
 
     // Expected behavior:
     // 1. Classify as 'decision_support' (specific investment question)
     // 2. Execute tools to analyze portfolio allocation
     // 3. Format response with personalized recommendations
-    // 4. Validate coherence against conservative-balanced-aggressive profile
+    // 4. Validate coherence against profile traits
     // 5. Should not block response (coherence validation passes)
 
-    expect(input.injected_profile).not.toBeNull();
-    expect(input.injected_profile?.risk_profile).toBe('balanced');
-    expect(input.injected_budget.balance).toBeGreaterThan(0);
+    expect((input.context as any)?.injected_profile).not.toBeNull();
+    expect((input.context as any)?.injected_profile?.profile?.timeHorizon).toBe('long_term');
+    expect((input.context as any)?.injected_budget?.balance).toBeGreaterThan(0);
   });
 
   it('E2E: Simulation request with projection generation', async () => {
@@ -86,10 +94,12 @@ describe('Core Agent E2E Scenarios', () => {
       user_message:
         '¿Cuánto tendría si invierto $1500 mensuales durante 15 años con retorno de 7% anual?',
       history: [],
-      injected_profile: profile,
-      injected_intake: null,
-      injected_budget: testUtils.createMockBudget(),
-      injected_ui_state: {
+      context: {
+        injected_profile: profile,
+        injected_intake: null,
+        injected_budget: testUtils.createMockBudget(),
+      },
+      ui_state: {
         knowledge_score: 75,
         context_score: 80,
       },
@@ -103,15 +113,20 @@ describe('Core Agent E2E Scenarios', () => {
     // 5. Record knowledge event (completed simulation)
 
     expect(input.user_message).toContain('cuánto tendría');
-    expect(input.injected_ui_state?.knowledge_score).toBeGreaterThan(0);
+    expect((input.ui_state as any)?.knowledge_score).toBeGreaterThan(0);
   });
 
   it('E2E: Budget analysis with coherence validation', async () => {
     // Scenario: Agent recommends budget allocation, validation checks against constraints
     const profile = testUtils.createMockProfile({
-      monthly_income: 5000,
-      monthly_expenses: 3000,
-      risk_profile: 'conservative',
+      profile: {
+        financialClarity: 'high',
+        decisionStyle: 'analytical',
+        timeHorizon: 'mixed',
+        financialPressure: 'moderate',
+        emotionalPattern: 'anxious',
+        coherenceScore: 0.75,
+      },
     });
 
     const input: ChatAgentInput = {
@@ -119,13 +134,15 @@ describe('Core Agent E2E Scenarios', () => {
       user_message:
         '¿Cómo debería distribuir mis $2000 disponibles entre ahorros, inversión y emergencia?',
       history: [],
-      injected_profile: profile,
-      injected_intake: null,
-      injected_budget: testUtils.createMockBudget({
-        income: 5000,
-        expenses: 3000,
-        balance: 2000,
-      }),
+      context: {
+        injected_profile: profile,
+        injected_intake: null,
+        injected_budget: testUtils.createMockBudget({
+          income: 5000,
+          expenses: 3000,
+          balance: 2000,
+        }),
+      },
     };
 
     // Expected behavior:
@@ -135,8 +152,8 @@ describe('Core Agent E2E Scenarios', () => {
     // 4. Validate against profile constraints (conservative investor)
     // 5. If recommendation too aggressive: prepend warning, clear budget_updates
 
-    expect(input.injected_profile?.risk_profile).toBe('conservative');
-    expect(input.injected_budget.balance).toBe(2000);
+    expect((input.context as any)?.injected_profile?.profile?.emotionalPattern).toBe('anxious');
+    expect((input.context as any)?.injected_budget?.balance).toBe(2000);
   });
 
   it('E2E: Regulatory question with RAG lookup', async () => {
@@ -145,9 +162,11 @@ describe('Core Agent E2E Scenarios', () => {
       user_id: 'user-regulatory',
       user_message: '¿Cuáles son los requisitos mínimos de CMF para inversiones en fondos mutuos?',
       history: [],
-      injected_profile: null,
-      injected_intake: null,
-      injected_budget: { income: 0, expenses: 0, balance: 0 },
+      context: {
+        injected_profile: null,
+        injected_intake: null,
+        injected_budget: { income: 0, expenses: 0, balance: 0 },
+      },
     };
 
     // Expected behavior:
@@ -163,34 +182,41 @@ describe('Core Agent E2E Scenarios', () => {
   it('E2E: Incoherent response gets warning prepended', async () => {
     // Scenario: Agent generates recommendation that conflicts with user profile
     const profile = testUtils.createMockProfile({
-      risk_profile: 'conservative',
-      monthly_income: 3000,
-      monthly_expenses: 2800,
+      profile: {
+        financialClarity: 'low',
+        decisionStyle: 'reactive',
+        timeHorizon: 'short_term',
+        financialPressure: 'high',
+        emotionalPattern: 'anxious',
+        coherenceScore: 0.4,
+      },
     });
 
     const input: ChatAgentInput = {
       user_id: 'user-conservative',
       user_message: '¿Dónde debo invertir mis ahorros?',
       history: [],
-      injected_profile: profile,
-      injected_intake: null,
-      injected_budget: testUtils.createMockBudget({
-        income: 3000,
-        expenses: 2800,
-        balance: 200,
-      }),
+      context: {
+        injected_profile: profile,
+        injected_intake: null,
+        injected_budget: testUtils.createMockBudget({
+          income: 3000,
+          expenses: 2800,
+          balance: 200,
+        }),
+      },
     };
 
     // Imagine agent recommends aggressive portfolio (stocks only)
     // Coherence validation should:
-    // 1. Detect mismatch: conservative profile + aggressive recommendation
+    // 1. Detect mismatch: anxious/high pressure + aggressive recommendation
     // 2. Set isCoherent=false, score=0.3
     // 3. Prepend warning: "⚠️ Advertencia de coherencia..."
     // 4. Clear budget_updates to prevent auto-execution
     // 5. Keep message visible (non-blocking)
 
-    expect(input.injected_profile?.risk_profile).toBe('conservative');
-    expect(input.injected_budget.balance).toBeLessThan(500);
+    expect((input.context as any)?.injected_profile?.profile?.emotionalPattern).toBe('anxious');
+    expect((input.context as any)?.injected_budget?.balance).toBeLessThan(500);
   });
 
   it('E2E: Knowledge milestone unlock on advanced feature', async () => {
@@ -204,10 +230,12 @@ describe('Core Agent E2E Scenarios', () => {
         { role: 'user', content: 'Simulación con inflación' },
         { role: 'assistant', content: 'Aquí está...' },
       ],
-      injected_profile: testUtils.createMockProfile(),
-      injected_intake: null,
-      injected_budget: testUtils.createMockBudget(),
-      injected_ui_state: {
+      context: {
+        injected_profile: testUtils.createMockProfile(),
+        injected_intake: null,
+        injected_budget: testUtils.createMockBudget(),
+      },
+      ui_state: {
         knowledge_score: 180, // Close to 200 threshold
       },
     };
@@ -219,7 +247,7 @@ describe('Core Agent E2E Scenarios', () => {
     // 4. Milestone unlocked: "advanced_simulation" (threshold=200)
     // 5. Response includes: knowledge_score=240, milestone_unlocked={threshold: 200, feature: 'advanced_simulation'}
 
-    expect(input.injected_ui_state?.knowledge_score).toBeGreaterThan(150);
+    expect((input.ui_state as any)?.knowledge_score).toBeGreaterThan(150);
   });
 
   it('E2E: Conversation context preserves across turns', async () => {
@@ -239,9 +267,11 @@ describe('Core Agent E2E Scenarios', () => {
           content: 'La inflación reduce el poder adquisitivo. Aquí están mis recomendaciones...',
         },
       ],
-      injected_profile: profile,
-      injected_intake: null,
-      injected_budget: testUtils.createMockBudget(),
+      context: {
+        injected_profile: profile,
+        injected_intake: null,
+        injected_budget: testUtils.createMockBudget(),
+      },
     };
 
     // Expected behavior:
@@ -263,9 +293,11 @@ describe('Core Agent E2E Scenarios', () => {
       user_message:
         'Compara fondos mutuos con inversión directa en bolsa para mi perfil de riesgo, considerando regulación',
       history: [],
-      injected_profile: profile,
-      injected_intake: null,
-      injected_budget: testUtils.createMockBudget(),
+      context: {
+        injected_profile: profile,
+        injected_intake: null,
+        injected_budget: testUtils.createMockBudget(),
+      },
     };
 
     // Expected behavior:
@@ -290,9 +322,11 @@ describe('Core Agent E2E Scenarios', () => {
       user_id: 'upload-user',
       user_message: 'Analiza mi portafolio actual y dame recomendaciones',
       history: [],
-      injected_profile: profile,
-      injected_intake: null,
-      injected_budget: testUtils.createMockBudget(),
+      context: {
+        injected_profile: profile,
+        injected_intake: null,
+        injected_budget: testUtils.createMockBudget(),
+      },
       // Note: File upload would be handled separately,
       // this tests that uploaded evidence flows through context_summary
     };
@@ -315,9 +349,11 @@ describe('Core Agent E2E Scenarios', () => {
       user_message:
         'Run a comprehensive analysis with 10000 Monte Carlo paths and all possible scenarios',
       history: [],
-      injected_profile: testUtils.createMockProfile(),
-      injected_intake: null,
-      injected_budget: testUtils.createMockBudget(),
+      context: {
+        injected_profile: testUtils.createMockProfile(),
+        injected_intake: null,
+        injected_budget: testUtils.createMockBudget(),
+      },
     };
 
     // Expected behavior:

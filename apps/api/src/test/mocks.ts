@@ -31,9 +31,11 @@ export function createMockChatAgentInput(
     user_id: 'test-user-123',
     user_message: '¿Cuál es mi horizonte de inversión óptimo?',
     history: [],
-    injected_profile: null,
-    injected_intake: null,
-    injected_budget: { income: 0, expenses: 0, balance: 0 },
+    context: {
+      injected_profile: null,
+      injected_intake: null,
+      injected_budget: { income: 0, expenses: 0, balance: 0 },
+    },
     ...overrides,
   };
 }
@@ -42,13 +44,26 @@ export function createMockProfile(
   overrides?: Partial<FinancialDiagnosticProfile>,
 ): FinancialDiagnosticProfile {
   return {
-    user_id: 'test-user-123',
-    current_savings: 50000,
-    monthly_contribution: 1000,
-    monthly_income: 5000,
-    monthly_expenses: 3000,
-    risk_profile: 'balanced',
-    investment_horizon_months: 120,
+    version: 'v2',
+    meta: {
+      completeness: 0.85,
+      blocksExplored: ['income', 'expenses', 'savings', 'investments', 'debt'],
+      blocksSkipped: [],
+      completedAt: new Date().toISOString(),
+    },
+    blocks: {},
+    diagnosticNarrative: 'User has balanced financial profile with moderate savings',
+    profile: {
+      financialClarity: 'medium',
+      decisionStyle: 'analytical',
+      timeHorizon: 'long_term',
+      financialPressure: 'low',
+      emotionalPattern: 'neutral',
+      coherenceScore: 0.85,
+    },
+    tensions: [],
+    hypotheses: [],
+    openQuestions: [],
     ...overrides,
   } as FinancialDiagnosticProfile;
 }
