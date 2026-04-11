@@ -10,7 +10,11 @@
  */
 
 import { z } from 'zod';
-import type { MCPTool } from '../types';
+import type { MCPTool, ToolContext } from '../types';
+import { checkRateLimit } from '../rate-limiter';
+import { validateNumericRange } from '../input-sanitizer';
+import { createMetricsCollector, recordToolMetrics } from '../telemetry';
+import { wrapError } from '../error';
 
 function normRate(x: number) {
   return x > 1 ? x / 100 : x;
@@ -84,10 +88,35 @@ export const goalPlannerTool: MCPTool = {
     inflationAdjust:     z.boolean().optional(),                   // ajustar meta por inflación (3% anual)
     monthlyIncome:       z.number().positive().optional(),         // para calcular % del ingreso
   }),
-  run: async (args) => {
-    const goal          = Number(args.goalAmount);
-    const savings       = Number(args.currentSavings  ?? 0);
-    const contrib       = Number(args.monthlyContribution ?? 0);
+  run: async (args, ctx?: ToolContext) => {
+    const metrics = createMetricsCollector('finance.goal_planner');
+
+    try {
+      // 1. Rate limit check
+      await checkRateLimit('finance.goal_planner', ctx);
+
+      // 2. Input validation
+      validateNumericRange(Number(args.goalAmount), 1000, 1000000000, 'goalAmount', 'finance.goal_planner');
+
+      if (args.currentSavings !== undefined) {
+        validateNumericRange(Number(args.currentSavings), 0, 1000000000, 'currentSavings', 'finance.goal_planner');
+      }
+
+      if (args.monthlyContribution !== undefined) {
+        validateNumericRange(Number(args.monthlyContribution), 0, 100000000, 'monthlyContribution', 'finance.goal_planner');
+      }
+
+      if (args.targetMonths !== undefined) {
+        validateNumericRange(Number(args.targetMonths), 1, 1200, 'targetMonths', 'finance.goal_planner');
+      }
+
+      if (args.monthlyIncome !== undefined) {
+        validateNumericRange(Number(args.monthlyIncome), 1, 100000000, 'monthlyIncome', 'finance.goal_planner');
+      }
+
+      const goal          = Number(args.goalAmount);
+      const savings       = Number(args.currentSavings  ?? 0);
+      const contrib       = Number(args.monthlyContribution ?? 0);
     const targetMonths  = args.targetMonths ? Math.floor(Number(args.targetMonths)) : null;
     const annualRate    = normRate(Number(args.annualRate ?? 4.5));
     const monthlyRate   = annualRate / 12;
@@ -203,24 +232,38 @@ export const goalPlannerTool: MCPTool = {
       // Contexto de la meta
       goal_context: goalContext[goalType] ?? goalContext['otro'],
 
-      // Serie temporal
-      series,
-    };
+        // Serie temporal
+        series,
+      };
 
-    return {
-      tool_call: {
-        tool: 'finance.goal_planner',
-        args,
-        status: 'success',
-        result: {
-          achievable:          summary.achievable_current,
-          months_with_current: summary.months_with_current,
-          years_with_current:  summary.years_with_current,
-          monthly_needed:      summary.monthly_needed_target,
-          monthly_gap:         summary.monthly_gap,
+      // 3. Record success metrics
+      const toolMetrics = metrics.recordSuccess(ctx);
+      recordToolMetrics(toolMetrics);
+
+      return {
+        tool_call: {
+          tool: 'finance.goal_planner',
+          args,
+          status: 'success',
+          result: {
+            achievable:          summary.achievable_current,
+            months_with_current: summary.months_with_current,
+            years_with_current:  summary.years_with_current,
+            monthly_needed:      summary.monthly_needed_target,
+            monthly_gap:         summary.monthly_gap,
+          },
         },
-      },
-      data: { summary },
-    };
+        data: { summary },
+      };
+    } catch (error) {
+      // 4. Error handling with standardized codes
+      let toolError = wrapError(error, 'finance.goal_planner');
+
+      // Record error metrics
+      const toolMetrics = metrics.recordError(toolError.code, ctx);
+      recordToolMetrics(toolMetrics);
+
+      throw toolError;
+    }
   },
 };
